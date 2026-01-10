@@ -1,0 +1,103 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go workspace file
+go.work
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Project specific
+config.yaml
+*.log
+results/
+data/fastq/*.fastq.gz
+data/pdata/*.xlsx
+
+# Temporary files
+tmp/
+temp/
+
+# Bioinformatics workflow outputs
+userspace/
+workflow/
+analysis/
+saveRDS/
+www/
+
+# Snakemake outputs
+*.snakemake
+.snakemake/
+
+# Conda environments
+envs/
+*.yml.lock
+*.conda
+
+# Genome indices (large files)
+*.bt2
+*.fa.fai
+*.star/
+*.bismark/
+
+# Log files
+*.log
+*.out
+*.err
+
+# Workflow intermediate files
+*.bam
+*.bai
+*.sam
+*.fastq
+*.fq
+*.bed
+*.bigWig
+
+# R/Python cache
+.Rhistory
+.RData
+.Ruserdata
+__pycache__/
+*.pyc
+*.pyo
+.pip-cache/
+
+# Test artifacts
+coverage.out
+test_results/
+*.test
+
+# Build artifacts
+dist/
+build/
+
+# Bioinformatics data files (examples)
+examples/data/
+examples/output/

@@ -1,0 +1,66 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache: true
+
+      - name: Import GPG key
+        if: github.event_name != 'pull_request'
+        uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PASSPHRASE }}
+
+      - name: Build binaries
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          VERSION=${VERSION#refs/tags/}
+          ./scripts/build.sh ${VERSION#v}
+
+      - name: Generate checksums
+        run: |
+          sha256sum xdxtools-* > checksums.txt
+          cat checksums.txt
+
+      - name: Create Release
+        if: github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/* xdxtools-* checksums.txt
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          generate_release_notes: true
+          body: |
+            ## Installation
+
+            ### Linux
+            ```bash
+            curl -L -o xdxtools https://github.com/xdxtools/xdxtools-go/releases/download/${{ github.ref_name }}/xdxtools-${{ github.ref_name }}-linux-amd64
+            chmod +x xdxtools-${{ github.ref_name }}-linux-amd64
+            sudo mv xdxtools-${{ github.ref_name }}-linux-amd64 /usr/local/bin/xdxtools
+            ```
+
+            ## Changes
+            ${{ github.event.head_commit.message }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,77 @@
+name: Go CI/CD
+
+on:
+  push:
+    branches: [ master, main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ master, main ]
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: Run tests
+        run: |
+          go mod download
+          go test -v ./...
+          go vet ./...
+          go build -o /tmp/xdxtools .
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.out
+          fail_ci_if_error: false
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    # 仅构建 Linux amd64
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: Build binary
+        env:
+          CGO_ENABLED: 0
+          VERSION: ${{ github.ref_name }}
+          COMMIT: ${{ github.sha }}
+          DATE: ${{ github.event.head_commit.timestamp }}
+        run: |
+          VERSION=${VERSION#refs/tags/}
+          LDFLAGS="-s -w -X github.com/xdxtools/xdxtools-go/cmd.buildVersion=${VERSION#v} -X github.com/xdxtools/xdxtools-go/cmd.buildCommit=${COMMIT:0:7} -X github.com/xdxtools/xdxtools-go/cmd.buildDate=${DATE}"
+
+          go build -trimpath -ldflags="$LDFLAGS" -o xdxtools .
+
+          # 重命名产物
+          FINAL_NAME=xdxtools-${VERSION#v}-linux-amd64
+          mv xdxtools ${FINAL_NAME}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-amd64
+          path: xdxtools-*
+          retention-days: 7
