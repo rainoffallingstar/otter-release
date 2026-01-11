@@ -10,21 +10,21 @@ import (
 )
 
 // ValidateConfig validates the workflow configuration
-func ValidateConfig(config *WorkflowConfig) error {
+func ValidateConfig(config *XDXToolsConfig) error {
 	// Validate mode
 	validModes := []string{"RRBS", "WGBS", "BSSEQ", "RNASEQ"}
-	if !contains(validModes, strings.ToUpper(config.Mode)) {
-		return fmt.Errorf("invalid mode: %s. Valid modes: %v", config.Mode, validModes)
+	if !contains(validModes, strings.ToUpper(config.Workflow.Mode)) {
+		return fmt.Errorf("invalid mode: %s. Valid modes: %v", config.Workflow.Mode, validModes)
 	}
 
 	// Detect PDX mode
-	pdxMode := config.Species1 != "" && config.Species2 != ""
+	pdxMode := config.Workflow.Species.Primary != "" && config.Workflow.Species.Secondary != ""
 	if pdxMode {
 		logger.Info("PDX mode detected (species1 and species2 specified)")
 	}
 
 	// Validate species
-	if config.Species1 == "" {
+	if config.Workflow.Species.Primary == "" {
 		return fmt.Errorf("species1 must be specified")
 	}
 
@@ -36,22 +36,11 @@ func ValidateConfig(config *WorkflowConfig) error {
 	}
 
 	// Validate suffix patterns
-	if config.Suffix1 == "" {
+	if config.Input.Suffix1 == "" {
 		return fmt.Errorf("suffix1 must be specified")
 	}
-	if config.Suffix2 == "" {
+	if config.Input.Suffix2 == "" {
 		logger.Warn("suffix2 is empty, will be auto-derived from suffix1")
-	}
-
-	// Validate engine configuration
-	if config.Engine.Type == "" {
-		config.Engine.Type = "auto"
-		logger.Info("Engine type not specified, using auto-detection")
-	}
-
-	validEngineTypes := []string{"auto", "slurm", "local"}
-	if !contains(validEngineTypes, config.Engine.Type) {
-		return fmt.Errorf("invalid engine type: %s. Valid types: %v", config.Engine.Type, validEngineTypes)
 	}
 
 	// Validate parallel settings
@@ -61,8 +50,8 @@ func ValidateConfig(config *WorkflowConfig) error {
 	}
 
 	// Validate reference configuration
-	if len(config.Reference.GenomeFasta) > 0 {
-		for _, fasta := range config.Reference.GenomeFasta {
+	if len(config.Reference.Files.Fasta) > 0 {
+		for _, fasta := range config.Reference.Files.Fasta {
 			if !fileExists(fasta) {
 				logger.Warnf("Reference FASTA not found: %s", fasta)
 			}
@@ -70,8 +59,8 @@ func ValidateConfig(config *WorkflowConfig) error {
 	}
 
 	// Validate alignment parameters
-	if config.Alignment.ErrorRate < 0 || config.Alignment.ErrorRate > 1 {
-		return fmt.Errorf("error_rate must be between 0 and 1, got: %f", config.Alignment.ErrorRate)
+	if config.Workflow.Adapters.ErrorRate < 0 || config.Workflow.Adapters.ErrorRate > 1 {
+		return fmt.Errorf("error_rate must be between 0 and 1, got: %f", config.Workflow.Adapters.ErrorRate)
 	}
 
 	logger.Debug("Configuration validation passed")
@@ -97,8 +86,8 @@ func fileExists(path string) bool {
 }
 
 // DetectPDXMode detects if PDX mode should be enabled
-func DetectPDXMode(config *WorkflowConfig) bool {
-	return config.Species1 != "" && config.Species2 != ""
+func DetectPDXMode(config *XDXToolsConfig) bool {
+	return config.Workflow.Species.Primary != "" && config.Workflow.Species.Secondary != ""
 }
 
 // GetWorkflowName returns the workflow name based on mode and PDX flag

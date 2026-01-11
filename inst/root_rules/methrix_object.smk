@@ -1,17 +1,17 @@
 rule create_methrix_object :
   message:"Build beta matrix ..."
   input:
-    expand(os.path.join(config["outDir_mCall"], "{sample}_nsort.bismark.cov.gz"),sample = config["SIDs"])
+    expand(os.path.join(config["directories.methylation_call"], "{sample}_nsort.bismark.cov.gz"),sample = config["metadata.sample_ids"])
   output:
-    os.path.join(config["outDir_mCall"], "methrixh5","assays.h5"),
-    os.path.join(config["outDir_mCall"], "methrixh5","se.rds"),
-    os.path.join(config["outDir_mCall"], "methrixh5","bsseq.RDS"),
-    os.path.join(config["outDir_mCall"], "methrixh5","CpG_coverage.xlsx")
+    os.path.join(config["directories.methylation_call"], "methrixh5","assays.h5"),
+    os.path.join(config["directories.methylation_call"], "methrixh5","se.rds"),
+    os.path.join(config["directories.methylation_call"], "methrixh5","bsseq.RDS"),
+    os.path.join(config["directories.methylation_call"], "methrixh5","CpG_coverage.xlsx")
 
   params:
-    mcall_dir = config["outDir_mCall"],
-    methrix_dir = os.path.join(config["outDir_mCall"], "methrixh5"),
-    genome = config["genomeAnno"][config["species"].index(config["graft"])]
+    mcall_dir = config["directories.methylation_call"],
+    methrix_dir = os.path.join(config["directories.methylation_call"], "methrixh5"),
+    genome = config["reference.annotations.names"][config["workflow.species.name"].index(config["workflow.species.graft"])]
   threads:10
   shell:
     """

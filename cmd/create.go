@@ -399,15 +399,15 @@ func calculateGroupLevels(pdata *input.PData, samples []string) int {
 	return groupCount
 }
 
-// generateProjectConfig generates the config.yaml file
+// generateProjectConfig generates the config.yaml file with pure nested structure
 func generateProjectConfig(configPath, mode, species1, species2,
 	fastqDir, pdataFile string, samples []string, projectDir string,
 	adapter1, adapter2 []string, pdata *input.PData, jobID string) error {
 
 	// Build configuration
 	pdxMode := species2 != ""
-	workflowName := config.GetWorkflowName(mode, pdxMode)
-	stepCount := config.GetStepCount(mode, pdxMode)
+	// workflowName := config.GetWorkflowName(mode, pdxMode)
+	// stepCount := config.GetStepCount(mode, pdxMode)
 
 	// Calculate group levels
 	groupLevels := calculateGroupLevels(pdata, samples)
@@ -438,80 +438,188 @@ func generateProjectConfig(configPath, mode, species1, species2,
 		rnaseqRef = ref
 	}
 
-	cfg := map[string]interface{}{
-		// Basic settings
-		"mode":     mode,
-		"species1": species1,
-		"species2": species2,
-		"pdx_mode": pdxMode,
-		"workflow": workflowName,
-		"steps":    stepCount,
+	// Auto-derive suffix2 from suffix1 if empty
+	suffix2Value := createSuffix2
+	if suffix2Value == "" {
+		// Derive R2 suffix from R1 suffix
+		if strings.HasSuffix(createSuffix1, "_R1.fastq.gz") {
+			suffix2Value = strings.Replace(createSuffix1, "_R1.fastq.gz", "_R2.fastq.gz", 1)
+		} else if strings.HasSuffix(createSuffix1, "_R1.fastq") {
+			suffix2Value = strings.Replace(createSuffix1, "_R1.fastq", "_R2.fastq", 1)
+		} else if strings.HasSuffix(createSuffix1, "_R1") {
+			suffix2Value = strings.Replace(createSuffix1, "_R1", "_R2", 1)
+		} else {
+			suffix2Value = "_R2.fastq.gz" // Default fallback
+		}
+	}
 
-		// User and job info
-		"userid": jobID,
-		"jobid":  jobID,
+	// Calculate directory paths
+	workflowDir := filepath.Join(projectDir, "workflow")
+	analysisDir := filepath.Join(projectDir, "analysis")
+	selfconfig := filepath.Join(projectDir, "config")
+	qcDir := filepath.Join(projectDir, "workflow", "QC")
+	qcDirBefore := filepath.Join(projectDir, "workflow", "fastqc_raw")
+	qcDirAfter := filepath.Join(projectDir, "workflow", "fastqc_clean")
+	sidLog := filepath.Join(projectDir, "workflow", "log")
+	trimDir := filepath.Join(projectDir, "workflow", "trim")
+	bsmapDir := filepath.Join(projectDir, "workflow", "bsmap")
+	bsmapDirBamtmp := filepath.Join(projectDir, "workflow", "bsmap", "tmp")
+	outDirMCall := filepath.Join(projectDir, "workflow", "mCall")
+	ourDirUmx := filepath.Join(projectDir, "workflow", "uxm")
+	outdirQualimap := filepath.Join(projectDir, "workflow", "QC", "qualimap")
+	outDirMhap := filepath.Join(projectDir, "workflow", "mhap")
+	rdataFolder := filepath.Join(projectDir, "workflow", "RData")
+	dmrFolder := filepath.Join(projectDir, "analysis", "DMR")
+	rawDir := filepath.Join(projectDir, "data")
+	outDirBetaM := filepath.Join(projectDir, "analysis", "betaM")
+	qcSummary := filepath.Join(projectDir, "QC")
+	logsummary := filepath.Join(projectDir, "log")
+	uxmSummary := filepath.Join(projectDir, "analysis", "uxm")
+	clubcpg := filepath.Join(projectDir, "workflow", "clubcpg")
+	clubcpgCoverageBefore := filepath.Join(projectDir, "workflow", "clubcpg", "clubcpg_coverage_before")
+	clubcpgModel := filepath.Join(projectDir, "workflow", "clubcpg", "clubcpg_model")
+	clubcpgCoverageImpute := filepath.Join(projectDir, "workflow", "clubcpg", "clubcpg_coverage_impute")
+	methrixh5 := filepath.Join(projectDir, "workflow", "mCall", "methrixh5")
+	gcbias := filepath.Join(projectDir, "workflow", "QC", "GCbias")
 
-		// File suffixes
-		"suffix":  createSuffix1,
-		"suffix2": createSuffix2,
+	// Reference data paths
+	genomeFile := index // genomeFile uses the same paths as genome_index
+	cgGRGz := fmt.Sprintf("inst/%s/%s_CpG_sites.gz", strings.ToLower(species1), strings.ToLower(species1))
+	cgi := fmt.Sprintf("inst/%s/%s_cpgIsland.bed", strings.ToLower(species1), strings.ToLower(species1))
 
-		// Input
-		"input": map[string]interface{}{
-			"fastq_dir":  fastqDir,
-			"pdata_file": pdataFile,
+	// Chromosome list (human/mouse reference)
+	chrs := []string{"chr1", "chr2", "chr3", "chr4", "chr5", "chr6", "chr7", "chr8", "chr9", "chr10",
+		"chr11", "chr12", "chr13", "chr14", "chr15", "chr16", "chr17", "chr18", "chr19", "chr20",
+		"chr21", "chr22", "chrX", "chrY", "chrM"}
+
+	// Prepare sample configs
+	sampleConfigs := make([]config.SampleConfig, len(samples))
+	for i, sample := range samples {
+		sampleConfigs[i] = config.SampleConfig{
+			Name: sample,
+			R1:   fmt.Sprintf("%s/%s%s", fastqDir, sample, createSuffix1),
+			R2:   fmt.Sprintf("%s/%s%s", fastqDir, sample, suffix2Value),
+		}
+	}
+
+	// Build the nested configuration structure
+	cfg := config.XDXToolsConfig{
+		Workflow: config.WorkflowConfig{
+			Mode:   mode,
+			UserID: jobID,
+			JobID:  jobID,
+			Species: config.SpeciesConfig{
+				Primary:   species1,
+				Secondary: species2,
+				Graft:     species1,
+				Host:      species2,
+				Name:      species1,
+			},
+			Adapters: config.AdapterConfig{
+				Seq1:      adapter1,
+				Seq2:      adapter2,
+				ErrorRate: 0.2,
+			},
+			Trim: config.TrimConfig{
+				Read1Five:  0.0,
+				Read1Three: 0.0,
+				Read2Five:  0.0,
+				Read2Three: 0.0,
+				SeqDepth:   10.0,
+				Fixed:      "",
+			},
+			Alignment: config.AlignmentConfig{
+				C1: "7",
+				C2: "9",
+				T1: 0,
+				T2: 0,
+			},
+			Samples: sampleConfigs,
 		},
-
-		// Samples and per-sample adapters
-		"samples":      samples,
-		"SIDs":         samples, // Alias for samples (R compatibility)
-		"trimSeq1":     adapter1,
-		"trimSeq2":     adapter2,
-		"group_levels": groupLevels,
-
-		// Output directories (relative to project)
-		"output": map[string]interface{}{
-			"project_dir":  projectDir,
-			"workflow_dir": filepath.Join(projectDir, "workflow"),
-			"analysis_dir": filepath.Join(projectDir, "analysis"),
-			"config_dir":   filepath.Join(projectDir, "config"),
-			"log_dir":      filepath.Join(projectDir, "log"),
-			"data_dir":     filepath.Join(projectDir, "data"),
+		Input: config.InputConfig{
+			FastqDir:  fastqDir,
+			PdataFile: pdataFile,
+			Suffix1:   createSuffix1,
+			Suffix2:   suffix2Value,
 		},
-
-		// Processing parameters
-		"error_rate": 0.2,
-		"trim": map[string]int{
-			"read1_5":  0,
-			"read1_3":  0,
-			"read2_5":  0,
-			"read2_3":  0,
-			"seq_deth": 10,
+		Output: config.OutputConfig{
+			BaseDir:     projectDir,
+			WorkflowDir: workflowDir,
+			AnalysisDir: analysisDir,
+			RawDir:      rawDir,
+			LogDir:      filepath.Join(projectDir, "log"),
+			TrimDir:     trimDir,
 		},
-		"alignment": map[string]interface{}{
-			"C1": "7",
-			"C2": "9",
-			"T1": 0,
-			"T2": 0,
+		Reference: config.ReferenceConfig{
+			Genome: strings.ToLower(species1),
+			Files: config.ReferenceFiles{
+				Fasta:    fasta,
+				Genome:   genomeFile,
+				CGI:      cgi,
+				CpGSites: cgGRGz,
+			},
+			Indices: config.ReferenceIndices{
+				Genome: index,
+			},
+			Annotations: config.AnnotationConfig{
+				Names: genomeAnno,
+			},
+			RNAseq: config.RNAseqConfig{
+				GTF:         rnaseqGTF,
+				Reference:   rnaseqRef,
+				Chromosomes: chrs,
+			},
 		},
-
-		// Reference (dynamically generated based on mode and species)
-		"reference": map[string]interface{}{
-			"genome":       strings.ToLower(species1),
-			"genome_fasta": fasta,
-			"genome_index": index,
-			"genome_anno":  genomeAnno,
-			"rnaseq_gtf":   rnaseqGTF,
-			"rnaseq_ref":   rnaseqRef,
+		Directories: config.DirectoryConfig{
+			Base:     projectDir,
+			Work:     projectDir,
+			Workflow: workflowDir,
+			Analysis: analysisDir,
+			Config:   selfconfig,
+			QC: config.QCConfig{
+				Main:   qcDir,
+				Before: qcDirBefore,
+				After:  qcDirAfter,
+			},
+			SIDLog: sidLog,
+			BSMAP: config.BSMAPConfig{
+				Main:     bsmapDir,
+				Temp:     bsmapDirBamtmp,
+				Filtered: filepath.Join(bsmapDir, "Filtered_bams"),
+			},
+			MethylationCall: outDirMCall,
+			UMX:             ourDirUmx,
+			Qualimap:        outdirQualimap,
+			MHAP:            outDirMhap,
+			RData:           rdataFolder,
+			DMR:             dmrFolder,
+			BetaMatrix:      outDirBetaM,
+			QCSummary:       qcSummary,
+			LogSummary:      logsummary,
+			UXMSummary:      uxmSummary,
+			ClubCpG: config.ClubCpGConfig{
+				Main:     clubcpg,
+				Coverage: clubcpgCoverageBefore,
+				Model:    clubcpgModel,
+				Impute:   clubcpgCoverageImpute,
+			},
+			MethrixH5: methrixh5,
+			GCBias:    gcbias,
 		},
-
-		// Engine settings
-		"engine": map[string]interface{}{
-			"type": "auto",
+		Parallel: config.ParallelConfig{
+			Workers:      4,
+			DwarfWorkers: 1,
 		},
-
-		// Parallel processing
-		"parallel": map[string]int{
-			"workers": 4,
+		Metadata: config.MetadataConfig{
+			SampleIDs: samples,
+			UserEmail: "",
+			PDXPipeline: func() string {
+				if pdxMode {
+					return "yes"
+				}
+				return "no"
+			}(),
+			GroupLevels: groupLevels,
 		},
 	}
 
@@ -520,8 +628,136 @@ func generateProjectConfig(configPath, mode, species1, species2,
 		return err
 	}
 
-	// Write YAML file
-	data, err := yaml.Marshal(cfg)
+	// Build nested configuration structure for rootless_rules compatibility
+	// This ensures Snakemake can access nested fields like config["workflow.jobid"]
+	nestedConfig := map[string]interface{}{
+		// Workflow section
+		"workflow": map[string]interface{}{
+			"mode":  cfg.Workflow.Mode,
+			"jobid": cfg.Workflow.JobID,
+			"species": map[string]interface{}{
+				"graft": cfg.Workflow.Species.Graft,
+				"host":  cfg.Workflow.Species.Host,
+				"name":  cfg.Workflow.Species.Name,
+			},
+			"adapters": map[string]interface{}{
+				"seq1":  cfg.Workflow.Adapters.Seq1,
+				"seq2":  cfg.Workflow.Adapters.Seq2,
+				"error": cfg.Workflow.Adapters.ErrorRate,
+			},
+			"trim": map[string]interface{}{
+				"read1_5":  cfg.Workflow.Trim.Read1Five,
+				"read1_3":  cfg.Workflow.Trim.Read1Three,
+				"read2_5":  cfg.Workflow.Trim.Read2Five,
+				"read2_3":  cfg.Workflow.Trim.Read2Three,
+				"seq_deth": cfg.Workflow.Trim.SeqDepth,
+				"fixed":    cfg.Workflow.Trim.Fixed,
+			},
+			"alignment": map[string]interface{}{
+				"C1": cfg.Workflow.Alignment.C1,
+				"C2": cfg.Workflow.Alignment.C2,
+				"T1": cfg.Workflow.Alignment.T1,
+				"T2": cfg.Workflow.Alignment.T2,
+			},
+		},
+
+		// Input section
+		"input": map[string]interface{}{
+			"fastq_dir":  cfg.Input.FastqDir,
+			"pdata_file": cfg.Input.PdataFile,
+			"suffix":     cfg.Input.Suffix1,
+			"suffix2":    cfg.Input.Suffix2,
+		},
+
+		// Output section
+		"output": map[string]interface{}{
+			"base_dir":     cfg.Output.BaseDir,
+			"workflow_dir": cfg.Output.WorkflowDir,
+			"analysis_dir": cfg.Output.AnalysisDir,
+			"raw_dir":      cfg.Output.RawDir,
+			"log_dir":      cfg.Output.LogDir,
+			"trim_dir":     cfg.Output.TrimDir,
+		},
+
+		// Reference section
+		"reference": map[string]interface{}{
+			"genome": cfg.Reference.Genome,
+			"files": map[string]interface{}{
+				"fasta":     cfg.Reference.Files.Fasta,
+				"genome":    cfg.Reference.Files.Genome,
+				"cgi":       cfg.Reference.Files.CGI,
+				"cpg_sites": cfg.Reference.Files.CpGSites,
+			},
+			"indices": map[string]interface{}{
+				"genome": cfg.Reference.Indices.Genome,
+			},
+			"annotations": map[string]interface{}{
+				"names": cfg.Reference.Annotations.Names,
+			},
+			"rnaseq": map[string]interface{}{
+				"gtf":  cfg.Reference.RNAseq.GTF,
+				"ref":  cfg.Reference.RNAseq.Reference,
+				"chrs": cfg.Reference.RNAseq.Chromosomes,
+			},
+		},
+
+		// Directories section
+		"directories": map[string]interface{}{
+			"work":   cfg.Directories.Work,
+			"config": cfg.Directories.Config,
+			"qc": map[string]interface{}{
+				"main":   cfg.Directories.QC.Main,
+				"before": cfg.Directories.QC.Before,
+				"after":  cfg.Directories.QC.After,
+			},
+			"bsmap": map[string]interface{}{
+				"main":     cfg.Directories.BSMAP.Main,
+				"temp":     cfg.Directories.BSMAP.Temp,
+				"filtered": cfg.Directories.BSMAP.Filtered,
+			},
+			"methylation_call": cfg.Directories.MethylationCall,
+			"mhap":             cfg.Directories.MHAP,
+			"qualimap":         cfg.Directories.Qualimap,
+			"clubcpg": map[string]interface{}{
+				"main":     cfg.Directories.ClubCpG.Main,
+				"coverage": cfg.Directories.ClubCpG.Coverage,
+				"model":    cfg.Directories.ClubCpG.Model,
+				"impute":   cfg.Directories.ClubCpG.Impute,
+			},
+			"beta_matrix": cfg.Directories.BetaMatrix,
+			"qc_summary":  cfg.Directories.QCSummary,
+			"sid_log":     cfg.Directories.SIDLog,
+			"uxm_summary": cfg.Directories.UXMSummary,
+			"methrix_h5":  cfg.Directories.MethrixH5,
+			"gc_bias":     cfg.Directories.GCBias,
+		},
+
+		// Metadata section
+		"metadata": map[string]interface{}{
+			"sample_ids":   samples,
+			"user_email":   cfg.Metadata.UserEmail,
+			"pdx_pipeline": cfg.Metadata.PDXPipeline,
+			"group_levels": cfg.Metadata.GroupLevels,
+		},
+
+		// Parallel section
+		"parallel": map[string]interface{}{
+			"workers":       cfg.Parallel.Workers,
+			"dwarf_workers": cfg.Parallel.DwarfWorkers,
+		},
+
+		// Add flat fields for backward compatibility with old Snakefiles
+		// These are not used by rootless_rules but kept for compatibility
+		"SIDs":    samples,
+		"mode":    cfg.Workflow.Mode,
+		"jobid":   cfg.Workflow.JobID,
+		"species": cfg.Workflow.Species.Name,
+		"error":   cfg.Workflow.Adapters.ErrorRate,
+		"workers": cfg.Parallel.Workers,
+	}
+
+	// Write YAML file with nested structure
+	data, err := yaml.Marshal(nestedConfig)
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
@@ -530,6 +766,7 @@ func generateProjectConfig(configPath, mode, species1, species2,
 	header := `# xdxtools Analysis Project Configuration
 # Generated automatically by: xdxtools create
 #
+# This file uses nested structure for rootless_rules compatibility.
 # Edit this file to customize your analysis parameters.
 # Then run: xdxtools run --config <this-file>
 #

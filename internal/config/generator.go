@@ -6,33 +6,33 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gopkg.in/yaml.v3"
 	"github.com/xdxtools/xdxtools-go/internal/logger"
+	"gopkg.in/yaml.v3"
 )
 
 // SnakemakeConfig represents the configuration for Snakemake
 type SnakemakeConfig struct {
-	Mode      string            `yaml:"Mode"`
-	UserID    string            `yaml:"userid"`
-	JobID     string            `yaml:"jobid"`
-	Species   []string         `yaml:"species"`
-	Graft     string            `yaml:"graft"`
-	Host      string            `yaml:"host"`
-	Suffix    string            `yaml:"suffix"`
-	Suffix2   string            `yaml:"suffix2"`
-	Error     float64           `yaml:"error"`
-	TrimSeq1  string            `yaml:"trimSeq1"`
-	TrimSeq2  string            `yaml:"trimSeq2"`
-	C1        string            `yaml:"C1"`
-	C2        string            `yaml:"C2"`
-	T1        int               `yaml:"T1"`
-	T2        int               `yaml:"T2"`
+	Mode     string   `yaml:"Mode"`
+	UserID   string   `yaml:"userid"`
+	JobID    string   `yaml:"jobid"`
+	Species  []string `yaml:"species"`
+	Graft    string   `yaml:"graft"`
+	Host     string   `yaml:"host"`
+	Suffix   string   `yaml:"suffix"`
+	Suffix2  string   `yaml:"suffix2"`
+	Error    float64  `yaml:"error"`
+	TrimSeq1 string   `yaml:"trimSeq1"`
+	TrimSeq2 string   `yaml:"trimSeq2"`
+	C1       string   `yaml:"C1"`
+	C2       string   `yaml:"C2"`
+	T1       int      `yaml:"T1"`
+	T2       int      `yaml:"T2"`
 
 	// Directory paths
-	WorkDir      string `yaml:"workDir"`
-	WorkflowDir  string `yaml:"workflowDir"`
-	AnalysisDir  string `yaml:"analysisDir"`
-	SelfConfig   string `yaml:"selfconfig"`
+	WorkDir     string `yaml:"workDir"`
+	WorkflowDir string `yaml:"workflowDir"`
+	AnalysisDir string `yaml:"analysisDir"`
+	SelfConfig  string `yaml:"selfconfig"`
 	QCDir       string `yaml:"qcDir"`
 	TrimDir     string `yaml:"trimDir"`
 	BsmapDir    string `yaml:"bsmapDir"`
@@ -41,9 +41,9 @@ type SnakemakeConfig struct {
 	LogDir      string `yaml:"SID_log"`
 
 	// Reference files
-	GenomeFile   []string `yaml:"genomeFile"`
-	GenomeFasta  []string `yaml:"gnome_fasta"`
-	GenomeAnno   []string `yaml:"genomeAnno"`
+	GenomeFile  []string `yaml:"genomeFile"`
+	GenomeFasta []string `yaml:"gnome_fasta"`
+	GenomeAnno  []string `yaml:"genomeAnno"`
 	RNASEQGTF   string   `yaml:"rnaseq_gtf"`
 	RNASEQRef   string   `yaml:"rnaseq_ref"`
 
@@ -55,46 +55,46 @@ type SnakemakeConfig struct {
 }
 
 // GenerateSnakemakeConfig generates YAML configuration for Snakemake
-func GenerateSnakemakeConfig(config *WorkflowConfig, samples []string, outputPath string) error {
+func GenerateSnakemakeConfig(config *XDXToolsConfig, samples []string, outputPath string) error {
 	// Infer graft and host
 	graft, host := inferGraftHost(config)
 
 	snakeConfig := SnakemakeConfig{
-		Mode:        strings.ToUpper(config.Mode),
-		UserID:      config.UserID,
-		JobID:       config.JobID,
-		Species:     getSpeciesSlice(config),
-		Graft:       graft,
-		Host:        host,
-		Suffix:      config.Suffix1,
-		Suffix2:     config.Suffix2,
-		Error:       config.Alignment.ErrorRate,
-		TrimSeq1:    config.Adapters["adapter1"],
-		TrimSeq2:    config.Adapters["adapter2"],
-		C1:          config.Alignment.C1,
-		C2:          config.Alignment.C2,
-		T1:          config.Alignment.T1,
-		T2:          config.Alignment.T2,
+		Mode:     strings.ToUpper(config.Workflow.Mode),
+		UserID:   config.Workflow.UserID,
+		JobID:    config.Workflow.JobID,
+		Species:  getSpeciesSlice(config),
+		Graft:    graft,
+		Host:     host,
+		Suffix:   config.Input.Suffix1,
+		Suffix2:  config.Input.Suffix2,
+		Error:    config.Workflow.Adapters.ErrorRate,
+		TrimSeq1: config.Workflow.Adapters.Seq1[0],
+		TrimSeq2: config.Workflow.Adapters.Seq2[0],
+		C1:       config.Workflow.Alignment.C1,
+		C2:       config.Workflow.Alignment.C2,
+		T1:       config.Workflow.Alignment.T1,
+		T2:       config.Workflow.Alignment.T2,
 
-		WorkDir:      config.Output.BaseDir,
-		WorkflowDir:  config.Output.WorkflowDir,
-		AnalysisDir:  config.Output.AnalysisDir,
-		SelfConfig:   config.SelfConfig,
-		QCDir:       config.Output.QCDir,
+		WorkDir:     config.Output.BaseDir,
+		WorkflowDir: config.Output.WorkflowDir,
+		AnalysisDir: config.Output.AnalysisDir,
+		SelfConfig:  config.Directories.Config,
+		QCDir:       config.Directories.QC.Main,
 		TrimDir:     config.Output.TrimDir,
-		BsmapDir:    filepath.Join(config.Output.WorkflowDir, "bsmap"),
-		OutDirMCall: config.Output.OutDirMCall,
-		OutDirUmx:   config.Output.OutDirUmx,
-		LogDir:      config.Output.LogDir,
+		BsmapDir:    config.Directories.BSMAP.Main,
+		OutDirMCall: config.Directories.MethylationCall,
+		OutDirUmx:   config.Directories.UMX,
+		LogDir:      config.Directories.SIDLog,
 
-		GenomeFile:   config.Reference.GenomeIndex,
-		GenomeFasta:  config.Reference.GenomeFasta,
-		GenomeAnno:   config.Reference.GenomeAnno,
-		RNASEQGTF:    config.Reference.RNASEQGTF,
-		RNASEQRef:    config.Reference.RNASEQRef,
+		GenomeFile:  config.Reference.Indices.Genome,
+		GenomeFasta: config.Reference.Files.Fasta,
+		GenomeAnno:  config.Reference.Annotations.Names,
+		RNASEQGTF:   config.Reference.RNAseq.GTF.(string),
+		RNASEQRef:   config.Reference.RNAseq.Reference.(string),
 
 		SIDs:      samples,
-		UserEmail: config.UserEmail,
+		UserEmail: config.Metadata.UserEmail,
 	}
 
 	// Ensure directory exists
@@ -118,31 +118,31 @@ func GenerateSnakemakeConfig(config *WorkflowConfig, samples []string, outputPat
 }
 
 // inferGraftHost infers graft and host from species configuration
-func inferGraftHost(config *WorkflowConfig) (graft, host string) {
-	if config.Species2 == "" {
+func inferGraftHost(config *XDXToolsConfig) (graft, host string) {
+	if config.Workflow.Species.Secondary == "" {
 		// Single species mode
-		return config.Species1, ""
+		return config.Workflow.Species.Primary, ""
 	}
 
 	// PDX mode: determine graft and host
-	if config.Species1 == "human" || config.Species1 == "homo_sapiens" {
+	if config.Workflow.Species.Primary == "human" || config.Workflow.Species.Primary == "homo_sapiens" {
 		graft = "human"
 		host = "mouse"
-	} else if config.Species1 == "mouse" || config.Species1 == "mus_musculus" {
+	} else if config.Workflow.Species.Primary == "mouse" || config.Workflow.Species.Primary == "mus_musculus" {
 		graft = "mouse"
 		host = "human"
 	} else {
-		graft = config.Species1
-		host = config.Species2
+		graft = config.Workflow.Species.Primary
+		host = config.Workflow.Species.Secondary
 	}
 
 	return
 }
 
 // getSpeciesSlice returns species as a slice
-func getSpeciesSlice(config *WorkflowConfig) []string {
-	if config.Species2 == "" {
-		return []string{config.Species1}
+func getSpeciesSlice(config *XDXToolsConfig) []string {
+	if config.Workflow.Species.Secondary == "" {
+		return []string{config.Workflow.Species.Primary}
 	}
-	return []string{config.Species1, config.Species2}
+	return []string{config.Workflow.Species.Primary, config.Workflow.Species.Secondary}
 }

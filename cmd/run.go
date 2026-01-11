@@ -56,8 +56,8 @@ func runRun(cmd *cobra.Command, args []string) error {
 	// Scan FASTQ files
 	scanner := input.NewScanner(&input.ScanOptions{
 		FastqDir: cfg.Input.FastqDir,
-		Suffix1:  cfg.Suffix1,
-		Suffix2:  cfg.Suffix2,
+		Suffix1:  cfg.Input.Suffix1,
+		Suffix2:  cfg.Input.Suffix2,
 	})
 
 	samples, err := scanner.Scan()
@@ -94,7 +94,7 @@ func runRun(cmd *cobra.Command, args []string) error {
 
 	if dryRun {
 		logger.Info("Dry run mode - no actual execution")
-		logger.Infof("Configuration loaded: %s", cfg.Mode)
+		logger.Infof("Configuration loaded: %s", cfg.Workflow.Mode)
 		logger.Infof("Samples found: %d", len(sampleNames))
 		logger.Infof("Engine: %s", cfg.Engine.Type)
 		return nil

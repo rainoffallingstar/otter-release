@@ -1,11 +1,11 @@
 rule count_ccgg:
   message:"count CCGG ..."
   input:
-    R1= lambda wildcards: os.path.join(config["rawDir"], f"{wildcards.sample}_R1.fastq.gz")
+    R1= lambda wildcards: os.path.join(config["output.raw_dir"], f"{wildcards.sample}_R1.fastq.gz")
   output:
-    os.path.join(config["qcDir"], "{sample}"  + "_ccgg_report.txt")
+    os.path.join(config["directories.qc.main"], "{sample}"  + "_ccgg_report.txt")
   params:
-    report = lambda wildcards: os.path.join(config["qcDir"], f"{wildcards.sample}_ccgg_report.txt")
+    report = lambda wildcards: os.path.join(config["directories.qc.main"], f"{wildcards.sample}_ccgg_report.txt")
   threads:6
   shell:
     """

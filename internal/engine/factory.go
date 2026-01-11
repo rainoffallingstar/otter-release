@@ -48,7 +48,7 @@ func DetectEngine() EngineType {
 
 // CreateEngineFromConfig creates an engine from configuration
 // It handles auto-detection if engine type is "auto"
-func CreateEngineFromConfig(cfg *config.WorkflowConfig) (Engine, error) {
+func CreateEngineFromConfig(cfg *config.XDXToolsConfig) (Engine, error) {
 	factory := &EngineFactory{}
 
 	engineType := EngineType(cfg.Engine.Type)

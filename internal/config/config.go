@@ -1,57 +1,76 @@
 package config
 
-import (
-	"time"
-)
+// XDXToolsConfig represents the complete xdxtools configuration
+type XDXToolsConfig struct {
+	Workflow    WorkflowConfig  `mapstructure:"workflow"`
+	Input       InputConfig     `mapstructure:"input"`
+	Output      OutputConfig    `mapstructure:"output"`
+	Reference   ReferenceConfig `mapstructure:"reference"`
+	Directories DirectoryConfig `mapstructure:"directories"`
+	Parallel    ParallelConfig  `mapstructure:"parallel"`
+	Metadata    MetadataConfig  `mapstructure:"metadata"`
+	Engine      EngineConfig    `mapstructure:"engine"`
+}
 
 // WorkflowConfig represents the main workflow configuration
 type WorkflowConfig struct {
-	// Basic configuration
-	Mode     string `mapstructure:"mode"` // RRBS/WGBS/RNASEQ/PDX
-	Species1 string `mapstructure:"species1"`
-	Species2 string `mapstructure:"species2,omitempty"`
+	Mode      string          `mapstructure:"mode"` // RRBS/WGBS/RNASEQ/PDX
+	UserID    string          `mapstructure:"userid"`
+	JobID     string          `mapstructure:"jobid"`
+	Species   SpeciesConfig   `mapstructure:"species"`
+	Adapters  AdapterConfig   `mapstructure:"adapters"`
+	Trim      TrimConfig      `mapstructure:"trim"`
+	Alignment AlignmentConfig `mapstructure:"alignment"`
+	Samples   []SampleConfig  `mapstructure:"samples,omitempty"`
+}
 
-	// FASTQ configuration
-	Suffix1 string `mapstructure:"suffix1"` // default: "_R1.fastq.gz"
-	Suffix2 string `mapstructure:"suffix2"` // default: "_R2.fastq.gz" (auto-derived)
+// SpeciesConfig represents species configuration
+type SpeciesConfig struct {
+	Primary   string `mapstructure:"primary"`
+	Secondary string `mapstructure:"secondary"`
+	Graft     string `mapstructure:"graft"`
+	Host      string `mapstructure:"host"`
+	Name      string `mapstructure:"name"`
+}
 
-	// Input configuration
-	Input InputConfig `mapstructure:"input"`
+// AdapterConfig represents adapter configuration
+type AdapterConfig struct {
+	Seq1      []string `mapstructure:"seq1"`
+	Seq2      []string `mapstructure:"seq2"`
+	ErrorRate float64  `mapstructure:"error"`
+}
 
-	// Output configuration
-	Output OutputConfig `mapstructure:"output"`
+// TrimConfig represents trimming parameters
+type TrimConfig struct {
+	Read1Five  float64 `mapstructure:"read1_5"`
+	Read1Three float64 `mapstructure:"read1_3"`
+	Read2Five  float64 `mapstructure:"read2_5"`
+	Read2Three float64 `mapstructure:"read2_3"`
+	SeqDepth   float64 `mapstructure:"seq_deth"`
+	Fixed      string  `mapstructure:"fixed"`
+}
 
-	// Reference configuration
-	Reference ReferenceConfig `mapstructure:"reference"`
+// AlignmentConfig represents alignment parameters
+type AlignmentConfig struct {
+	C1 string `mapstructure:"C1"` // e.g., "7"
+	C2 string `mapstructure:"C2"` // e.g., "9"
+	T1 int    `mapstructure:"T1"` // e.g., 0
+	T2 int    `mapstructure:"T2"` // e.g., 0
+}
 
-	// Engine configuration
-	Engine EngineConfig `mapstructure:"engine"`
-
-	// Parallel processing
-	Parallel ParallelConfig `mapstructure:"parallel"`
-
-	// Advanced parameters
-	Adapters  map[string]string `mapstructure:"adapters"`
-	Alignment AlignmentConfig   `mapstructure:"alignment"`
-
-	// Workflow control
-	WorkflowDir string `mapstructure:"workflow_dir"`
-	AnalysisDir string `mapstructure:"analysis_dir"`
-	SelfConfig  string `mapstructure:"self_config"`
-	QCDir       string `mapstructure:"qc_dir"`
-	TrimDir     string `mapstructure:"trim_dir"`
-
-	// Metadata
-	CreatedAt time.Time `mapstructure:"-"`
-	JobID     string    `mapstructure:"job_id"`
-	UserID    string    `mapstructure:"user_id"`
-	UserEmail string    `mapstructure:"user_email"`
+// SampleConfig represents a sample
+type SampleConfig struct {
+	Name string `mapstructure:"name"`
+	R1   string `mapstructure:"r1"`
+	R2   string `mapstructure:"r2"`
 }
 
 // InputConfig represents input file configuration
 type InputConfig struct {
 	FastqDir  string `mapstructure:"fastq_dir"`
 	PdataFile string `mapstructure:"pdata_file"`
+	Suffix1   string `mapstructure:"suffix"`
+	Suffix2   string `mapstructure:"suffix2"`
 }
 
 // OutputConfig represents output directory configuration
@@ -59,24 +78,104 @@ type OutputConfig struct {
 	BaseDir     string `mapstructure:"base_dir"`
 	WorkflowDir string `mapstructure:"workflow_dir"`
 	AnalysisDir string `mapstructure:"analysis_dir"`
-	QCDir       string `mapstructure:"qc_dir"`
-	TrimDir     string `mapstructure:"trim_dir"`
-	OutDirMCall string `mapstructure:"out_dir_mcall"`
-	OutDirUmx   string `mapstructure:"out_dir_umx"`
-	OutDirBetaM string `mapstructure:"out_dir_beta_m"`
+	RawDir      string `mapstructure:"raw_dir"`
 	LogDir      string `mapstructure:"log_dir"`
+	TrimDir     string `mapstructure:"trim_dir"`
+}
+
+// DirectoryConfig represents all directory paths
+type DirectoryConfig struct {
+	Base            string        `mapstructure:"base"`
+	Work            string        `mapstructure:"workDir"`
+	Workflow        string        `mapstructure:"workflowDir"`
+	Analysis        string        `mapstructure:"analysisDir"`
+	Config          string        `mapstructure:"selfconfig"`
+	QC              QCConfig      `mapstructure:"qcDir"`
+	SIDLog          string        `mapstructure:"SID_log"`
+	BSMAP           BSMAPConfig   `mapstructure:"bsmapDir"`
+	MethylationCall string        `mapstructure:"outDir_mCall"`
+	UMX             string        `mapstructure:"ourDirUmx"`
+	Qualimap        string        `mapstructure:"outdir_qualimap"`
+	MHAP            string        `mapstructure:"outDir_mhap"`
+	RData           string        `mapstructure:"RData_folder"`
+	DMR             string        `mapstructure:"DMR_folder"`
+	BetaMatrix      string        `mapstructure:"outDir_betaM"`
+	QCSummary       string        `mapstructure:"qc_summary"`
+	LogSummary      string        `mapstructure:"logsummary"`
+	UXMSummary      string        `mapstructure:"uxm_summary"`
+	ClubCpG         ClubCpGConfig `mapstructure:"clubcpg"`
+	MethrixH5       string        `mapstructure:"methrixh5"`
+	GCBias          string        `mapstructure:"GCbias"`
+}
+
+// QCConfig represents QC directories
+type QCConfig struct {
+	Main   string `mapstructure:"main"`
+	Before string `mapstructure:"before"`
+	After  string `mapstructure:"after"`
+}
+
+// BSMAPConfig represents BSMAP directories
+type BSMAPConfig struct {
+	Main     string `mapstructure:"main"`
+	Temp     string `mapstructure:"bamtmp"`
+	Filtered string `mapstructure:"Filtered_bams"`
+}
+
+// ClubCpGConfig represents ClubCpG directories
+type ClubCpGConfig struct {
+	Main     string `mapstructure:"main"`
+	Coverage string `mapstructure:"coverage_before"`
+	Model    string `mapstructure:"model"`
+	Impute   string `mapstructure:"coverage_impute"`
 }
 
 // ReferenceConfig represents reference genome configuration
 type ReferenceConfig struct {
-	Genome       string            `mapstructure:"genome"`
-	GenomeFasta  []string          `mapstructure:"genome_fasta"`
-	GenomeIndex  []string          `mapstructure:"genome_index"`
-	GenomeAnno   []string          `mapstructure:"genome_anno"`
-	RNASEQGTF    string            `mapstructure:"rnaseq_gtf"`
-	RNASEQRef    string            `mapstructure:"rnaseq_ref"`
-	Indices      map[string]string `mapstructure:"indices"`
-	AutoValidate bool              `mapstructure:"auto_validate"`
+	Genome      string           `mapstructure:"genome"`
+	Files       ReferenceFiles   `mapstructure:"files"`
+	Indices     ReferenceIndices `mapstructure:"indices"`
+	Annotations AnnotationConfig `mapstructure:"annotations"`
+	RNAseq      RNAseqConfig     `mapstructure:"rnaseq"`
+}
+
+// ReferenceFiles represents reference files
+type ReferenceFiles struct {
+	Fasta    []string `mapstructure:"fasta"`
+	Genome   []string `mapstructure:"genomeFile"`
+	CGI      string   `mapstructure:"CGI"`
+	CpGSites string   `mapstructure:"cgGR_gz"`
+}
+
+// ReferenceIndices represents reference indices
+type ReferenceIndices struct {
+	Genome []string `mapstructure:"genome_index"`
+}
+
+// AnnotationConfig represents annotations
+type AnnotationConfig struct {
+	Names []string `mapstructure:"genomeAnno"`
+}
+
+// RNAseqConfig represents RNA-seq configuration
+type RNAseqConfig struct {
+	GTF         interface{} `mapstructure:"gtf"`
+	Reference   interface{} `mapstructure:"ref"`
+	Chromosomes []string    `mapstructure:"chrs"`
+}
+
+// ParallelConfig represents parallel processing configuration
+type ParallelConfig struct {
+	Workers      int `mapstructure:"workers"`
+	DwarfWorkers int `mapstructure:"dwarf_workers"`
+}
+
+// MetadataConfig represents metadata
+type MetadataConfig struct {
+	SampleIDs   []string `mapstructure:"SIDs"`
+	UserEmail   string   `mapstructure:"user_email"`
+	PDXPipeline string   `mapstructure:"pdx_pipeline"`
+	GroupLevels int      `mapstructure:"group_levels"`
 }
 
 // EngineConfig represents execution engine configuration
@@ -99,25 +198,4 @@ type SlurmConfig struct {
 type LocalConfig struct {
 	MaxCores  int    `mapstructure:"max_cores"`
 	MaxMemory string `mapstructure:"max_memory"`
-}
-
-// ParallelConfig represents parallel processing configuration
-type ParallelConfig struct {
-	Workers int `mapstructure:"workers"`
-}
-
-// AlignmentConfig represents alignment parameters
-type AlignmentConfig struct {
-	C1        string  `mapstructure:"C1"`         // e.g., "7"
-	C2        string  `mapstructure:"C2"`         // e.g., "9"
-	T1        int     `mapstructure:"T1"`         // e.g., 0
-	T2        int     `mapstructure:"T2"`         // e.g., 0
-	ErrorRate float64 `mapstructure:"error_rate"` // e.g., 0.2
-
-	// Trim parameters
-	Read1_5 int `mapstructure:"read1_5"`  // e.g., 0
-	Read1_3 int `mapstructure:"read1_3"`  // e.g., 0
-	Read2_5 int `mapstructure:"read2_5"`  // e.g., 0
-	Read2_3 int `mapstructure:"read2_3"`  // e.g., 0
-	SeqDeth int `mapstructure:"seq_deth"` // e.g., 10
 }

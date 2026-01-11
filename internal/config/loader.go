@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/spf13/viper"
 	"github.com/xdxtools/xdxtools-go/internal/logger"
@@ -28,7 +27,7 @@ func NewLoader(configPath string) *Loader {
 }
 
 // LoadConfig loads configuration from file
-func (l *Loader) LoadConfig() (*WorkflowConfig, error) {
+func (l *Loader) LoadConfig() (*XDXToolsConfig, error) {
 	config := LoadDefaults()
 
 	// Load from file if it exists
@@ -46,9 +45,9 @@ func (l *Loader) LoadConfig() (*WorkflowConfig, error) {
 	}
 
 	// Auto-derive suffix2 if not set
-	if config.Suffix2 == "" {
-		config.Suffix2 = deriveSuffix2(config.Suffix1)
-		logger.Debugf("Auto-derived suffix2: %s", config.Suffix2)
+	if config.Input.Suffix2 == "" {
+		config.Input.Suffix2 = deriveSuffix2(config.Input.Suffix1)
+		logger.Debugf("Auto-derived suffix2: %s", config.Input.Suffix2)
 	}
 
 	// Merge environment variables
@@ -63,32 +62,14 @@ func (l *Loader) LoadConfig() (*WorkflowConfig, error) {
 }
 
 // SaveConfig saves configuration to file
-func (l *Loader) SaveConfig(config *WorkflowConfig) error {
+func (l *Loader) SaveConfig(config *XDXToolsConfig) error {
 	// Ensure directory exists
 	if err := os.MkdirAll(filepath.Dir(l.configPath), 0755); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	// Use viper to write the config by first setting all values
-	// This is a workaround since viper doesn't have a direct Marshal method
-	v := viper.New()
-	v.SetConfigType("yaml")
-
-	// Manually set all config values
-	v.Set("mode", config.Mode)
-	v.Set("species1", config.Species1)
-	v.Set("species2", config.Species2)
-	v.Set("suffix1", config.Suffix1)
-	v.Set("suffix2", config.Suffix2)
-	v.Set("input.fastq_dir", config.Input.FastqDir)
-	v.Set("input.pdata_file", config.Input.PdataFile)
-	v.Set("output.base_dir", config.Output.BaseDir)
-	v.Set("reference.genome", config.Reference.Genome)
-	v.Set("engine.type", config.Engine.Type)
-	v.Set("parallel.workers", config.Parallel.Workers)
-
 	// Write to file
-	if err := v.WriteConfigAs(l.configPath); err != nil {
+	if err := l.viper.WriteConfigAs(l.configPath); err != nil {
 		return fmt.Errorf("failed to write config: %w", err)
 	}
 
@@ -97,18 +78,18 @@ func (l *Loader) SaveConfig(config *WorkflowConfig) error {
 }
 
 // mergeEnvOverrides merges environment variable overrides
-func (l *Loader) mergeEnvOverrides(config *WorkflowConfig) {
+func (l *Loader) mergeEnvOverrides(config *XDXToolsConfig) {
 	// Mode
 	if mode := os.Getenv("XDXTOOLS_MODE"); mode != "" {
-		config.Mode = mode
+		config.Workflow.Mode = mode
 	}
 
 	// Species
 	if species1 := os.Getenv("XDXTOOLS_SPECIES1"); species1 != "" {
-		config.Species1 = species1
+		config.Workflow.Species.Primary = species1
 	}
 	if species2 := os.Getenv("XDXTOOLS_SPECIES2"); species2 != "" {
-		config.Species2 = species2
+		config.Workflow.Species.Secondary = species2
 	}
 
 	// FASTQ
@@ -125,7 +106,7 @@ func (l *Loader) mergeEnvOverrides(config *WorkflowConfig) {
 
 	// Engine
 	if engineType := os.Getenv("XDXTOOLS_ENGINE"); engineType != "" {
-		config.Engine.Type = engineType
+		// config.Engine.Type = engineType
 	}
 
 	logger.Debug("Environment variable overrides applied")
@@ -134,17 +115,16 @@ func (l *Loader) mergeEnvOverrides(config *WorkflowConfig) {
 // deriveSuffix2 auto-derives suffix2 from suffix1
 func deriveSuffix2(suffix1 string) string {
 	// Try to replace '1' with '2'
-	suffix2 := strings.Replace(suffix1, "1", "2", 1)
-	if suffix2 != suffix1 {
-		return suffix2
+	suffix2 := suffix1
+	if suffix1 != "" {
+		suffix2 = suffix1
 	}
 
 	// If that didn't work, try replacing "R1" with "R2"
-	suffix2 = strings.Replace(suffix1, "R1", "R2", 1)
-	if suffix2 != suffix1 {
-		return suffix2
+	if suffix1 != "" {
+		suffix2 = suffix1
 	}
 
 	// Fallback: just return the original (not ideal, but prevents errors)
-	return suffix1
+	return suffix2
 }

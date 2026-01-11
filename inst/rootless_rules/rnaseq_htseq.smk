@@ -1,12 +1,12 @@
 rule build_expression_matrix :
   message:"Build expression matrix ..."
   input:
-    bam_sorted = lambda wildcards:os.path.join(config["bsmapDir"], f"{wildcards.sample}_"+f"{wildcards.species}"+".bam")
+    bam_sorted = lambda wildcards:os.path.join(config["directories.bsmap.main"], f"{wildcards.sample}_"+f"{wildcards.species}"+".bam")
   output:
-    os.path.join(config["outDir_mCall"], "{sample}_{species}.txt")
+    os.path.join(config["directories.methylation_call"], "{sample}_{species}.txt")
   params:
-    rnaseq_gtf = lambda wildcards:config["rnaseq_gtf"][config["species"].index(wildcards.species)],
-    methylkit = lambda wildcards:os.path.join(config["outDir_mCall"], f"{wildcards.sample}_"+f"{wildcards.species}"+".txt")
+    rnaseq_gtf = lambda wildcards:config["reference.rnaseq.gtf"][config["workflow.species.name"].index(wildcards.species)],
+    methylkit = lambda wildcards:os.path.join(config["directories.methylation_call"], f"{wildcards.sample}_"+f"{wildcards.species}"+".txt")
   threads:5
   shell:
     """

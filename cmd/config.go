@@ -59,7 +59,7 @@ func runConfigValidate(cmd *cobra.Command, args []string) error {
 	}
 
 	logger.Info("Configuration validation passed")
-	logger.Infof("Mode: %s", cfg.Mode)
+	logger.Infof("Mode: %s", cfg.Workflow.Mode)
 	logger.Infof("Engine: %s", cfg.Engine.Type)
 	logger.Infof("FASTQ Directory: %s", cfg.Input.FastqDir)
 	logger.Infof("Samples: %d", cfg.Parallel.Workers)
