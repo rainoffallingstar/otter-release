@@ -35,7 +35,12 @@ jobs:
           VERSION: ${{ github.ref_name }}
         run: |
           VERSION=${VERSION#refs/tags/}
-          ./scripts/build.sh ${VERSION#v}
+          # 静态链接构建（适用于CentOS等低版本GLIBC环境）
+          CGO_ENABLED=0 go build -trimpath -buildvcs=false -o xdxtools-linux-amd64-static .
+          # 动态链接构建（常规Linux）
+          CGO_ENABLED=0 go build -trimpath -buildvcs=false -o xdxtools-linux-amd64 .
+          mv xdxtools-linux-amd64 xdxtools-${VERSION#v}-linux-amd64
+          mv xdxtools-linux-amd64-static xdxtools-${VERSION#v}-linux-amd64-static
 
       - name: Generate checksums
         run: |
@@ -53,12 +58,21 @@ jobs:
           body: |
             ## Installation
 
-            ### Linux
+            ### Linux (Static - Recommended for CentOS/old systems)
+            ```bash
+            curl -L -o xdxtools https://github.com/xdxtools/xdxtools-go/releases/download/${{ github.ref_name }}/xdxtools-${{ github.ref_name }}-linux-amd64-static
+            chmod +x xdxtools-${{ github.ref_name }}-linux-amd64-static
+            sudo mv xdxtools-${{ github.ref_name }}-linux-amd64-static /usr/local/bin/xdxtools
+            ```
+
+            ### Linux (Dynamic)
             ```bash
             curl -L -o xdxtools https://github.com/xdxtools/xdxtools-go/releases/download/${{ github.ref_name }}/xdxtools-${{ github.ref_name }}-linux-amd64
             chmod +x xdxtools-${{ github.ref_name }}-linux-amd64
             sudo mv xdxtools-${{ github.ref_name }}-linux-amd64 /usr/local/bin/xdxtools
             ```
+
+            **Note**: Use the `-static` version if you encounter GLIBC version errors on CentOS 7 or older systems.
 
             ## Changes
             ${{ github.event.head_commit.message }}

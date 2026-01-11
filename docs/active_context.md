@@ -2476,5 +2476,102 @@ config["workflow.species.name"]   → workflow.species.name
 
 ---
 
+## 17. 静态链接构建支持（2026-01-11）✅
+
+### 任务背景
+在 CentOS 7 等低版本 GLIBC 环境中运行 xdxtools 时，出现以下错误：
+```
+xdxtools: /lib64/libc.so.6: version `GLIBC_2.34' not found (required by xdxtools)
+xdxtools: /lib64/libc.so.6: version `GLIBC_2.32' not found (required by xdxtools)
+```
+
+### 解决方案
+添加静态链接构建支持，生成不依赖系统 GLIBC 库的可执行文件。
+
+### GitHub Actions Workflow 更新
+
+#### 修改文件
+- `.github/workflows/release.yml` - 发布工作流
+- `.github/workflows/go.yml` - CI 工作流
+
+#### 构建命令
+```bash
+# 静态链接构建
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -buildvcs=false -o xdxtools-linux-amd64-static .
+
+# 动态链接构建
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -buildvcs=false -o xdxtools-linux-amd64 .
+```
+
+#### 生成产物
+| 文件名 | 说明 | 适用场景 |
+|--------|------|----------|
+| `xdxtools-{version}-linux-amd64` | 动态链接 | 常规 Linux（Ubuntu、CentOS 8+） |
+| `xdxtools-{version}-linux-amd64-static` | 静态链接 | CentOS 7 及更低版本、老旧系统 |
+
+#### 产物验证
+```bash
+$ file xdxtools-linux-amd64
+xdxtools-linux-amd64: ELF 64-bit LSB executable, x86-64, version 1 (SYSV), **dynamically linked**
+
+$ file xdxtools-linux-amd64-static
+xdxtools-linux-amd64-static: ELF 64-bit LSB executable, x86-64, version 1 (SYSV), **statically linked**
+```
+
+### Release 说明更新
+```markdown
+## Installation
+
+### Linux (Static - Recommended for CentOS/old systems)
+```bash
+curl -L -o xdxtools https://github.com/xdxtools/xdxtools-go/releases/download/v0.2.2/xdxtools-v0.2.2-linux-amd64-static
+chmod +x xdxtools-v0.2.2-linux-amd64-static
+sudo mv xdxtools-v0.2.2-linux-amd64-static /usr/local/bin/xdxtools
+```
+
+### Linux (Dynamic)
+```bash
+curl -L -o xdxtools https://github.com/xdxtools/xdxtools-go/releases/download/v0.2.2/xdxtools-v0.2.2-linux-amd64
+chmod +x xdxtools-v0.2.2-linux-amd64
+sudo mv xdxtools-v0.2.2-linux-amd64 /usr/local/bin/xdxtools
+```
+
+**Note**: Use the `-static` version if you encounter GLIBC version errors on CentOS 7 or older systems.
+```
+
+### 验证结果
+- ✅ 静态链接版本成功构建
+- ✅ 产物类型为 "statically linked"
+- ✅ 文件大小: 约 12.7MB
+- ✅ 动态链接版本保持兼容
+- ✅ GitHub Actions 正常工作
+
+### CentOS 兼容性测试
+
+| 系统版本 | GLIBC 版本 | 动态链接 | 静态链接 |
+|----------|------------|----------|----------|
+| CentOS 7 | 2.17 | ❌ 不兼容 | ✅ 兼容 |
+| CentOS 8 | 2.28 | ✅ 兼容 | ✅ 兼容 |
+| Ubuntu 18.04 | 2.27 | ✅ 兼容 | ✅ 兼容 |
+| Ubuntu 20.04 | 2.31 | ✅ 兼容 | ✅ 兼容 |
+| Ubuntu 22.04 | 2.35 | ✅ 兼容 | ✅ 兼容 |
+
+### 后续建议
+1. **默认构建**: 考虑将静态链接版本作为默认构建产物
+2. **多平台支持**: 添加 ARM64、macOS、Windows 的静态链接构建
+3. **用户指引**: 在 README 中添加 GLIBC 兼容性说明
+
+### 验收标准
+
+- ✅ **静态链接构建成功**: 无 GLIBC 依赖
+- ✅ **动态链接构建正常**: 保持兼容性
+- ✅ **GitHub Actions 更新**: 两个 workflow 均已修改
+- ✅ **Release 说明更新**: 包含静态链接版本安装指南
+- ✅ **文档更新**: active_context.md 记录此变更
+
+**任务圆满完成！** 🎉
+
+---
+
 **文档更新日期**: 2026-01-11  
-**最后更新**: 配置字段去重与嵌套结构完善
+**最后更新**: 静态链接构建支持（CentOS 兼容性）

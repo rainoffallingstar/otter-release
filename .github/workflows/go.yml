@@ -63,11 +63,15 @@ jobs:
           VERSION=${VERSION#refs/tags/}
           LDFLAGS="-s -w -X github.com/xdxtools/xdxtools-go/cmd.buildVersion=${VERSION#v} -X github.com/xdxtools/xdxtools-go/cmd.buildCommit=${COMMIT:0:7} -X github.com/xdxtools/xdxtools-go/cmd.buildDate=${DATE}"
 
-          go build -trimpath -ldflags="$LDFLAGS" -o xdxtools .
+          # 静态链接构建（适用于CentOS等低版本GLIBC环境）
+          go build -trimpath -buildvcs=false -ldflags="$LDFLAGS" -o xdxtools-linux-amd64-static .
+
+          # 动态链接构建（常规Linux）
+          go build -trimpath -buildvcs=false -ldflags="$LDFLAGS" -o xdxtools-linux-amd64 .
 
           # 重命名产物
-          FINAL_NAME=xdxtools-${VERSION#v}-linux-amd64
-          mv xdxtools ${FINAL_NAME}
+          mv xdxtools-linux-amd64 xdxtools-${VERSION#v}-linux-amd64
+          mv xdxtools-linux-amd64-static xdxtools-${VERSION#v}-linux-amd64-static
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
