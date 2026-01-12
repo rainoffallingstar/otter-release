@@ -8,9 +8,15 @@ xdxtools 的 Go 语言重写版本，用于 RRBS、WGBS、RNA-seq 和 PDX 分析
 - **每样本适配器生成**：支持 barcode 的自动适配器生成和反向互补计算
 - **智能输入处理**：自动 FASTQ 文件配对和 pdata 验证
 - **Snakemake 集成**：与现有 Snakemake 工作流完全兼容
+- **SLURM Job Array 并行化**：高效的多样本并行处理，自动分配任务
+- **统一并行化控制**：使用单个 `--parallel-jobs` 参数同时控制本地和 SLURM 执行
+- **本地并行执行**：工作池模式，支持本地多样本并行
+- **基于步骤的执行模式**：步骤 2&3 使用单样本模式，步骤 1 和检查器使用全样本模式
+- **资源继承机制**：检查器步骤自动继承主步骤资源
+- **标准 Snakemake 参数**：使用 `--config SIDs=[sample]` 进行单样本覆盖（无非标准参数）
 - **中文列名支持**：中文列名自动映射为英文列名
 - **分组级别计算**：从 pdata 自动计算唯一分组数量
-- **多种执行引擎**：支持 Slurm 和本地执行（架构简化中移除了 Docker 支持）
+- **多种执行引擎**：支持 Slurm、SlurmArray（Job Array）和本地执行（架构简化中移除了 Docker 支持）
 - **Excel 文件支持**：原生支持 .xlsx/.xls 格式的 pdata 文件（无需转换）
 - **TUI 界面**：交互式终端用户界面，用于工作流管理
 - **动态参考配置**：根据物种和模式自动生成参考基因组路径
@@ -153,6 +159,14 @@ xdxtools create --fastq <path> [flags]
 - `--jobid`：自定义 job ID（默认：自动生成的 40 字符十六进制）
 - `--suffix1`：R1 文件后缀（默认：_R1.fastq.gz）
 - `--suffix2`：R2 文件后缀（为空时自动推导）
+- `--genome1-fasta`：主要物种基因组 FASTA 文件
+- `--genome1-index`：主要物种基因组索引目录
+- `--genome2-fasta`：次要物种基因组 FASTA 文件（PDX 模式）
+- `--genome2-index`：次要物种基因组索引目录（PDX 模式）
+- `--gtf1`：主要物种 GTF 注释文件（用于 RNA-seq）
+- `--gtf2`：次要物种 GTF 注释文件（用于 PDX RNA-seq）
+- `--star-index1`：主要物种 STAR 索引目录（用于 RNA-seq）
+- `--star-index2`：次要物种 STAR 索引目录（用于 PDX RNA-seq）
 
 **示例：**
 
@@ -192,6 +206,22 @@ xdxtools run --config <config-file> [flags]
 - `--engine`：执行引擎（auto/slurm/local，默认：auto）
 - `--dry-run`：试运行，不执行
 - `--verbose, -v`：详细输出
+- `--resume, -r`：从最后完成的步骤恢复
+- `--conda-env`：Snakemake 的 Conda 环境
+- `--slurm-partition`：所有步骤的统一 SLURM 分区（覆盖配置和单个步骤分区）
+- `--slurm-unified-partition`：遗留统一分区参数（为向后兼容保留）
+- `--slurm-cores`：所有步骤的默认 SLURM CPU 核心数
+- `--slurm-memory`：所有步骤的默认 SLURM 内存（例如：16G）
+- `--step1-cores`：步骤 1 CPU 核心数
+- `--step1-memory`：步骤 1 内存（例如：8G）
+- `--step1-partition`：步骤 1 分区
+- `--step2-cores`：步骤 2 CPU 核心数
+- `--step2-memory`：步骤 2 内存（例如：32G）
+- `--step2-partition`：步骤 2 分区
+- `--step3-cores`：步骤 3 CPU 核心数
+- `--step3-memory`：步骤 3 内存（例如：16G）
+- `--step3-partition`：步骤 3 分区
+- `--parallel-jobs`：本地/Snakemake 执行的最大并行作业数（默认：2）
 
 **示例：**
 
@@ -207,9 +237,58 @@ xdxtools run --config config/config.yaml --engine local
 
 # 测试配置
 xdxtools run --config config/config.yaml --dry-run
+
+# 使用统一分区运行
+xdxtools run --config config/config.yaml --slurm-partition cpu --engine slurm
+
+# 为特定步骤自定义资源
+xdxtools run --config config/config.yaml \
+  --step1-cores 20 --step1-memory 100G \
+  --step2-cores 40 --step2-memory 200G \
+  --step3-cores 10 --step3-memory 300G \
+  --engine slurm
 ```
 
 **注意**：架构简化中移除了 Docker 引擎支持，现在仅支持 Slurm 和 Local 引擎。
+
+#### status
+
+显示运行中或已完成的工作流状态。
+
+```bash
+xdxtools status [project-dir]
+```
+
+**参数：**
+- `project-dir`：要检查的项目目录（默认：当前目录）
+
+**示例：**
+
+```bash
+# 检查当前目录状态
+xdxtools status
+
+# 检查特定项目状态
+xdxtools status userspace/my_project
+```
+
+status 命令显示：
+- Job ID 和工作流状态
+- 开始时间、最后更新和持续时间
+- 配置摘要（模式、物种、样本、引擎）
+- 逐步进度及完成时间
+- 运行中/已完成步骤的 SLURM Job ID
+- 整体进度统计
+
+**恢复工作流：**
+
+如果工作流被中断，您可以从最后完成的步骤恢复：
+
+```bash
+xdxtools run --config config.yaml --resume
+# 或
+xdxtools run --config config.yaml -r
+```
 
 #### config
 
@@ -283,6 +362,53 @@ xdxtools create \
 ```
 
 当同时指定 `species1` 和 `species2` 时自动启用 PDX 模式。工作流切换到 "BeaverPDX" 配置并创建物种特异性子目录。
+
+## 默认资源配置
+
+### 步骤资源
+
+该工具为每个工作流步骤使用优化的默认资源配置：
+
+#### RRBS / WGBS / RNASEQ 模式
+
+| 步骤 | CPU 核心 | 内存 | 分区 | 线程 | JobArray |
+|------|----------|------|------|------|----------|
+| 步骤 1 | 20 | 100GB | cpu | 10 | 否 |
+| 步骤 2 | 40 | 200GB | cpu | 20 | 是 |
+| 步骤 3 | 10 | 300GB | cpu | 5 | 是 |
+| 步骤 2 检查器 | 40 | 200GB | cpu | 20 | - |
+| 步骤 3 检查器 | 10 | 300GB | cpu | 5 | - |
+
+**注意**：检查器步骤自动继承相应主步骤的资源。
+
+#### PDX 模式
+
+PDX 模式使用与非 PDX 模式相同的资源配置（不应用倍数）。
+
+### 自定义资源
+
+使用命令行标志覆盖默认资源：
+
+```bash
+# 为所有步骤设置统一分区
+xdxtools run --config config.yaml \
+  --slurm-unified-partition cpu \
+  --engine slurm
+
+# 覆盖特定步骤资源
+xdxtools run --config config.yaml \
+  --step1-cores 20 --step1-memory 100G \
+  --step2-cores 40 --step2-memory 200G \
+  --step3-cores 10 --step3-memory 300G \
+  --engine slurm
+
+# 优先级：特定步骤分区 > 统一分区 > 默认分区
+xdxtools run --config config.yaml \
+  --slurm-unified-partition cpu \
+  --step2-partition gpu \
+  --engine slurm
+# 结果：步骤1=cpu，步骤2=gpu（覆盖），步骤3=cpu
+```
 
 ## 配置说明
 
@@ -440,7 +566,11 @@ userspace/{jobid}/
 ├── config/
 │   └── config.yaml          # 生成的配置
 ├── data/                    # FASTQ 文件（软链接）
-├── log/                     # 日志文件
+├── logs/                    # 日志文件
+│   ├── xdxtools.log         # xdxtools 主日志（所有级别）
+│   ├── slurm.out            # SLURM stdout
+│   ├── slurm.err            # SLURM stderr
+│   └── snakemake/           # Snakemake 日志
 ├── analysis/                # 分析结果
 │   ├── betaM
 │   ├── clubcpg/
@@ -548,7 +678,31 @@ xdxtools run \
     --dry-run
 ```
 
-### 示例 5：自定义 Job ID 和输出路径
+### 示例 5：并行执行控制
+
+```bash
+# 顺序执行（1 个作业）
+xdxtools run \
+    --config userspace/my_project/config/config.yaml \
+    --parallel-jobs 1
+
+# 并行执行（2 个作业，默认值）
+xdxtools run \
+    --config userspace/my_project/config/config.yaml
+
+# 并行执行（5 个作业）
+xdxtools run \
+    --config userspace/my_project/config/config.yaml \
+    --parallel-jobs 5
+
+# 同时适用于 SLURM 和本地
+xdxtools run \
+    --config userspace/my_project/config/config.yaml \
+    --engine slurm \
+    --parallel-jobs 3
+```
+
+### 示例 6：自定义 Job ID 和输出路径
 
 ```bash
 # 使用自定义 jobid 和输出目录
@@ -738,6 +892,99 @@ xdxtools run --config config.yaml --engine slurm
 
 **注意**：已移除 Docker 引擎支持，仅支持 Slurm 和 Local 引擎。
 
+### SLURM Job Array 并行化
+
+工具提供使用 SLURM Job Array 的高效多样本并行处理。
+
+#### 核心特性
+
+- **统一控制**：使用单个 `--parallel-jobs` 参数控制本地和 SLURM 执行
+- **单次提交**：提交一个作业，自动分配 N 个任务
+- **完整资源分配**：每个任务获得完整资源分配（如每任务 16 核）
+- **进度跟踪**：实时监控作业数组进度
+- **可配置并发**：使用 `%max` 语法控制最大并发任务数
+
+#### 执行策略
+
+工具使用统一的并行化控制，通过 `--parallel-jobs` 参数：
+
+- **parallel-jobs = 1**：顺序执行（一次处理一个样本）
+- **parallel-jobs > 1**：并行执行（本地工作池或 SLURM Job Array，最多 N 个并发作业）
+
+#### 基于步骤的模式
+
+不同工作流步骤使用不同的执行模式：
+
+- **步骤 2 和 3**：单样本模式（每个样本独立运行）
+  - 为计算密集型步骤实现高效的并行处理
+  - 使用 `--config "SIDs=[sample]"` 进行单样本执行的配置覆盖
+
+- **步骤 1 和检查器**：全样本模式（所有样本一起处理）
+  - 设置和验证步骤通常顺序执行足够快
+  - 确保所有样本之间的适当协调
+
+#### 示例：SLURM Job Array 执行
+
+10 个样本，步骤 2 配置（40 核，200G 内存），使用 `--parallel-jobs=5`：
+
+```bash
+# 生成的 SLURM 脚本
+#!/bin/bash
+#SBATCH --job-name=xdxtools_step2_array
+#SBATCH --partition=cpu
+#SBATCH --cpus-per-task=40
+#SBATCH --mem=200G
+#SBATCH --array=0-9%5
+
+SAMPLES[0]="sample1"
+SAMPLES[1]="sample2"
+...
+SAMPLES[9]="sample10"
+
+SAMPLE_NAME=${SAMPLES[$SLURM_ARRAY_TASK_ID]}
+
+conda run -n snakemake snakemake --cores all \
+  --snakefile BeaverBS_step2.snakemake \
+  --config "SIDs=[$SAMPLE_NAME]"
+```
+
+**结果**：单次作业提交，10 个任务，由 SLURM 调度器控制最多 5 个并发作业
+
+#### 性能特性
+
+| 样本数 | 顺序执行 (parallel-jobs=1) | 并行执行 (parallel-jobs=2) | 并行执行 (parallel-jobs=4) |
+|--------|------------------------------|--------------------------|--------------------------|
+| 5      | 5x 时间                      | ~2.5x 时间               | ~1.25x 时间              |
+| 10     | 10x 时间                     | ~5x 时间                | ~2.5x 时间              |
+| 20     | 20x 时间                     | ~10x 时间               | ~5x 时间                |
+
+*实际加速取决于硬件资源和集群负载*
+
+#### 资源管理
+
+- **每任务资源**：每个数组任务接收完整资源分配
+- **无资源共享**：资源不会在数组大小上平均分配
+- **可预测性能**：每个样本的性能一致
+
+#### 本地并行执行
+
+对于本地环境，工具使用由 `--parallel-jobs` 控制的工作池模式：
+
+```bash
+# 10 个样本的本地并行执行（parallel-jobs=2）
+snakemake --cores all --snakefile BeaverBS_step2.snakemake --config "SIDs=[sample1]"
+snakemake --cores all --snakefile BeaverBS_step2.snakemake --config "SIDs=[sample2]"
+...
+# 通过工作池并行执行（默认最多2个并发作业）
+```
+
+**特性**：
+- 工作池模式，由 `--parallel-jobs` 控制
+- 本地和 SLURM 统一的参数控制
+- 自动资源管理
+- 每任务 24 小时超时
+- 成功/失败聚合报告
+
 ## 常见问题
 
 **Q: 支持哪些 FASTQ 文件格式？**
@@ -774,8 +1021,24 @@ A: 无硬性限制，取决于系统资源和 Snakemake 配置。
 **Q: 可以恢复失败的工作流吗？**
 A: 可以，Snakemake 会自动从最后一个成功步骤恢复。
 
-**Q: 如何更改工作线程数？**
-A: 编辑生成的 config.yaml：parallel.workers: 8
+**Q: 如何更改并行作业数？**
+A: 使用 `--parallel-jobs` 参数：`xdxtools run --config config.yaml --parallel-jobs 4`
+
+**Q: --parallel-jobs 是否同时适用于 SLURM 和本地执行？**
+A: 是的！`--parallel-jobs` 参数为 SLURM 和本地执行提供统一控制。对于 SLURM，它控制最大并发 Job Array 任务数。对于本地执行，它控制工作池大小。
+
+**Q: 日志文件存储在哪里？**
+A: 所有日志存储在项目的 `logs/` 目录中：
+   - `xdxtools.log` - xdxtools 主日志，包含所有日志级别
+   - `slurm.out` - SLURM stdout
+   - `slurm.err` - SLURM stderr
+   - `snakemake/` - Snakemake 特定日志
+
+**Q: 如何检查运行中工作流的状态？**
+A: 使用 `xdxtools status` 命令查看工作流进度、步骤完成状态和 SLURM Job ID。
+
+**Q: 如果工作流被中断会发生什么？**
+A: xdxtools 自动保存状态。使用 `--resume` 或 `-r` 标志从最后完成的步骤继续。如果检测到未完成的工作流但未使用恢复标志，工具也会发出警告。
 
 ## 开发
 

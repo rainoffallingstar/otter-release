@@ -12,6 +12,7 @@ type Engine interface {
 	GetStatus() *Status
 	Wait() error
 	Kill() error
+	SetLogDir(dir string) error
 }
 
 // Status represents the execution status

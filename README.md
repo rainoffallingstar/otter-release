@@ -8,9 +8,15 @@ A bioinformatics workflow management tool for RRBS, WGBS, RNA-seq, and PDX analy
 - **Per-Sample Adapter Generation**: Automatic adapter generation with barcode support and reverse complement
 - **Intelligent Input Processing**: Automatic FASTQ pairing and pdata validation
 - **Snakemake Integration**: Full compatibility with existing Snakemake workflows
+- **SLURM Job Array Parallelization**: Efficient multi-sample parallel processing with automatic task distribution
+- **Unified Parallelization Control**: Single `--parallel-jobs` parameter controls both local and SLURM execution
+- **Local Parallel Execution**: Worker pool pattern for local multi-sample parallelization
+- **Step-Based Execution Modes**: Steps 2&3 use single-sample mode, Step 1&checkers use all-samples mode
+- **Resource Inheritance**: Checker steps automatically inherit resources from main steps
+- **Standard Snakemake Parameters**: Uses `--config SIDs=[sample]` for single-sample override (no non-standard parameters)
 - **Chinese Column Name Support**: Automatic mapping from Chinese to English column names
 - **Group Levels Calculation**: Automatic calculation of unique groups from pdata
-- **Multiple Execution Engines**: Slurm and local execution (Docker support removed in architecture simplification)
+- **Multiple Execution Engines**: Slurm, SlurmArray (Job Array), and local execution (Docker support removed in architecture simplification)
 - **Excel Support**: Direct .xlsx/.xls file support for pdata (no conversion needed)
 - **TUI Interface**: Interactive terminal user interface for workflow management
 - **Dynamic Reference Configuration**: Automatic generation of reference genome paths based on species and mode
@@ -54,6 +60,9 @@ xdxtools init my_project
 
 # Initialize with specific engine type (root/rootless)
 xdxtools init my_project --engine-type rootless
+
+# Initialize in current directory
+xdxtools init .
 ```
 
 This copies:
@@ -152,6 +161,14 @@ xdxtools create --fastq <path> [flags]
 - `--jobid`: Custom job ID (default: auto-generated 40-char hex)
 - `--suffix1`: R1 file suffix (default: _R1.fastq.gz)
 - `--suffix2`: R2 file suffix (auto-derived if empty)
+- `--genome1-fasta`: Primary species genome FASTA file
+- `--genome1-index`: Primary species genome index directory
+- `--genome2-fasta`: Secondary species genome FASTA file (PDX mode)
+- `--genome2-index`: Secondary species genome index directory (PDX mode)
+- `--gtf1`: Primary species GTF annotation file (for RNA-seq)
+- `--gtf2`: Secondary species GTF annotation file (for PDX RNA-seq)
+- `--star-index1`: Primary species STAR index directory (for RNA-seq)
+- `--star-index2`: Secondary species STAR index directory (for PDX RNA-seq)
 
 **Examples:**
 
@@ -174,6 +191,32 @@ xdxtools create \
     --fastq /data/fastq \
     --output /custom/path \
     --jobid experiment_001
+
+# Custom reference genome files
+xdxtools create \
+    --fastq /data/fastq \
+    --mode RRBS \
+    --genome1-fasta inst/hg38/hg38.fasta \
+    --genome1-index inst/hg38/
+
+# RNA-seq with custom GTF and STAR index
+xdxtools create \
+    --fastq /data/fastq \
+    --mode RNASEQ \
+    --species1 human \
+    --gtf1 inst/rnaseq/hg38/hg38.ensGene_sorted.gtf \
+    --star-index1 inst/rnaseq/hg38/
+
+# PDX mode with custom reference files for both species
+xdxtools create \
+    --fastq /data/fastq \
+    --mode RRBS \
+    --species1 human \
+    --species2 mouse \
+    --genome1-fasta inst/hg38/hg38.fasta \
+    --genome1-index inst/hg38/ \
+    --genome2-fasta inst/mm10/mm10.fasta \
+    --genome2-index inst/mm10/
 ```
 
 #### run
@@ -191,6 +234,22 @@ xdxtools run --config <config-file> [flags]
 - `--engine`: Execution engine (auto/slurm/local, default: auto)
 - `--dry-run`: Perform a dry run without executing
 - `--verbose, -v`: Verbose output
+- `--resume, -r`: Resume from last completed step
+- `--conda-env`: Conda environment for Snakemake
+- `--slurm-partition`: Unified SLURM partition for all steps (overrides config and individual step partitions)
+- `--slurm-unified-partition`: Legacy unified partition parameter (kept for backward compatibility)
+- `--slurm-cores`: Default SLURM CPU cores for all steps
+- `--slurm-memory`: Default SLURM memory for all steps (e.g., 16G)
+- `--step1-cores`: Step 1 CPU cores
+- `--step1-memory`: Step 1 memory (e.g., 8G)
+- `--step1-partition`: Step 1 partition
+- `--step2-cores`: Step 2 CPU cores
+- `--step2-memory`: Step 2 memory (e.g., 32G)
+- `--step2-partition`: Step 2 partition
+- `--step3-cores`: Step 3 CPU cores
+- `--step3-memory`: Step 3 memory (e.g., 16G)
+- `--step3-partition`: Step 3 partition
+- `--parallel-jobs`: Max parallel jobs for local/Snakemake execution (default: 2)
 
 **Examples:**
 
@@ -206,9 +265,58 @@ xdxtools run --config config/config.yaml --engine local
 
 # Test configuration
 xdxtools run --config config/config.yaml --dry-run
+
+# Run with unified partition for all steps
+xdxtools run --config config/config.yaml --slurm-partition cpu --engine slurm
+
+# Run with custom resources for specific steps
+xdxtools run --config config/config.yaml \
+  --step1-cores 20 --step1-memory 100G \
+  --step2-cores 40 --step2-memory 200G \
+  --step3-cores 10 --step3-memory 300G \
+  --engine slurm
 ```
 
 **Note**: Docker engine support has been removed in architecture simplification. Only Slurm and Local engines are now supported.
+
+#### status
+
+Display the status of a running or completed workflow.
+
+```bash
+xdxtools status [project-dir]
+```
+
+**Arguments:**
+- `project-dir`: Project directory to check (default: current directory)
+
+**Examples:**
+
+```bash
+# Check status of current directory
+xdxtools status
+
+# Check status of specific project
+xdxtools status userspace/my_project
+```
+
+The status command displays:
+- Job ID and workflow status
+- Start time, last update, and duration
+- Configuration summary (mode, species, samples, engine)
+- Step-by-step progress with completion times
+- SLURM job IDs for running/completed steps
+- Overall progress statistics
+
+**Resume Workflow:**
+
+If a workflow is interrupted, you can resume from the last completed step:
+
+```bash
+xdxtools run --config config.yaml --resume
+# or
+xdxtools run --config config.yaml -r
+```
 
 #### config
 
@@ -282,6 +390,53 @@ xdxtools create \
 ```
 
 PDX mode is automatically enabled when both `species1` and `species2` are specified. The workflow switches to "BeaverPDX" configuration and creates species-specific subdirectories.
+
+## Default Resource Configuration
+
+### Step Resources
+
+The tool uses optimized default resource configurations for each workflow step:
+
+#### RRBS / WGBS / RNASEQ Modes
+
+| Step | CPU Cores | Memory | Partition | Threads | JobArray |
+|------|-----------|--------|-----------|---------|----------|
+| Step 1 | 20 | 100GB | cpu | 10 | No |
+| Step 2 | 40 | 200GB | cpu | 20 | Yes |
+| Step 3 | 10 | 300GB | cpu | 5 | Yes |
+| Step 2 Checker | 40 | 200GB | cpu | 20 | - |
+| Step 3 Checker | 10 | 300GB | cpu | 5 | - |
+
+**Note**: Checker steps automatically inherit resources from their corresponding main steps.
+
+#### PDX Mode
+
+PDX mode uses the same resource configuration as non-PDX mode (no multiplier applied).
+
+### Customizing Resources
+
+Override default resources using command-line flags:
+
+```bash
+# Set unified partition for all steps
+xdxtools run --config config.yaml \
+  --slurm-unified-partition cpu \
+  --engine slurm
+
+# Override specific step resources
+xdxtools run --config config.yaml \
+  --step1-cores 20 --step1-memory 100G \
+  --step2-cores 40 --step2-memory 200G \
+  --step3-cores 10 --step3-memory 300G \
+  --engine slurm
+
+# Priority: specific step partition > unified partition > default partition
+xdxtools run --config config.yaml \
+  --slurm-unified-partition cpu \
+  --step2-partition gpu \
+  --engine slurm
+# Result: Step1=cpu, Step2=gpu (override), Step3=cpu
+```
 
 ## Configuration
 
@@ -439,7 +594,11 @@ userspace/{jobid}/
 ├── config/
 │   └── config.yaml          # Generated configuration
 ├── data/                    # FASTQ files (soft links)
-├── log/                     # Log files
+├── logs/                    # Log files
+│   ├── xdxtools.log         # Main xdxtools log (all levels)
+│   ├── slurm.out            # SLURM stdout
+│   ├── slurm.err            # SLURM stderr
+│   └── snakemake/           # Snakemake logs
 ├── analysis/                # Analysis results
 │   ├── betaM
 │   ├── clubcpg/
@@ -489,9 +648,104 @@ The tool automatically detects the execution environment:
 #### Engine Types
 
 - **slurm**: Execute on Slurm cluster
+- **slurm_array**: Execute on Slurm cluster with Job Array for parallel processing
 - **local**: Execute on local machine
+- **local_parallel**: Execute locally with parallel worker pool
 
 **Note**: Docker engine support has been removed in architecture simplification.
+
+### SLURM Job Array Parallelization
+
+The tool provides efficient multi-sample parallel processing using SLURM Job Arrays.
+
+#### Key Features
+
+- **Unified Control**: Single `--parallel-jobs` parameter controls both local and SLURM execution
+- **Single Submission**: Submit one job that automatically distributes N tasks
+- **Full Resource Allocation**: Each task gets complete resource allocation (e.g., 16 cores per task)
+- **Progress Tracking**: Real-time monitoring of job array progress
+- **Configurable Concurrency**: Control maximum concurrent tasks with `%max` syntax
+
+#### Execution Strategy
+
+The tool uses unified parallelization control via `--parallel-jobs` parameter:
+
+- **parallel-jobs = 1**: Sequential execution (one sample at a time)
+- **parallel-jobs > 1**: Parallel execution (local worker pool or SLURM Job Array with N concurrent jobs)
+
+#### Step-Based Modes
+
+Different workflow steps use different execution modes:
+
+- **Steps 2 & 3**: Single-sample mode (each sample runs independently)
+  - Enables efficient parallel processing for compute-intensive steps
+  - Uses `--config "SIDs=[sample]"` to override config for single-sample execution
+
+- **Step 1 & Checkers**: All-samples mode (all samples processed together)
+  - Setup and validation steps typically run fast enough sequentially
+  - Ensures proper coordination across all samples
+
+#### Example: SLURM Job Array Execution
+
+For 10 samples with Step 2 configuration (40 cores, 200G memory) and `--parallel-jobs=5`:
+
+```bash
+# Generated SLURM script
+#!/bin/bash
+#SBATCH --job-name=xdxtools_step2_array
+#SBATCH --partition=cpu
+#SBATCH --cpus-per-task=40
+#SBATCH --mem=200G
+#SBATCH --array=0-9%5
+
+SAMPLES[0]="sample1"
+SAMPLES[1]="sample2"
+...
+SAMPLES[9]="sample10"
+
+SAMPLE_NAME=${SAMPLES[$SLURM_ARRAY_TASK_ID]}
+
+conda run -n snakemake snakemake --cores all \
+  --snakefile BeaverBS_step2.snakemake \
+  --config "SIDs=[$SAMPLE_NAME]"
+```
+
+**Result**: Single job submission, 10 tasks with max 5 concurrent jobs controlled by SLURM scheduler
+
+#### Performance Characteristics
+
+| Samples | Sequential (parallel-jobs=1) | Parallel (parallel-jobs=2) | Parallel (parallel-jobs=4) |
+|---------|-------------------------------|----------------------------|----------------------------|
+| 5      | 5x time                       | ~2.5x time                 | ~1.25x time               |
+| 10     | 10x time                      | ~5x time                   | ~2.5x time                |
+| 20     | 20x time                      | ~10x time                  | ~5x time                  |
+
+*Actual speedup depends on hardware resources and cluster load*
+
+#### Resource Management
+
+- **Per-Task Resources**: Each array task receives full resource allocation
+- **No Resource Sharing**: Resources are not averaged across array size
+- **Predictable Performance**: Consistent performance per sample
+
+#### Local Parallel Execution
+
+For local environments, the tool uses a worker pool pattern controlled by `--parallel-jobs`:
+
+```bash
+# For 10 samples with local parallel execution (parallel-jobs=2)
+snakemake --cores all --snakefile BeaverBS_step2.snakemake --config "SIDs=[sample1]"
+snakemake --cores all --snakefile BeaverBS_step2.snakemake --config "SIDs=[sample2]"
+...
+# Executed in parallel via worker pool (max 2 concurrent jobs by default)
+```
+
+**Features**:
+- Worker pool pattern with `--parallel-jobs` control
+- Unified parameter for both local and SLURM execution
+- Automatic resource management
+- 24-hour timeout per task
+- Success/failure aggregation reporting
 
 ### FASTQ File Naming
 
@@ -611,7 +865,31 @@ xdxtools run \
     --dry-run
 ```
 
-### Example 5: Custom Job ID and Output Path
+### Example 5: Parallel Execution Control
+
+```bash
+# Sequential execution (1 job)
+xdxtools run \
+    --config userspace/my_project/config/config.yaml \
+    --parallel-jobs 1
+
+# Parallel execution with 2 jobs (default)
+xdxtools run \
+    --config userspace/my_project/config/config.yaml
+
+# Parallel execution with 5 jobs
+xdxtools run \
+    --config userspace/my_project/config/config.yaml \
+    --parallel-jobs 5
+
+# Works for both SLURM and local
+xdxtools run \
+    --config userspace/my_project/config/config.yaml \
+    --engine slurm \
+    --parallel-jobs 3
+```
+
+### Example 6: Custom Job ID and Output Path
 
 ```bash
 # Use custom jobid and output directory
@@ -837,8 +1115,24 @@ A: No hard limit, depends on system resources and Snakemake configuration.
 **Q: Can I resume a failed workflow?**
 A: Yes, Snakemake automatically resumes from the last successful step.
 
-**Q: How do I change the number of workers?**
-A: Edit the generated config.yaml: parallel.workers: 8
+**Q: How do I change the number of parallel jobs?**
+A: Use the `--parallel-jobs` parameter when running the workflow: `xdxtools run --config config.yaml --parallel-jobs 4`
+
+**Q: Does --parallel-jobs work for both SLURM and local execution?**
+A: Yes! The `--parallel-jobs` parameter provides unified control for both SLURM and local execution. For SLURM, it controls the max concurrent Job Array tasks. For local execution, it controls the worker pool size.
+
+**Q: Where are the log files stored?**
+A: All logs are stored in the `logs/` directory within your project:
+   - `xdxtools.log` - Main xdxtools log with all log levels
+   - `slurm.out` - SLURM stdout
+   - `slurm.err` - SLURM stderr
+   - `snakemake/` - Snakemake-specific logs
+
+**Q: How do I check the status of a running workflow?**
+A: Use the `xdxtools status` command to view workflow progress, step completion status, and SLURM job IDs.
+
+**Q: What happens if my workflow is interrupted?**
+A: xdxtools automatically saves state. Use `--resume` or `-r` flag to continue from the last completed step. The tool will also warn you if it detects an incomplete workflow without the resume flag.
 
 ## Development
 
