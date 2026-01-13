@@ -104,9 +104,14 @@ func TestSlurmEngine_ExecuteWithOutput(t *testing.T) {
 		t.Errorf("ExecuteWithOutput() still returns 'not implemented' error")
 	}
 
-	// Output should be empty on error
-	if output != "" && err == nil {
-		t.Errorf("Expected empty output on success, got '%s'", output)
+	// Output should be non-empty on success (job info from sacct)
+	// Note: In a real SLURM environment, the job will actually run and return output
+	if err == nil && output == "" {
+		t.Errorf("Expected job output on success, got empty string")
+	}
+	// If the test ran successfully, log the output for debugging
+	if err == nil {
+		t.Logf("Job executed successfully, output: %s", output)
 	}
 }
 

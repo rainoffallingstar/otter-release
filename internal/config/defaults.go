@@ -79,8 +79,8 @@ func LoadDefaults() *XDXToolsConfig {
 				Names: []string{},
 			},
 			RNAseq: RNAseqConfig{
-				GTF:         "",
-				Reference:   "",
+				GTF:         nil,
+				Reference:   nil,
 				Chromosomes: []string{},
 			},
 		},
@@ -131,4 +131,41 @@ func LoadDefaults() *XDXToolsConfig {
 			GroupLevels: 0,
 		},
 	}
+}
+
+// GetDefaultStepResource returns default resource configuration for a given step
+func GetDefaultStepResource(step int, mode string, isPDX bool) *StepResource {
+	// Base defaults for different workflow modes
+	defaults := map[string]map[int]*StepResource{
+		"RRBS": {
+			1: {Cores: 20, Memory: "100G", Partition: "cpu", Threads: 10, JobArray: false},
+			2: {Cores: 40, Memory: "200G", Partition: "cpu", Threads: 20, JobArray: true, MaxJobs: 10},
+			3: {Cores: 10, Memory: "300G", Partition: "cpu", Threads: 5, JobArray: true, MaxJobs: 10},
+		},
+		"WGBS": {
+			1: {Cores: 20, Memory: "100G", Partition: "cpu", Threads: 10, JobArray: false},
+			2: {Cores: 40, Memory: "200G", Partition: "cpu", Threads: 20, JobArray: true, MaxJobs: 10},
+			3: {Cores: 10, Memory: "300G", Partition: "cpu", Threads: 5, JobArray: true, MaxJobs: 10},
+		},
+		"RNASEQ": {
+			1: {Cores: 20, Memory: "100G", Partition: "cpu", Threads: 10, JobArray: false},
+			2: {Cores: 40, Memory: "200G", Partition: "cpu", Threads: 20, JobArray: true, MaxJobs: 10},
+		},
+	}
+
+	// Get mode defaults
+	modeDefaults, exists := defaults[mode]
+	if !exists {
+		modeDefaults = defaults["RRBS"] // Fallback to RRBS
+	}
+
+	// Get step default
+	resource, exists := modeDefaults[step]
+	if !exists {
+		// Return generic default if step not found
+		return &StepResource{Cores: 20, Memory: "100G"}
+	}
+
+	// PDX mode no longer applies multiplier - uses same resources as non-PDX
+	return resource
 }

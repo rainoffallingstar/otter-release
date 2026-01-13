@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/xdxtools/xdxtools-go/internal/config"
+	"github.com/xdxtools/xdxtools-go/internal/enva"
 	"github.com/xdxtools/xdxtools-go/internal/logger"
 )
 
@@ -150,6 +151,11 @@ touch {{.SuccessFile}}.$SLURM_ARRAY_TASK_ID
 		SampleLines: strings.Join(sampleLines, "\n"),
 		CondaCommand: func() string {
 			if condaEnv != "" {
+				if enva.IsAvailable() {
+					// 使用 enva: enva run <env> --
+					return fmt.Sprintf("enva run %s --", condaEnv)
+				}
+				// 回退到 conda: conda run -n <env>
 				return fmt.Sprintf("conda run -n %s", condaEnv)
 			}
 			return ""

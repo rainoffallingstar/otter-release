@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
@@ -11,8 +12,7 @@ import (
 )
 
 var (
-	initMode    string
-	projectPath string
+	initMode = "RRBS" // Default mode, can be changed by editing config later
 )
 
 // initCmd represents the init command
@@ -47,20 +47,26 @@ Examples:
 
 func init() {
 	rootCmd.AddCommand(initCmd)
-
-	initCmd.Flags().StringVarP(&initMode, "mode", "m", "RRBS", "Workflow mode (RRBS/WGBS/RNASEQ)")
-	initCmd.Flags().StringVarP(&projectPath, "path", "p", ".", "Parent directory for the project")
 }
 
 func runInit(cmd *cobra.Command, args []string) error {
 	var projectName string
+	var projectDir string
+
 	if len(args) > 0 {
 		projectName = args[0]
+		if filepath.IsAbs(projectName) {
+			// If absolute path, use directly
+			projectDir = projectName
+		} else {
+			// If relative path, use from current directory
+			projectDir = projectName
+		}
 	} else {
+		// Default project name if not provided
 		projectName = "xdxtools-project"
+		projectDir = projectName
 	}
-
-	projectDir := filepath.Join(projectPath, projectName)
 
 	// Check if directory already exists
 	if _, err := os.Stat(projectDir); err == nil {
@@ -134,6 +140,9 @@ Available workflows:
 		logger.Warnf("Failed to create README: %v", err)
 	}
 
+	// Check enva support
+	checkEnvSupport()
+
 	// Summary
 	logger.Info("===========================================")
 	logger.Infof("Project '%s' initialized successfully!", projectName)
@@ -145,8 +154,41 @@ Available workflows:
 	logger.Info("3. Download reference genomes:")
 	logger.Info("   Visit: https://huggingface.co/datasets/Genomiclab/xdxtools-genomes/tree/main")
 	logger.Info("   Download and extract genomes to inst/ directory")
-	logger.Infof("4. Create config: xdxtools create --fastq data --mode %s --output %s/config/config.yaml", initMode, projectName)
+	logger.Infof("4. Create config: xdxtools create --fastq data --output %s/config/config.yaml", projectName)
 	logger.Infof("5. Run workflow: xdxtools run --config %s/config/config.yaml", projectName)
 
 	return nil
+}
+
+// checkEnvSupport checks if enva is available and provides installation guidance
+func checkEnvSupport() {
+	logger.Info("")
+	logger.Info("Checking package manager support...")
+
+	if _, err := exec.LookPath("enva"); err != nil {
+		// enva not found
+		logger.Warn("────────────────────────────────────────────────────────")
+		logger.Warn("enva not found in PATH")
+		logger.Warn("")
+		logger.Warn("For best performance (2-5x faster), install enva:")
+		logger.Warn("  enva will auto-detect and use the fastest package manager")
+		logger.Warn("  (conda → mamba → micromamba)")
+		logger.Warn("")
+		logger.Warn("Installation:")
+		logger.Warn("  wget https://github.com/xdxtools/enva/releases/latest/download/enva-linux-x86_64")
+		logger.Warn("  chmod +x enva-linux-x86_64")
+		logger.Warn("  sudo mv enva-linux-x86_64 /usr/local/bin/enva")
+		logger.Warn("")
+		logger.Warn("Or build from source:")
+		logger.Warn("  git clone https://github.com/xdxtools/enva")
+		logger.Warn("  cd enva && cargo build --release")
+		logger.Warn("  cp target/release/enva /usr/local/bin/enva")
+		logger.Warn("")
+		logger.Warn("Falling back to conda run (slower)")
+		logger.Warn("────────────────────────────────────────────────────────")
+	} else {
+		// enva found
+		logger.Info("✓ enva detected - will use fastest available package manager")
+		logger.Info("")
+	}
 }

@@ -16,48 +16,67 @@ import (
 )
 
 // generateReferencePaths 根据模式和物种生成参考文件路径
-func generateReferencePaths(mode, species1, species2 string) (fasta, index, gtf, ref []string, err error) {
+func generateReferencePaths(mode, species1, species2, genome1Fasta, genome1Index, genome2Fasta, genome2Index, gtf1, gtf2, starIndex1, starIndex2 string) (fasta, index, gtf, ref []string, err error) {
 	mode = strings.ToUpper(mode)
 
-	// 物种名称映射
-	speciesMap := map[string]string{
-		"human":        "homo_sapiens",
-		"mouse":        "mouse",
-		"homo_sapiens": "homo_sapiens",
-		"mus_musculus": "mouse",
-	}
+	// 如果用户提供了自定义路径，使用自定义路径
+	// 否则使用默认路径
 
-	// 添加 species1（graft）
-	if dir, ok := speciesMap[species1]; ok {
-		fasta = append(fasta, fmt.Sprintf("inst/pdx/%s/%s.fasta", dir, species1))
-		index = append(index, fmt.Sprintf("inst/pdx/%s/", dir))
+	// Species1 (graft/primary)
+	if genome1Fasta != "" {
+		fasta = append(fasta, genome1Fasta)
 	} else {
-		return nil, nil, nil, nil, fmt.Errorf("unsupported species1: %s", species1)
+		// 使用默认路径
+		fasta = append(fasta, fmt.Sprintf("inst/pdx/homo_sapiens/hg19.fasta"))
 	}
 
-	// 如果是PDX模式，添加 species2（host）
+	if genome1Index != "" {
+		index = append(index, genome1Index)
+	} else {
+		index = append(index, "inst/pdx/homo_sapiens/")
+	}
+
+	// Species2 (host/secondary) - 仅PDX模式
 	if species2 != "" {
-		if dir, ok := speciesMap[species2]; ok {
-			fasta = append(fasta, fmt.Sprintf("inst/pdx/%s/%s.fasta", dir, species2))
-			index = append(index, fmt.Sprintf("inst/pdx/%s/", dir))
+		if genome2Fasta != "" {
+			fasta = append(fasta, genome2Fasta)
 		} else {
-			return nil, nil, nil, nil, fmt.Errorf("unsupported species2: %s", species2)
+			fasta = append(fasta, "inst/pdx/mouse/GRCm38.fasta")
+		}
+
+		if genome2Index != "" {
+			index = append(index, genome2Index)
+		} else {
+			index = append(index, "inst/pdx/mouse/")
 		}
 	}
 
-	// RNAseq需要GTF和STAR索引
+	// RNA-seq 需要 GTF 和 STAR 索引
 	if mode == "RNASEQ" {
-		// graft (species1) 的GTF和索引
-		if dir, ok := speciesMap[species1]; ok {
-			gtf = append(gtf, fmt.Sprintf("inst/rnaseq/%s/%s.ensGene_sorted.gtf", dir, species1))
-			ref = append(ref, fmt.Sprintf("inst/rnaseq/%s/", dir))
+		if gtf1 != "" {
+			gtf = append(gtf, gtf1)
+		} else {
+			gtf = append(gtf, "inst/rnaseq/homo_sapiens/hg19.ensGene_sorted.gtf")
 		}
 
-		// 如果是PDX，添加 host (species2) 的GTF和索引
+		if starIndex1 != "" {
+			ref = append(ref, starIndex1)
+		} else {
+			ref = append(ref, "inst/rnaseq/homo_sapiens/")
+		}
+
+		// 如果是PDX，添加 host (species2) 的 GTF 和索引
 		if species2 != "" {
-			if dir, ok := speciesMap[species2]; ok {
-				gtf = append(gtf, fmt.Sprintf("inst/rnaseq/%s/%s.ensGene_sorted.gtf", dir, species2))
-				ref = append(ref, fmt.Sprintf("inst/rnaseq/%s/", dir))
+			if gtf2 != "" {
+				gtf = append(gtf, gtf2)
+			} else {
+				gtf = append(gtf, "inst/rnaseq/mouse/GRCm38.ensGene_sorted.gtf")
+			}
+
+			if starIndex2 != "" {
+				ref = append(ref, starIndex2)
+			} else {
+				ref = append(ref, "inst/rnaseq/mouse/")
 			}
 		}
 	}
@@ -66,15 +85,26 @@ func generateReferencePaths(mode, species1, species2 string) (fasta, index, gtf,
 }
 
 var (
-	createFastqDir  string
-	createPdataFile string
-	createMode      string
-	createSpecies1  string
-	createSpecies2  string
-	createOutputDir string
-	createJobID     string
-	createSuffix1   string
-	createSuffix2   string
+	createFastqDir     string
+	createPdataFile   string
+	createMode        string
+	createSpecies1     string
+	createSpecies2    string
+	createOutputDir   string
+	createJobID       string
+	createSuffix1     string
+	createSuffix2     string
+	createCondaEnv    string
+
+	// Reference genome files
+	createGenome1Fasta  string
+	createGenome1Index string
+	createGenome2Fasta string
+	createGenome2Index string
+	createGTF1        string
+	createGTF2        string
+	createStarIndex1  string
+	createStarIndex2  string
 )
 
 // createCmd represents the create command
@@ -101,6 +131,7 @@ Examples:
 func init() {
 	rootCmd.AddCommand(createCmd)
 
+	// Basic parameters
 	createCmd.Flags().StringVarP(&createFastqDir, "fastq", "f", "", "FASTQ files directory (required)")
 	createCmd.Flags().StringVarP(&createPdataFile, "pdata", "p", "", "Phenotype data file (Excel/CSV)")
 	createCmd.Flags().StringVarP(&createMode, "mode", "m", "RRBS", "Workflow mode (RRBS/WGBS/RNASEQ)")
@@ -110,6 +141,17 @@ func init() {
 	createCmd.Flags().StringVar(&createJobID, "jobid", "", "Custom job ID (default: auto-generated)")
 	createCmd.Flags().StringVar(&createSuffix1, "suffix1", "_R1.fastq.gz", "R1 file suffix")
 	createCmd.Flags().StringVar(&createSuffix2, "suffix2", "", "R2 file suffix (auto-derived if empty)")
+	createCmd.Flags().StringVar(&createCondaEnv, "conda-env", "", "Conda environment for Snakemake")
+
+	// Reference genome files (optional - uses defaults if not specified)
+	createCmd.Flags().StringVar(&createGenome1Fasta, "genome1-fasta", "", "Primary species genome FASTA file (e.g., inst/hg19/hg19.fasta)")
+	createCmd.Flags().StringVar(&createGenome1Index, "genome1-index", "", "Primary species genome index directory (e.g., inst/hg19/)")
+	createCmd.Flags().StringVar(&createGenome2Fasta, "genome2-fasta", "", "Secondary species genome FASTA file for PDX (e.g., inst/mm10/mm10.fasta)")
+	createCmd.Flags().StringVar(&createGenome2Index, "genome2-index", "", "Secondary species genome index directory for PDX (e.g., inst/mm10/)")
+	createCmd.Flags().StringVar(&createGTF1, "gtf1", "", "Primary species GTF annotation file for RNA-seq (e.g., inst/rnaseq/hg19/hg19.ensGene_sorted.gtf)")
+	createCmd.Flags().StringVar(&createGTF2, "gtf2", "", "Secondary species GTF annotation file for PDX RNA-seq (e.g., inst/rnaseq/mm10/mm10.ensGene_sorted.gtf)")
+	createCmd.Flags().StringVar(&createStarIndex1, "star-index1", "", "Primary species STAR index directory for RNA-seq (e.g., inst/rnaseq/hg19/)")
+	createCmd.Flags().StringVar(&createStarIndex2, "star-index2", "", "Secondary species STAR index directory for PDX RNA-seq (e.g., inst/rnaseq/mm10/)")
 
 	createCmd.MarkFlagRequired("fastq")
 }
@@ -190,7 +232,26 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("validation failed. Please fix the errors above")
 	}
 
-	// 6. Generate job ID
+	// 6. Detect PDX mode
+	pdxMode := createSpecies2 != ""
+	modeStr := strings.ToUpper(createMode)
+	if pdxMode {
+		logger.Infof("PDX mode enabled: %s + %s", createSpecies1, createSpecies2)
+	}
+
+	// 7. Validate reference genome files (if custom paths are provided)
+	logger.Info("Validating reference genome files...")
+	if err := validateReferenceGenomeFiles(
+		modeStr, createSpecies1, createSpecies2,
+		createGenome1Fasta, createGenome1Index,
+		createGenome2Fasta, createGenome2Index,
+		createGTF1, createGTF2,
+		createStarIndex1, createStarIndex2,
+	); err != nil {
+		return fmt.Errorf("reference genome validation failed: %w", err)
+	}
+
+	// 8. Generate job ID
 	jobID := createJobID
 	if jobID == "" {
 		jobID = generateJobID()
@@ -205,13 +266,6 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		// Regenerate if auto-generated
 		jobID = generateJobID()
 		projectDir = filepath.Join(createOutputDir, jobID)
-	}
-
-	// 7. Detect PDX mode
-	pdxMode := createSpecies2 != ""
-	modeStr := strings.ToUpper(createMode)
-	if pdxMode {
-		logger.Infof("PDX mode enabled: %s + %s", createSpecies1, createSpecies2)
 	}
 
 	// 8. Create project directory structure
@@ -284,6 +338,77 @@ func generateJobID() string {
 		return fmt.Sprintf("job_%d", os.Getpid())
 	}
 	return hex.EncodeToString(b)
+}
+
+// validateReferenceGenomeFiles validates that all specified reference genome files exist
+func validateReferenceGenomeFiles(mode, species1, species2, genome1Fasta, genome1Index, genome2Fasta, genome2Index, gtf1, gtf2, starIndex1, starIndex2 string) error {
+	mode = strings.ToUpper(mode)
+	var errors []string
+
+	// Validate species1 files
+	if genome1Fasta != "" {
+		if _, err := os.Stat(genome1Fasta); os.IsNotExist(err) {
+			errors = append(errors, fmt.Sprintf("Species1 genome FASTA not found: %s", genome1Fasta))
+		}
+	}
+
+	if genome1Index != "" {
+		if _, err := os.Stat(genome1Index); os.IsNotExist(err) {
+			errors = append(errors, fmt.Sprintf("Species1 genome index not found: %s", genome1Index))
+		}
+	}
+
+	// Validate species2 files (for PDX mode)
+	if species2 != "" {
+		if genome2Fasta != "" {
+			if _, err := os.Stat(genome2Fasta); os.IsNotExist(err) {
+				errors = append(errors, fmt.Sprintf("Species2 genome FASTA not found: %s", genome2Fasta))
+			}
+		}
+
+		if genome2Index != "" {
+			if _, err := os.Stat(genome2Index); os.IsNotExist(err) {
+				errors = append(errors, fmt.Sprintf("Species2 genome index not found: %s", genome2Index))
+			}
+		}
+	}
+
+	// Validate RNA-seq specific files
+	if mode == "RNASEQ" {
+		if gtf1 != "" {
+			if _, err := os.Stat(gtf1); os.IsNotExist(err) {
+				errors = append(errors, fmt.Sprintf("Species1 GTF file not found: %s", gtf1))
+			}
+		}
+
+		if starIndex1 != "" {
+			if _, err := os.Stat(starIndex1); os.IsNotExist(err) {
+				errors = append(errors, fmt.Sprintf("Species1 STAR index not found: %s", starIndex1))
+			}
+		}
+
+		// Validate species2 files for PDX RNA-seq
+		if species2 != "" {
+			if gtf2 != "" {
+				if _, err := os.Stat(gtf2); os.IsNotExist(err) {
+					errors = append(errors, fmt.Sprintf("Species2 GTF file not found: %s", gtf2))
+				}
+			}
+
+			if starIndex2 != "" {
+				if _, err := os.Stat(starIndex2); os.IsNotExist(err) {
+					errors = append(errors, fmt.Sprintf("Species2 STAR index not found: %s", starIndex2))
+				}
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return fmt.Errorf("reference genome validation failed:\n%s", strings.Join(errors, "\n"))
+	}
+
+	logger.Info("Reference genome files validation passed")
+	return nil
 }
 
 // createProjectStructure creates the complete project directory structure
@@ -413,7 +538,13 @@ func generateProjectConfig(configPath, mode, species1, species2,
 	groupLevels := calculateGroupLevels(pdata, samples)
 
 	// Generate reference paths dynamically
-	fasta, index, gtf, ref, err := generateReferencePaths(mode, species1, species2)
+	fasta, index, gtf, ref, err := generateReferencePaths(
+		mode, species1, species2,
+		createGenome1Fasta, createGenome1Index,
+		createGenome2Fasta, createGenome2Index,
+		createGTF1, createGTF2,
+		createStarIndex1, createStarIndex2,
+	)
 	if err != nil {
 		return fmt.Errorf("failed to generate reference paths: %w", err)
 	}
@@ -486,11 +617,6 @@ func generateProjectConfig(configPath, mode, species1, species2,
 	genomeFile := index // genomeFile uses the same paths as genome_index
 	cgGRGz := fmt.Sprintf("inst/%s/%s_CpG_sites.gz", strings.ToLower(species1), strings.ToLower(species1))
 	cgi := fmt.Sprintf("inst/%s/%s_cpgIsland.bed", strings.ToLower(species1), strings.ToLower(species1))
-
-	// Chromosome list (human/mouse reference)
-	chrs := []string{"chr1", "chr2", "chr3", "chr4", "chr5", "chr6", "chr7", "chr8", "chr9", "chr10",
-		"chr11", "chr12", "chr13", "chr14", "chr15", "chr16", "chr17", "chr18", "chr19", "chr20",
-		"chr21", "chr22", "chrX", "chrY", "chrM"}
 
 	// Prepare sample configs
 	sampleConfigs := make([]config.SampleConfig, len(samples))
@@ -567,7 +693,7 @@ func generateProjectConfig(configPath, mode, species1, species2,
 			RNAseq: config.RNAseqConfig{
 				GTF:         rnaseqGTF,
 				Reference:   rnaseqRef,
-				Chromosomes: chrs,
+				Chromosomes: []string{},
 			},
 		},
 		Directories: config.DirectoryConfig{
@@ -654,10 +780,10 @@ func generateProjectConfig(configPath, mode, species1, species2,
 				"fixed":    cfg.Workflow.Trim.Fixed,
 			},
 			"alignment": map[string]interface{}{
-				"C1": cfg.Workflow.Alignment.C1,
-				"C2": cfg.Workflow.Alignment.C2,
-				"T1": cfg.Workflow.Alignment.T1,
-				"T2": cfg.Workflow.Alignment.T2,
+				"c1": cfg.Workflow.Alignment.C1,
+				"c2": cfg.Workflow.Alignment.C2,
+				"t1": cfg.Workflow.Alignment.T1,
+				"t2": cfg.Workflow.Alignment.T2,
 			},
 		},
 
@@ -695,16 +821,15 @@ func generateProjectConfig(configPath, mode, species1, species2,
 				"names": cfg.Reference.Annotations.Names,
 			},
 			"rnaseq": map[string]interface{}{
-				"gtf":  cfg.Reference.RNAseq.GTF,
-				"ref":  cfg.Reference.RNAseq.Reference,
-				"chrs": cfg.Reference.RNAseq.Chromosomes,
+				"gtf": cfg.Reference.RNAseq.GTF,
+				"ref": cfg.Reference.RNAseq.Reference,
 			},
 		},
 
 		// Directories section
 		"directories": map[string]interface{}{
-			"work":   cfg.Directories.Work,
-			"config": cfg.Directories.Config,
+			"work":       cfg.Directories.Work,
+			"selfconfig": cfg.Directories.Config,
 			"qc": map[string]interface{}{
 				"main":   cfg.Directories.QC.Main,
 				"before": cfg.Directories.QC.Before,
@@ -742,8 +867,13 @@ func generateProjectConfig(configPath, mode, species1, species2,
 
 		// Parallel section
 		"parallel": map[string]interface{}{
-			"workers":       cfg.Parallel.Workers,
-			"dwarf_workers": cfg.Parallel.DwarfWorkers,
+			"workers": cfg.Parallel.Workers,
+		},
+
+		// Engine section
+		"engine": map[string]interface{}{
+			"type":       "auto",
+			"conda_env":  createCondaEnv,
 		},
 
 		// Add flat fields for backward compatibility with old Snakefiles

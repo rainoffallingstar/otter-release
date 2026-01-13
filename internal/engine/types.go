@@ -5,8 +5,9 @@ type EngineType string
 
 // Engine type constants
 const (
-	EngineSlurm EngineType = "slurm"
-	EngineLocal EngineType = "local"
+	EngineSlurm     EngineType = "slurm"
+	EngineLocal     EngineType = "local"
+	EngineSlurmArray EngineType = "slurm_array"
 )
 
 // String returns the string representation of the engine type

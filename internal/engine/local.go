@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/xdxtools/xdxtools-go/internal/enva"
 	"github.com/xdxtools/xdxtools-go/internal/logger"
 )
 
@@ -296,7 +297,13 @@ func (e *LocalEngine) ExecuteSamples(step int, samples []string, condaEnv string
 		cmd = append(cmd, "--config", fmt.Sprintf("SIDs=[%s]", sample))
 
 		if condaEnv != "" {
-			cmd = append([]string{"conda", "run", "-n", condaEnv}, cmd...)
+			if enva.IsAvailable() {
+				// 使用 enva: enva run <env> -- <cmd...>
+				cmd = append([]string{"enva", "run", condaEnv, "--"}, cmd...)
+			} else {
+				// 回退到 conda: conda run -n <env> <cmd...>
+				cmd = append([]string{"conda", "run", "-n", condaEnv}, cmd...)
+			}
 		}
 
 		commands[i] = cmd

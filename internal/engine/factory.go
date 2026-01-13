@@ -30,9 +30,37 @@ func (f *EngineFactory) NewEngine(engineType EngineType, cfg *config.EngineConfi
 		}
 		return NewLocalEngine(localConfig), nil
 
+	case EngineSlurmArray:
+		slurmConfig := &SlurmConfig{
+			Partition:  cfg.Slurm.Partition,
+			Cores:      cfg.Slurm.Cores,
+			Memory:     cfg.Slurm.Memory,
+			JobName:    cfg.Slurm.JobName,
+			MaxRetries: cfg.Slurm.MaxRetries,
+		}
+		// For array engine, samples and stepResource need to be set later
+		return NewSlurmArrayEngine(slurmConfig, nil, nil), nil
+
 	default:
 		return nil, fmt.Errorf("unsupported engine type: %s", engineType)
 	}
+}
+
+// NewSlurmArrayEngineWithResources creates a SlurmArrayEngine with samples and step resources
+func (f *EngineFactory) NewSlurmArrayEngineWithResources(
+	cfg *config.EngineConfig,
+	samples []string,
+	stepResource *config.StepResource,
+) (*SlurmArrayEngine, error) {
+	slurmConfig := &SlurmConfig{
+		Partition:  cfg.Slurm.Partition,
+		Cores:      cfg.Slurm.Cores,
+		Memory:     cfg.Slurm.Memory,
+		JobName:    cfg.Slurm.JobName,
+		MaxRetries: cfg.Slurm.MaxRetries,
+	}
+
+	return NewSlurmArrayEngine(slurmConfig, samples, stepResource), nil
 }
 
 // DetectEngine automatically detects the execution environment

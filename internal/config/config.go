@@ -2,14 +2,15 @@ package config
 
 // XDXToolsConfig represents the complete xdxtools configuration
 type XDXToolsConfig struct {
-	Workflow    WorkflowConfig  `mapstructure:"workflow"`
-	Input       InputConfig     `mapstructure:"input"`
-	Output      OutputConfig    `mapstructure:"output"`
-	Reference   ReferenceConfig `mapstructure:"reference"`
-	Directories DirectoryConfig `mapstructure:"directories"`
-	Parallel    ParallelConfig  `mapstructure:"parallel"`
-	Metadata    MetadataConfig  `mapstructure:"metadata"`
-	Engine      EngineConfig    `mapstructure:"engine"`
+	Workflow      WorkflowConfig     `mapstructure:"workflow"`
+	Input         InputConfig       `mapstructure:"input"`
+	Output        OutputConfig      `mapstructure:"output"`
+	Reference     ReferenceConfig   `mapstructure:"reference"`
+	Directories   DirectoryConfig   `mapstructure:"directories"`
+	Parallel      ParallelConfig    `mapstructure:"parallel"`
+	Metadata      MetadataConfig    `mapstructure:"metadata"`
+	Engine        EngineConfig      `mapstructure:"engine"`
+	StepResources map[int]*StepResource `mapstructure:"step_resources,omitempty"`
 }
 
 // WorkflowConfig represents the main workflow configuration
@@ -52,10 +53,10 @@ type TrimConfig struct {
 
 // AlignmentConfig represents alignment parameters
 type AlignmentConfig struct {
-	C1 string `mapstructure:"C1"` // e.g., "7"
-	C2 string `mapstructure:"C2"` // e.g., "9"
-	T1 int    `mapstructure:"T1"` // e.g., 0
-	T2 int    `mapstructure:"T2"` // e.g., 0
+	C1 string `mapstructure:"c1"` // e.g., "7"
+	C2 string `mapstructure:"c2"` // e.g., "9"
+	T1 int    `mapstructure:"t1"` // e.g., 0
+	T2 int    `mapstructure:"t2"` // e.g., 0
 }
 
 // SampleConfig represents a sample
@@ -180,9 +181,10 @@ type MetadataConfig struct {
 
 // EngineConfig represents execution engine configuration
 type EngineConfig struct {
-	Type  string      `mapstructure:"type"` // auto/slurm/local
-	Slurm SlurmConfig `mapstructure:"slurm,omitempty"`
-	Local LocalConfig `mapstructure:"local,omitempty"`
+	Type     string      `mapstructure:"type"` // auto/slurm/local
+	Slurm    SlurmConfig `mapstructure:"slurm,omitempty"`
+	Local    LocalConfig `mapstructure:"local,omitempty"`
+	CondaEnv  string      `mapstructure:"conda_env,omitempty"` // Conda environment for Snakemake
 }
 
 // SlurmConfig represents Slurm cluster configuration
@@ -198,4 +200,15 @@ type SlurmConfig struct {
 type LocalConfig struct {
 	MaxCores  int    `mapstructure:"max_cores"`
 	MaxMemory string `mapstructure:"max_memory"`
+}
+
+// StepResource represents per-step resource configuration
+type StepResource struct {
+	Cores      int    `mapstructure:"cores"`
+	Memory     string `mapstructure:"memory"`
+	Partition  string `mapstructure:"partition"`
+	Threads    int    `mapstructure:"threads"`
+	JobArray   bool   `mapstructure:"job_array"`
+	MaxJobs    int    `mapstructure:"max_jobs"`
+	Inherit    bool   `mapstructure:"inherit"`
 }

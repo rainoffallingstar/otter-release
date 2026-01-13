@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/xdxtools/xdxtools-go/internal/enva"
 	"github.com/xdxtools/xdxtools-go/internal/logger"
 )
 
@@ -31,9 +32,17 @@ func NewSnakemakeExecutor(workflowIdx string, step int, configFile string, optio
 func (e *SnakemakeExecutor) BuildCommand() []string {
 	cmd := []string{}
 
-	// If conda environment is specified, use conda run
+	// If conda environment is specified, use enva (if available) or conda run
 	if e.CondaEnv != "" {
-		cmd = append(cmd, "conda", "run", "-n", e.CondaEnv, "--no-capture-output")
+		if enva.IsAvailable() {
+			// 使用 enva: enva run <env> -- snakemake <args...>
+			cmd = append(cmd, "enva", "run", e.CondaEnv, "--")
+			logger.Debugf("Using enva for optimal performance")
+		} else {
+			// 回退到 conda: conda run -n <env> --no-capture-output snakemake <args...>
+			cmd = append(cmd, "conda", "run", "-n", e.CondaEnv, "--no-capture-output")
+			logger.Debugf("enva not found, using conda run")
+		}
 	}
 
 	// Add Snakemake command

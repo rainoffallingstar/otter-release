@@ -44,8 +44,8 @@ type SnakemakeConfig struct {
 	GenomeFile  []string `yaml:"genomeFile"`
 	GenomeFasta []string `yaml:"gnome_fasta"`
 	GenomeAnno  []string `yaml:"genomeAnno"`
-	RNASEQGTF   string   `yaml:"rnaseq_gtf"`
-	RNASEQRef   string   `yaml:"rnaseq_ref"`
+	RNASEQGTF   interface{} `yaml:"rnaseq_gtf"`
+	RNASEQRef   interface{} `yaml:"rnaseq_ref"`
 
 	// Sample information
 	SIDs []string `yaml:"SIDs"`
@@ -90,8 +90,8 @@ func GenerateSnakemakeConfig(config *XDXToolsConfig, samples []string, outputPat
 		GenomeFile:  config.Reference.Indices.Genome,
 		GenomeFasta: config.Reference.Files.Fasta,
 		GenomeAnno:  config.Reference.Annotations.Names,
-		RNASEQGTF:   config.Reference.RNAseq.GTF.(string),
-		RNASEQRef:   config.Reference.RNAseq.Reference.(string),
+		RNASEQGTF:   config.Reference.RNAseq.GTF,
+		RNASEQRef:   config.Reference.RNAseq.Reference,
 
 		SIDs:      samples,
 		UserEmail: config.Metadata.UserEmail,

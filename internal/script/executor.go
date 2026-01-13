@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xdxtools/xdxtools-go/internal/enva"
 	"github.com/xdxtools/xdxtools-go/internal/engine"
 	"github.com/xdxtools/xdxtools-go/internal/logger"
 )
@@ -34,7 +35,8 @@ func NewExecutor(eng engine.Engine, condaEnv string) *Executor {
 
 // ExecuteRScript executes an R script
 func (e *Executor) ExecuteRScript(config ScriptConfig) error {
-	cmd := []string{"conda", "run", "-n", e.condaEnv, "Rscript", config.ScriptPath}
+	// 构建基础命令（使用 enva 或 conda）
+	cmd := e.buildCommand("Rscript", config.ScriptPath)
 
 	// Add arguments
 	for key, value := range config.Args {
@@ -48,7 +50,8 @@ func (e *Executor) ExecuteRScript(config ScriptConfig) error {
 
 // ExecutePythonScript executes a Python script
 func (e *Executor) ExecutePythonScript(config ScriptConfig) error {
-	cmd := []string{"conda", "run", "-n", e.condaEnv, "python", config.ScriptPath}
+	// 构建基础命令（使用 enva 或 conda）
+	cmd := e.buildCommand("python", config.ScriptPath)
 
 	// Add arguments (Python uses -O for single char args)
 	for key, value := range config.Args {
@@ -62,12 +65,26 @@ func (e *Executor) ExecutePythonScript(config ScriptConfig) error {
 
 // ExecuteTool executes a tool command
 func (e *Executor) ExecuteTool(toolName string, args []string) error {
-	cmd := []string{"conda", "run", "-n", e.condaEnv, toolName}
-	cmd = append(cmd, args...)
-
+	cmd := e.buildCommand(toolName, args...)
 	logger.Debugf("Executing tool: %s", strings.Join(cmd, " "))
-
 	return e.execute(cmd)
+}
+
+// buildCommand builds the command array using enva (if available) or conda run
+func (e *Executor) buildCommand(tool string, args ...string) []string {
+	if enva.IsAvailable() {
+		// 使用 enva: enva run <env> -- <tool> <args...>
+		result := []string{"enva", "run", e.condaEnv, "--", tool}
+		result = append(result, args...)
+		logger.Debugf("Using enva for optimal performance")
+		return result
+	}
+
+	// 回退到 conda: conda run -n <env> <tool> <args...>
+	result := []string{"conda", "run", "-n", e.condaEnv, tool}
+	result = append(result, args...)
+	logger.Debugf("enva not found, using conda run")
+	return result
 }
 
 // execute executes a command via the engine
