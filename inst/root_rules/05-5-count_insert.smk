@@ -1,11 +1,11 @@
 rule count_insert:
     message: "count insert ..."
     input:
-        sample_bam = lambda wildcards: os.path.join(config["directories.bsmap.main"], f"{wildcards.sample}_{wildcards.species}.bam")
+        sample_bam = lambda wildcards: os.path.join(config["directories"]["bsmap"]["main"], f"{wildcards.sample}_{wildcards.species}.bam")
     output:
-        os.path.join(config["directories.qc.main"], "{sample}_{species}_insert_length.txt")
+        os.path.join(config["directories"]["qc"]["main"], "{sample}_{species}_insert_length.txt")
     params:
-        insert_length = lambda wildcards:os.path.join(config["directories.qc.main"], f"{wildcards.sample}_{wildcards.species}_insert_length.txt")
+        insert_length = lambda wildcards:os.path.join(config["directories"]["qc"]["main"], f"{wildcards.sample}_{wildcards.species}_insert_length.txt")
     threads: 16
     shell:
         """

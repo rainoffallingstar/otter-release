@@ -1,7 +1,7 @@
 rule mhap_analysis:
     message: "mhap ..."
     input:
-        sample_bam = lambda wildcards: os.path.join(config["bsmapDir"], f"{wildcards.sample}_{wildcards.species}.bam")
+        sample_bam = lambda wildcards: os.path.join(config["directories"]["bsmap"]["main"], f"{wildcards.sample}_{wildcards.species}.bam")
     output:
         mapgz = os.path.join(config["outDir_mhap"], "{sample}_{species}.mhap.gz"),
         cgi_summary = os.path.join(config["outDir_mhap"], "{sample}_{species}_CGI_summary.txt")

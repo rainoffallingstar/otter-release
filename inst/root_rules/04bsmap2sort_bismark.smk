@@ -1,17 +1,17 @@
 rule bsmap2sort4homo:
   message: "bsmap ..."
   input:
-    trim_R1 = lambda wildcards: os.path.join(config["output.trim_dir"], f"{wildcards.sample}_val_1.fq.gz"),
-    trim_R2 = lambda wildcards: os.path.join(config["output.trim_dir"], f"{wildcards.sample}_val_2.fq.gz")
+    trim_R1 = lambda wildcards: os.path.join(config["output"]["trim_dir"], f"{wildcards.sample}_val_1.fq.gz"),
+    trim_R2 = lambda wildcards: os.path.join(config["output"]["trim_dir"], f"{wildcards.sample}_val_2.fq.gz")
   output:
-    os.path.join(config["directories.bsmap.main"], "{sample}_{species}" + ".bam")
+    os.path.join(config["directories"]["bsmap"]["main"], "{sample}_{species}" + ".bam")
   params:
-    bsmapDir = config["directories.bsmap.main"],
-    bsmapDir_species = lambda wildcards: os.path.join(config["directories.bsmap.main"],f"{wildcards.species}"),
-    bam_aligned = lambda wildcards: os.path.join(config["directories.bsmap.main"],f"{wildcards.species}", f"{wildcards.sample}_val_1_bismark_bt2_pe.bam"),
-    bam_sorted = lambda wildcards:os.path.join(config["directories.bsmap.main"], f"{wildcards.sample}_"+f"{wildcards.species}"+".bam"),
-    bamTmp = lambda wildcards:os.path.join(config["directories.bsmap.main"],"tmp",f"{wildcards.species}"),
-    genomeFile = lambda wildcards:config["reference.indices.genome"][config["workflow.species.name"].index(wildcards.species)]
+    bsmapDir = config["directories"]["bsmap"]["main"],
+    bsmapDir_species = lambda wildcards: os.path.join(config["directories"]["bsmap"]["main"],f"{wildcards.species}"),
+    bam_aligned = lambda wildcards: os.path.join(config["directories"]["bsmap"]["main"],f"{wildcards.species}", f"{wildcards.sample}_val_1_bismark_bt2_pe.bam"),
+    bam_sorted = lambda wildcards:os.path.join(config["directories"]["bsmap"]["main"], f"{wildcards.sample}_"+f"{wildcards.species}"+".bam"),
+    bamTmp = lambda wildcards:os.path.join(config["directories"]["bsmap"]["main"],"tmp",f"{wildcards.species}"),
+    genomeFile = lambda wildcards:config["reference.indices"]["genome"][config["workflow.species"]["name"].index(wildcards.species)]
   threads: 8
   shell:
     """

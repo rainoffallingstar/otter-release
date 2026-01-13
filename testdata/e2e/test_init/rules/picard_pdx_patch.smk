@@ -1,19 +1,19 @@
 rule picard_pdx_patch:
   message : "for PDX pipeline,patching ..."
   input:
-    bam_sorted = lambda wildcards:os.path.join(config["bsmapDir"], f"{wildcards.sample}_"+f"{wildcards.species}"+".bam")
+    bam_sorted = lambda wildcards:os.path.join(config["directories"]["bsmap"]["main"], f"{wildcards.sample}_"+f"{wildcards.species}"+".bam")
   output:
-    os.path.join(config["bsmapDir"], "{sample}_{species}_pdx_patch_success")
+    os.path.join(config["directories"]["bsmap"]["main"], "{sample}_{species}_pdx_patch_success")
   params:
-    marker = lambda wildcards:os.path.join(config["bsmapDir"], f"{wildcards.sample}_"+f"{wildcards.species}"+"_pdx_patch_success"),
-    bam_fixed = lambda wildcards:os.path.join(config["bsmapDir"], f"{wildcards.sample}_fixed_"+f"{wildcards.species}"+".bam"),
+    marker = lambda wildcards:os.path.join(config["directories"]["bsmap"]["main"], f"{wildcards.sample}_"+f"{wildcards.species}"+"_pdx_patch_success"),
+    bam_fixed = lambda wildcards:os.path.join(config["directories"]["bsmap"]["main"], f"{wildcards.sample}_fixed_"+f"{wildcards.species}"+".bam"),
     fasta = lambda wildcards:config["gnome_fasta"][config["species"].index(wildcards.species)]
   threads:4
   run:
         if config["Mode"] == "RNASEQ":
             shell(
                 """
-                conda run -n picard picard SetNmMdAndUqTags \
+                enva run picard -- picard SetNmMdAndUqTags \
                 I={input.bam_sorted} \
                 O={params.bam_fixed} \
                 R={params.fasta} \
@@ -25,7 +25,7 @@ rule picard_pdx_patch:
         else:
             shell(
                 """
-                conda run -n picard picard SetNmMdAndUqTags \
+                enva run picard -- picard SetNmMdAndUqTags \
                 I={input.bam_sorted} \
                 O={params.bam_fixed} \
                 R={params.fasta} \

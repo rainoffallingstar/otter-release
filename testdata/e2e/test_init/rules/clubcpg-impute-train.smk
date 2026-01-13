@@ -1,8 +1,8 @@
 rule clubcpgimputetrain:
   message:"clubcpg impute training"
   input:
-    bam_sorted = lambda wildcards:os.path.join(config["bsmapDir"], f"{wildcards.sample}_"+config["fixed"]+config["graft"]+"_Filtered.bam"),
-    filter_csv = lambda wildcards:os.path.join(config["clubcpg_coverage_before"], "CompleteBins."+f"{wildcards.sample}_"+config["graft"]+".bam."+f"{wildcards.chr}.filtered.csv")
+    bam_sorted = lambda wildcards:os.path.join(config["directories"]["bsmap"]["main"], f"{wildcards.sample}_"+config["fixed"]+config["workflow"]["species"]["graft"]+"_Filtered.bam"),
+    filter_csv = lambda wildcards:os.path.join(config["clubcpg_coverage_before"], "CompleteBins."+f"{wildcards.sample}_"+config["workflow"]["species"]["graft"]+".bam."+f"{wildcards.chr}.filtered.csv")
   output:
     os.path.join(config["clubcpg_model"], "{sample}","{chr}","saved_model_5_cpgs.prelim")
   params:
@@ -17,7 +17,7 @@ rule clubcpgimputetrain:
      """
     mkdir {params.model_folder}
     samtools index {input.bam_sorted}
-    conda run -n clubcpg clubcpg-impute-train -a {input.bam_sorted} \
+    enva run clubcpg -- clubcpg-impute-train -a {input.bam_sorted} \
     -c {input.filter_csv} \
     -o {params.model_folder} \
     -n {threads} \

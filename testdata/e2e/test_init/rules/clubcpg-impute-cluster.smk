@@ -1,10 +1,10 @@
 rule clubcpgimputecluster:
   message:"calculating clubcpg impute cluster ..."
   input:
-    bam_sorted = lambda wildcards:os.path.join(config["bsmapDir"], f"{wildcards.sample}_"+config["fixed"]+config["graft"]+"_Filtered.bam"),
-    impute_csv = lambda wildcards:os.path.join(config["clubcpg_coverage_impute"], "CompleteBins."+f"{wildcards.sample}_"+config["graft"]+".bam."+f"{wildcards.chr}.IMPUTED_filter.csv")
+    bam_sorted = lambda wildcards:os.path.join(config["directories"]["bsmap"]["main"], f"{wildcards.sample}_"+config["fixed"]+config["workflow"]["species"]["graft"]+"_Filtered.bam"),
+    impute_csv = lambda wildcards:os.path.join(config["clubcpg_coverage_impute"], "CompleteBins."+f"{wildcards.sample}_"+config["workflow"]["species"]["graft"]+".bam."+f"{wildcards.chr}.IMPUTED_filter.csv")
   output:
-    os.path.join(config["clubcpg"],"{sample}_"+config["fixed"]+config["graft"]+".bam."+"{chr}_cluster_results.csv")
+    os.path.join(config["clubcpg"],"{sample}_"+config["fixed"]+config["workflow"]["species"]["graft"]+".bam."+"{chr}_cluster_results.csv")
   params:
     output_folder = config["clubcpg"],
     bin_size = 100,
@@ -20,7 +20,7 @@ rule clubcpgimputecluster:
   shell:
     """
     samtools index {input.bam_sorted}
-    conda run -n clubcpg clubcpg-impute-cluster -a {input.bam_sorted} \
+    enva run clubcpg -- clubcpg-impute-cluster -a {input.bam_sorted} \
     --bins {input.impute_csv} \
     -o {params.output_folder} \
     --bin_size {params.bin_size} \

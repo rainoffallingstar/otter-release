@@ -4,12 +4,12 @@ rule fastq2trim:
     R1= lambda wildcards: os.path.join(config["rawDir"], f"{wildcards.sample}_R1.fastq.gz"),
     R2= lambda wildcards: os.path.join(config["rawDir"], f"{wildcards.sample}_R2.fastq.gz")
   output:
-    R1 = os.path.join(config["trimDir"], "{sample}"  + "_val_1.fq.gz"),
-    R2 =os.path.join(config["trimDir"], "{sample}" + "_val_2.fq.gz"),
-    R1report = os.path.join(config["trimDir"], "{sample}" + "_R1.fastq.gz_trimming_report.txt"),
-    R2report = os.path.join(config["trimDir"], "{sample}" + "_R2.fastq.gz_trimming_report.txt")
+    R1 = os.path.join(config["output"]["trim_dir"], "{sample}"  + "_val_1.fq.gz"),
+    R2 =os.path.join(config["output"]["trim_dir"], "{sample}" + "_val_2.fq.gz"),
+    R1report = os.path.join(config["output"]["trim_dir"], "{sample}" + "_R1.fastq.gz_trimming_report.txt"),
+    R2report = os.path.join(config["output"]["trim_dir"], "{sample}" + "_R2.fastq.gz_trimming_report.txt")
   params:
-    dir= config["trimDir"],
+    dir= config["output"]["trim_dir"],
     error = config["error"],
     C1=config["C1"],
     C2=config["C2"],
@@ -36,7 +36,7 @@ rule fastq2trim:
     T2={params.T2}
     
     # 构建trim_galore命令
-    command="conda run -n trim_galore trim_galore -e $error -j $threads --basename $basename --paired -o $dir"
+    command="enva run trim_galore -- trim_galore -e $error -j $threads --basename $basename --paired -o $dir"
     
     # 仅当 adapter 不是 "NO_ADAPTER_CAL_USE_DEFAULT" 时才添加参数
     if [ "$adapter" != "NO_ADAPTER_CAL_USE_DEFAULT" ]; then

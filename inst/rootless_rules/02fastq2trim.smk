@@ -1,22 +1,22 @@
 rule fastq2trim:
   message: "Runing fastq2trim ..."
   input:
-    R1= lambda wildcards: os.path.join(config["output.raw_dir"], f"{wildcards.sample}_R1.fastq.gz"),
-    R2= lambda wildcards: os.path.join(config["output.raw_dir"], f"{wildcards.sample}_R2.fastq.gz")
+    R1= lambda wildcards: os.path.join(config["output"]["raw_dir"], f"{wildcards.sample}_R1.fastq.gz"),
+    R2= lambda wildcards: os.path.join(config["output"]["raw_dir"], f"{wildcards.sample}_R2.fastq.gz")
   output:
-    R1 = os.path.join(config["output.trim_dir"], "{sample}"  + "_val_1.fq.gz"),
-    R2 =os.path.join(config["output.trim_dir"], "{sample}" + "_val_2.fq.gz"),
-    R1report = os.path.join(config["output.trim_dir"], "{sample}" + "_R1.fastq.gz_trimming_report.txt"),
-    R2report = os.path.join(config["output.trim_dir"], "{sample}" + "_R2.fastq.gz_trimming_report.txt")
+    R1 = os.path.join(config["output"]["trim_dir"], "{sample}"  + "_val_1.fq.gz"),
+    R2 =os.path.join(config["output"]["trim_dir"], "{sample}" + "_val_2.fq.gz"),
+    R1report = os.path.join(config["output"]["trim_dir"], "{sample}" + "_R1.fastq.gz_trimming_report.txt"),
+    R2report = os.path.join(config["output"]["trim_dir"], "{sample}" + "_R2.fastq.gz_trimming_report.txt")
   params:
-    dir= config["output.trim_dir"],
-    error = config["workflow.adapters.error"],
-    C1=config["workflow.alignment.c1"],
-    C2=config["workflow.alignment.c2"],
-    T1=config["workflow.alignment.t1"],
-    T2=config["workflow.alignment.t2"],
-    adapter1= lambda wildcards: config["workflow.adapters.seq1"][config["metadata.sample_ids"].index(wildcards.sample)],
-    adapter2= lambda wildcards: config["workflow.adapters.seq2"][config["metadata.sample_ids"].index(wildcards.sample)],
+    dir= config["output"]["trim_dir"],
+    error = config["workflow.adapters"]["error"],
+    C1=config["workflow.alignment"]["c1"],
+    C2=config["workflow.alignment"]["c2"],
+    T1=config["workflow.alignment"]["t1"],
+    T2=config["workflow.alignment"]["t2"],
+    adapter1= lambda wildcards: config["workflow.adapters"]["seq1"][config["metadata"]["sample_ids"].index(wildcards.sample)],
+    adapter2= lambda wildcards: config["workflow.adapters"]["seq2"][config["metadata"]["sample_ids"].index(wildcards.sample)],
     SIDs= lambda wildcards: wildcards.sample
   threads: 6
   shell:
@@ -36,7 +36,7 @@ rule fastq2trim:
     T2={params.T2}
     
     # 构建trim_galore命令
-    command="conda run -n trim_galore trim_galore -e $error -j $threads --basename $basename --paired -o $dir"
+    command="enva run trim_galore -- trim_galore -e $error -j $threads --basename $basename --paired -o $dir"
     
     # 仅当 adapter 不是 "NO_ADAPTER_CAL_USE_DEFAULT" 时才添加参数
     if [ "$adapter" != "NO_ADAPTER_CAL_USE_DEFAULT" ]; then

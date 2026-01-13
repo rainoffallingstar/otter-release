@@ -1,21 +1,21 @@
 rule xenofilteR:
   message:"xenofilteR ..."
   input:
-    expand(os.path.join(config["bsmapDir"], "{sample}_{species}_pdx_patch_success"),sample=config["SIDs"],species = config["species"]),
-    expand(os.path.join(config["bsmapDir"], "{sample}_fixed_{species}.bam"), sample=config["SIDs"],species = config["species"])
+    expand(os.path.join(config["directories"]["bsmap"]["main"], "{sample}_{species}_pdx_patch_success"),sample=config["SIDs"],species = config["species"]),
+    expand(os.path.join(config["directories"]["bsmap"]["main"], "{sample}_fixed_{species}.bam"), sample=config["SIDs"],species = config["species"])
   output:
-    os.path.join(config["bsmapDir"],"Filtered_bams" ,"filtered_success.txt")
+    os.path.join(config["directories"]["bsmap"]["main"],"Filtered_bams" ,"filtered_success.txt")
   params:
-    filter_root = config["bsmapDir"],
+    filter_root = config["directories"]["bsmap"]["main"],
     host = config["host"],
-    graft = config["graft"],
+    graft = config["workflow"]["species"]["graft"],
     MM_threshold = (4 if config["Mode"] == "RNASEQ" else 6),
     Unmapped_penalty = 8,
     mode = config["Mode"]
   threads:4
   shell:
     """
-    conda run -n base Rscript R/xenofilteR.R -d {params.filter_root} \
+    enva run base Rscript R/xenofilteR.R -d {params.filter_root} \
     --graft {params.graft} \
     --host {params.host} \
     --threads {threads} \
