@@ -101,3 +101,10 @@ build/
 # Bioinformatics data files (examples)
 examples/data/
 examples/output/
+# Build outputs
+target/
+*.exe
+xdxtools
+
+# Test outputs
+test_slurm/
