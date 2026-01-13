@@ -1,157 +1,66 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 
-xdxtools-go is a bioinformatics workflow management tool for RRBS, WGBS, RNA-seq, and PDX analysis, rewritten in Go from the original R package. It provides a CLI and TUI interface for managing Snakemake-based bioinformatics workflows.
+xdxtools is a bioinformatics workflow management CLI for RRBS, WGBS, RNA-seq, and PDX analysis, rewritten in Go from an R package. It orchestrates Snakemake-based workflows with support for SLURM job arrays and local parallel execution.
 
-## Quick Start
-
-```bash
-# Build the binary
-go build -o xdxtools
-
-# Run tests
-go test ./...
-
-# Run with coverage
-go test -cover ./...
-
-# Run specific test
-go test -v ./internal/input -run TestAdapterGenerator
-```
-
-## Build and Development Commands
+## Build & Test Commands
 
 ```bash
-# Build for current platform
+# Build
 go build -o xdxtools
 
-# Build for multiple platforms
-GOOS=linux GOARCH=amd64 go build -o xdxtools-linux-amd64
-GOOS=darwin GOARCH=amd64 go build -o xdxtools-darwin-amd64
-GOOS=windows GOARCH=amd64 go build -o xdxtools.exe
+# Static build (for distribution)
+CGO_ENABLED=0 go build -ldflags="-s -w" -o target/release/xdxtools-linux-amd64
 
 # Run all tests
 go test ./...
 
-# Run tests with coverage
+# Run specific test
+go test -v ./internal/input -run TestAdapterGenerator
+
+# Run with coverage
 go test -cover ./...
-
-# Run tests verbosely
-go test -v ./...
-
-# Run specific package tests
-go test ./internal/input/...
-go test ./internal/config/...
-go test ./internal/engine/...
-go test ./cmd/...
-
-# Run integration tests only
-go test ./cmd/... -v
-
-# Test with timeout
-go test -timeout 30s ./...
 ```
 
 ## Three-Command Workflow
 
-xdxtools follows a simple three-command workflow:
-
-### 1. `init` - Install Snakemake Workflow Files
 ```bash
+# 1. Initialize project (copies Snakemake files, R scripts, rules)
 xdxtools init my_project
-xdxtools init my_project --engine-type rootless
+
+# 2. Create analysis (scans FASTQ, validates samples, generates config)
+xdxtools create --fastq /data/fastq --mode RRBS --pdata samples.csv
+
+# 3. Execute workflow
+xdxtools run --config userspace/my_project/config/config.yaml --engine slurm
 ```
 
-### 2. `create` - Create Analysis Project
-```bash
-xdxtools create --fastq /data/fastq --mode RRBS
-xdxtools create --fastq /data/fastq --pdata samples.csv --mode RRBS --species1 human --species2 mouse
-```
+## Architecture
 
-### 3. `run` - Execute Workflow
-```bash
-xdxtools run --config config.yaml
-xdxtools run --config config.yaml --engine slurm
-```
+### CLI Layer (cmd/)
+Cobra-based commands: `init`, `create`, `run`, `config`, `tui`
 
-## High-Level Architecture
+### Core Modules (internal/)
 
-### CLI Commands (cmd/)
-
-The CLI is built using Cobra framework with 5 main commands:
-
-1. **root** - Base command with global flags
-2. **init** - Initialize project structure and copy embedded assets
-3. **create** - Scan FASTQ, validate samples, create directory structure, generate config
-4. **run** - Execute Snakemake workflows
-5. **config** - Configuration management (validate only)
-6. **tui** - Interactive Terminal User Interface
-
-### Internal Modules (internal/)
-
-#### 1. **assets** - Embedded Resource Management
-- Uses Go 1.16+ `embed` package to embed Snakemake files, R scripts, rules
-- Copies embedded assets to project directory during `init`
-- Supports both root and rootless engine types
-
-#### 2. **config** - Configuration Management
-- Loads and validates YAML configuration files
-- Generates Snakemake-compatible configs
-- Supports workflow mode mapping (RRBS/WGBS/RNASEQ/PDX)
-- Key types: `WorkflowConfig`, `ReferenceConfig`, `ParallelConfig`
-
-#### 3. **engine** - Execution Engine Abstraction
-- Three implementations: SlurmEngine, LocalEngine, DockerEngine
-- Factory pattern: `CreateEngineFromConfig()`
-- Auto-detection of execution environment
-- Key interface: `Engine` with `Execute(cmd []string) error`
-
-#### 4. **workflow** - Workflow Orchestration
-- Manages workflow lifecycle: Initialize → ExecuteAll
-- Creates directory structures (30+ subdirectories)
-- Integrates with Snakemake execution
-- PDX mode support with species-specific directories
-
-#### 5. **input** - Input Processing
-- **FASTQ Scanning**: Scans directories, pairs R1/R2 files
-- **PData Parsing**: Excel (.xlsx/.xls) and CSV support
-- **Adapter Generation**: Per-sample adapters with barcode support
-- **Validation**: Input validation and error reporting
-- Key components: Scanner, PDataParser, AdapterGenerator, Validator
-
-#### 6. **script** - External Script Execution
-- Executes R/Python scripts via Conda environments
-- Integrates with execution engines (Slurm/Local/Docker)
-- Encapsulates `conda run` invocations
-
-#### 7. **tui** - Terminal User Interface
-- Simple command-line based TUI (not Bubble Tea)
-- Interactive menu system
-- Workflow dashboard and status monitoring
-- Configuration management interface
-
-#### 8. **logger** - Logging
-- Built on logrus
-- Configurable verbosity
-- Structured logging
+| Module | Purpose | Key Files |
+|--------|---------|-----------|
+| **config** | YAML config loading, validation, generation | `config.go`, `generator.go`, `defaults.go` |
+| **engine** | Execution backends (Slurm, SlurmArray, Local) | `slurm.go`, `slurm_array.go`, `local.go`, `factory.go` |
+| **input** | FASTQ scanning, pdata parsing, adapter generation | `fastq.go`, `pdata.go`, `adapter.go` |
+| **workflow** | Directory structure, Snakemake integration | `manager.go`, `snakemake.go` |
+| **assets** | Embedded resources (Snakemake files, R scripts) | Uses Go `embed` package |
 
 ### Data Flow
-
 ```
-CLI Command (cmd/)
-    ↓
-Internal Module (internal/*/)
-    ↓
-Engine Interface (internal/engine/)
-    ↓
-Execution Backend (Slurm/Local/Docker)
-    ↓
-Snakemake Workflow
-    ↓
-Bioinformatics Tools (Bismark, FastQC, etc.)
+CLI Command → Config Loading → Input Processing → Engine Selection → Snakemake Execution
+```
+
+### Engine Factory Pattern
+```go
+engine.CreateEngineFromConfig(cfg) // Returns SlurmEngine, SlurmArrayEngine, or LocalEngine
 ```
 
 ## Key Implementation Details
@@ -159,202 +68,70 @@ Bioinformatics Tools (Bismark, FastQC, etc.)
 ### Workflow Mode Mapping
 - RRBS/WGBS/BSSEQ → "BeaverBS" (3 steps)
 - RNASEQ → "BeaverRNA" (2 steps)
-- PDX + RRBS/WGBS → "BeaverPDX" (3 steps)
-- PDX + RNASEQ → "BeaverRNASEQPDX" (3 steps)
+- PDX mode → "BeaverPDX" / "BeaverRNASEQPDX" (auto-enabled when species2 is set)
 
-### PDX Mode Detection
-Automatically enabled when both `species1` and `species2` are specified:
-- Creates species-specific subdirectories
-- Switches workflow to PDX variants
-- Supports graft (species1) and host (species2) species
+### Parallelization Strategy
+- **< 5 samples**: Sequential execution
+- **>= 5 samples**: SLURM Job Array or local worker pool
+- Steps 2 & 3 use single-sample mode (`--config "SIDs=[sample]"`)
+- Step 1 & checkers use all-samples mode
 
-### Per-Sample Adapter Generation
-- Reads barcodes from `inline_barcode_sequence` column
+### Adapter Generation
+- Reads `inline_barcode_sequence` from pdata
 - Computes reverse complement
-- RRBS mode: adds "TGA" (R1) / "A" (R2) prefix
-- WGBS mode: no prefix
-- Generates "NO_ADAPTER_CAL_USE_DEFAULT" for empty barcodes
+- RRBS: adds "TGA" (R1) / "A" (R2) prefix
+- Empty barcode → "NO_ADAPTER_CAL_USE_DEFAULT"
 
-### Group Levels Calculation
+### Group Levels
 - Counts unique values in `sample_group` or `condition` column
 - Priority: `sample_group` > `condition`
-- Used for downstream differential analysis
-
-## Testing Strategy
-
-- **175+ test cases** across all modules
-- **Unit tests**: Each internal module has comprehensive tests
-- **Integration tests**: cmd/cli_integration_test.go tests full CLI workflow
-- **TUI tests**: internal/tui/tui_test.go
-- **Coverage**: ~69.3% (approaching 80% target)
-
-Test file organization:
-```
-*_test.go files in each package
-cmd/cli_integration_test.go - Full CLI workflow tests
-internal/*/*_test.go - Module-specific unit tests
-```
-
-## Test Data Organization
-
-Test data is centralized in `testdata/`:
-- `fastq/` - FASTQ test files (3 samples, 6 files)
-- `pdata/` - Phenotype data files (CSV/Excel)
-- `configs/` - Configuration examples
-- `projects/` - Sample generated projects (13 different scenarios)
-- `e2e/` - End-to-end test scenarios
-
-## Project Structure
-
-```
-xdxtools-go/
-├── cmd/                          # CLI commands
-│   ├── root.go                   # Root command
-│   ├── init.go                   # Init command
-│   ├── create.go                # Create command
-│   ├── run.go                    # Run command
-│   ├── config.go                 # Config command
-│   ├── tui.go                    # TUI command
-│   └── cli_integration_test.go   # Integration tests
-│
-├── internal/                      # Core modules
-│   ├── assets/                   # Embedded resources
-│   ├── config/                   # Configuration
-│   ├── engine/                   # Execution engines
-│   ├── workflow/                 # Workflow management
-│   ├── input/                    # Input processing
-│   ├── script/                    # Script execution
-│   ├── tui/                      # Terminal UI
-│   └── logger/                   # Logging
-│
-├── pkg/                           # Public utilities
-├── testdata/                     # Test data (centralized)
-│   ├── fastq/
-│   ├── pdata/
-│   ├── configs/
-│   ├── projects/
-│   └── e2e/
-│
-├── docs/                          # Documentation
-│   ├── active_context.md         # System state
-│   ├── architecture.md           # Architecture
-│   └── requirements.md            # Requirements
-│
-└── embed.go                       # Embedded resources
-```
-
-## Common Development Tasks
-
-### Adding a New CLI Command
-1. Create new file in `cmd/`
-2. Register in `cmd/root.go`
-3. Add tests in `cmd/` directory
-4. Update this CLAUDE.md if adding significant functionality
-
-### Adding a New Module
-1. Create directory in `internal/`
-2. Define types and interfaces
-3. Write unit tests with `*_test.go`
-4. Integrate with appropriate CLI command
-5. Update `docs/active_context.md`
-
-### Modifying Configuration
-- Configuration types in `internal/config/config.go`
-- Default values in `internal/config/defaults.go`
-- Generation logic in `internal/config/generator.go`
-
-### Testing Changes
-```bash
-# Run all tests
-go test ./...
-
-# Run tests for specific module
-go test ./internal/input/... -v
-
-# Run with coverage
-go test -cover ./...
-
-# Run integration tests
-go test ./cmd/... -v
-
-# Run specific test
-go test -v ./internal/input -run TestAdapterGenerator
-```
-
-## Key Conventions
-
-- **Go version**: Requires Go 1.21+
-- **Error handling**: Use `error` returns, avoid `log.Fatal` in libraries
-- **Logging**: Use `internal/logger` package
-- **Configuration**: YAML format, struct tags for parsing
-- **FASTQ naming**: `_R1.fastq.gz` and `_R2.fastq.gz` convention
-- **PDX mode**: Automatically enabled when `species1` and `species2` both specified
-- **Project output**: Stored in `userspace/{jobid}/` directory structure
 
 ## Embedded Resources
 
-The project uses Go's `embed` package to bundle:
-- 22 Snakemake workflow files
-- 15+ R/Python scripts
-- 34 Snakemake rules
-- 5 workflow configuration templates
+Located in `inst/`:
+- `Rscripts/` - R/Python scripts for Snakemake rules
+- `root_rules/` & `rootless_rules/` - Snakemake rule files
+- `snakefiles/` - Main Snakemake workflow files
+- `envs/` - Conda environment definitions
 
-These are copied to project directory during `xdxtools init`.
+Copied to project during `xdxtools init`.
 
-## Dependencies
+## Test Data
 
-- **github.com/spf13/cobra** - CLI framework
-- **github.com/sirupsen/logrus** - Logging
-- **gopkg.in/yaml.v3** - YAML parsing
-- **github.com/360EntSecGroup-Skylar/excelize** - Excel file support
+Centralized in `testdata/`:
+- `fastq/` - Sample FASTQ files
+- `pdata/` - Phenotype data (CSV/Excel)
+- `configs/` - Example configurations
+- `e2e/` - End-to-end test fixtures
 
-See `go.mod` for complete dependency list.
+## Conventions
 
-## Environment Detection
+- Go 1.21+
+- YAML configuration with struct tags
+- FASTQ naming: `*_R1.fastq.gz` / `*_R2.fastq.gz`
+- Project output: `userspace/{jobid}/`
+- Chinese column names auto-mapped to English
 
-The tool auto-detects execution environment:
-1. Check `SLURM_JOB_ID` → Slurm
-2. Check Docker availability → Docker
-3. Default → Local
+## Key Configuration Types
 
-## Troubleshooting
-
-### Tests Failing
-```bash
-# Clean test cache
-go clean -testcache
-
-# Run with verbose output
-go test -v ./...
-
-# Check for race conditions
-go test -race ./...
+```go
+// internal/config/config.go
+type WorkflowConfig struct {
+    Mode      string   // RRBS, WGBS, RNASEQ
+    Species1  string   // Primary species
+    Species2  string   // Secondary species (enables PDX)
+    SIDs      []string // Sample IDs
+    TrimSeq1  []string // Per-sample R1 adapters
+    TrimSeq2  []string // Per-sample R2 adapters
+}
 ```
 
-### Build Issues
-```bash
-# Clean build cache
-go clean -cache
+## Engine Interface
 
-# Rebuild dependencies
-go mod tidy
-go mod download
+```go
+// internal/engine/types.go
+type Engine interface {
+    Execute(cmd []string) error
+    GetType() string
+}
 ```
-
-## Documentation
-
-- **README.md** - User guide (English)
-- **README_zh.md** - User guide (Chinese)
-- **docs/active_context.md** - System state and implementation status
-- **docs/architecture.md** - Detailed architecture
-- **docs/requirements.md** - Requirements and specs
-- **testdata/README.md** - Test data documentation
-
-## Notes
-
-- This is a production-ready codebase with 175+ tests
-- Supports RRBS, WGBS, RNA-seq, and PDX workflows
-- Integrates with Snakemake for workflow execution
-- Provides both CLI and TUI interfaces
-- Excel (.xlsx/.xls) support for pdata files
-- Chinese column name mapping support
