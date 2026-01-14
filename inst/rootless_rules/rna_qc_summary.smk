@@ -8,8 +8,8 @@ rule qcsummary:
     expand(os.path.join(config["directories"]["qc"]["after"], "{sample}_val_1_fastqc.html"), sample=config["metadata"]["sample_ids"]),
     expand(os.path.join(config["directories"]["qc"]["after"], "{sample}_val_2_fastqc.html"), sample=config["metadata"]["sample_ids"]),
     expand(os.path.join(config["directories"]["qc"]["main"], "{sample}_seqkit_stat.txt"), sample=config["metadata"]["sample_ids"]) ,
-    expand(os.path.join(config["directories"]["bsmap"]["main"], "{sample}_{species}.bam"), sample=config["metadata"]["sample_ids"],species =config["workflow.species"]["name"]) ,
-    expand(os.path.join(config["directories"]["qualimap"],"{sample}_{species}","qualimapReport.html") , sample=config["metadata"]["sample_ids"],species =config["workflow.species"]["name"])
+    expand(os.path.join(config["directories"]["bsmap"]["main"], "{sample}_{species}.bam"), sample=config["metadata"]["sample_ids"],species =config["workflow"]["species"]["name"]) ,
+    expand(os.path.join(config["directories"]["qualimap"],"{sample}_{species}","qualimapReport.html") , sample=config["metadata"]["sample_ids"],species =config["workflow"]["species"]["name"])
   output:
     os.path.join(config["directories"]["qc_summary"],"qc_summary.txt")
   params:

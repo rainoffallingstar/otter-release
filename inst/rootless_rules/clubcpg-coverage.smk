@@ -1,19 +1,19 @@
 rule clubcpgcoverage:
   message:"Calculating clubcpg coverage before imputation ..."
   input:
-    bam_sorted = lambda wildcards:os.path.join(config["directories"]["bsmap"]["main"], f"{wildcards.sample}_"+config["workflow.trim"]["fixed"]+config["workflow.species"]["graft"]+"_Filtered.bam")
+    bam_sorted = lambda wildcards:os.path.join(config["directories"]["bsmap"]["main"], f"{wildcards.sample}_"+config["workflow"]["trim"]["fixed"]+config["workflow"]["species"]["graft"]+"_Filtered.bam")
   output:
-    os.path.join(config["directories.clubcpg"]["coverage"], "CompleteBins."+"{sample}_"+config["workflow.species"]["graft"]+".bam."+"{chr}.filtered.csv")
+    os.path.join(config["directories"]["clubcpg"]["coverage"], "CompleteBins."+"{sample}_"+config["workflow"]["species"]["graft"]+".bam."+"{chr}.filtered.csv")
   params:
-    output_dir = config["directories.clubcpg"]["coverage"],
+    output_dir = config["directories"]["clubcpg"]["coverage"],
     bin_size = 100,
     chr = lambda wildcards:f"{wildcards.chr}",
-    read1_5 = config["workflow.trim"]["read1_5"],
-    read1_3 = config["workflow.trim"]["read1_3"],
-    read2_5 = config["workflow.trim"]["read2_5"],
-    read2_3 = config["workflow.trim"]["read2_3"],
-    filter_output = lambda wildcards:os.path.join(config["directories.clubcpg"]["coverage"], "CompleteBins."+f"{wildcards.sample}_"+config["workflow.species"]["graft"]+".bam."+f"{wildcards.chr}.filtered.csv"),
-    origin_output = lambda wildcards:os.path.join(config["directories.clubcpg"]["coverage"], "CompleteBins."+f"{wildcards.sample}_"+config["workflow.trim"]["fixed"]+config["workflow.species"]["graft"]+"_Filtered.bam."+f"{wildcards.chr}.csv")
+    read1_5 = config["workflow"]["trim"]["read1_5"],
+    read1_3 = config["workflow"]["trim"]["read1_3"],
+    read2_5 = config["workflow"]["trim"]["read2_5"],
+    read2_3 = config["workflow"]["trim"]["read2_3"],
+    filter_output = lambda wildcards:os.path.join(config["directories"]["clubcpg"]["coverage"], "CompleteBins."+f"{wildcards.sample}_"+config["workflow"]["species"]["graft"]+".bam."+f"{wildcards.chr}.filtered.csv"),
+    origin_output = lambda wildcards:os.path.join(config["directories"]["clubcpg"]["coverage"], "CompleteBins."+f"{wildcards.sample}_"+config["workflow"]["trim"]["fixed"]+config["workflow"]["species"]["graft"]+"_Filtered.bam."+f"{wildcards.chr}.csv")
   threads:24
   shell:
     """

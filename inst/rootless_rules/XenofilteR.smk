@@ -1,14 +1,14 @@
 rule xenofilteR:
   message:"xenofilteR ..."
   input:
-    expand(os.path.join(config["directories"]["bsmap"]["main"], "{sample}_{species}_pdx_patch_success"),sample=config["metadata"]["sample_ids"],species = config["workflow.species"]["name"]),
-    expand(os.path.join(config["directories"]["bsmap"]["main"], "{sample}_fixed_{species}.bam"), sample=config["metadata"]["sample_ids"],species = config["workflow.species"]["name"])
+    expand(os.path.join(config["directories"]["bsmap"]["main"], "{sample}_{species}_pdx_patch_success"),sample=config["metadata"]["sample_ids"],species = config["workflow"]["species"]["name"]),
+    expand(os.path.join(config["directories"]["bsmap"]["main"], "{sample}_fixed_{species}.bam"), sample=config["metadata"]["sample_ids"],species = config["workflow"]["species"]["name"])
   output:
     os.path.join(config["directories"]["bsmap"]["main"],"Filtered_bams" ,"filtered_success.txt")
   params:
     filter_root = config["directories"]["bsmap"]["main"],
-    host = config["workflow.species"]["host"],
-    graft = config["workflow.species"]["graft"],
+    host = config["workflow"]["species"]["host"],
+    graft = config["workflow"]["species"]["graft"],
     MM_threshold = (4 if config["workflow"]["mode"] == "RNASEQ" else 6),
     Unmapped_penalty = 8,
     mode = config["workflow"]["mode"]

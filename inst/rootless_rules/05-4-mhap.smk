@@ -8,8 +8,8 @@ rule mhap_analysis:
     params:
         mapgz = lambda wildcards:os.path.join(config["directories"]["mhap"], f"{wildcards.sample}_{wildcards.species}.mhap.gz"),
         cgi_summary = lambda wildcards:os.path.join(config["directories"]["mhap"], f"{wildcards.sample}_{wildcards.species}_CGI_summary.txt"),
-        cpg = config["reference.files"]["cpg_sites"],
-        cgi = config["reference.files"]["cgi"]
+        cpg = config["reference"]["files"]["cpg_sites"],
+        cgi = config["reference"]["files"]["cgi"]
     threads: 4
     shell:
         """

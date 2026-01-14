@@ -11,7 +11,7 @@ rule bsmap2sort4homo:
     bam_aligned = lambda wildcards: os.path.join(config["directories"]["bsmap"]["main"],f"{wildcards.species}", f"{wildcards.sample}_val_1_bismark_bt2_pe.bam"),
     bam_sorted = lambda wildcards:os.path.join(config["directories"]["bsmap"]["main"], f"{wildcards.sample}_"+f"{wildcards.species}"+".bam"),
     bamTmp = lambda wildcards:os.path.join(config["directories"]["bsmap"]["main"],"tmp",f"{wildcards.species}"),
-    genomeFile = lambda wildcards:config["reference.indices"]["genome"][config["workflow.species"]["name"].index(wildcards.species)]
+    genomeFile = lambda wildcards:config["reference"]["indices"]["genome"][config["workflow"]["species"]["name"].index(wildcards.species)]
   threads: 8
   shell:
     """

@@ -12,7 +12,7 @@ rule rnaseqmappingbowtie:
     bam_aligned = lambda wildcards: os.path.join(config["directories"]["bsmap"]["main"],f"{wildcards.species}", f"{wildcards.sample}Aligned.sortedByCoord.out.bam"),
     bam_aligned_prefix = lambda wildcards: os.path.join(config["directories"]["bsmap"]["main"],f"{wildcards.species}", f"{wildcards.sample}"),
     bam_sorted = lambda wildcards:os.path.join(config["directories"]["bsmap"]["main"], f"{wildcards.sample}_"+f"{wildcards.species}"+".bam"),
-    rnaseq_ref = lambda wildcards:config["reference.rnaseq"]["ref"][config["workflow.species"]["name"].index(wildcards.species)]
+    rnaseq_ref = lambda wildcards:config["reference"]["rnaseq"]["ref"][config["workflow"]["species"]["name"].index(wildcards.species)]
   threads: 40
   shell:
     """

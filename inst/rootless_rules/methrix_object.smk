@@ -11,7 +11,7 @@ rule create_methrix_object :
   params:
     mcall_dir = config["directories"]["methylation_call"],
     methrix_dir = os.path.join(config["directories"]["methylation_call"], "methrixh5"),
-    genome = config["reference.annotations"]["names"][config["workflow.species"]["name"].index(config["workflow.species"]["graft"])]
+    genome = config["reference"]["annotations"]["names"][config["workflow"]["species"]["name"].index(config["workflow"]["species"]["graft"])]
   threads:10
   shell:
     """

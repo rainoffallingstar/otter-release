@@ -6,7 +6,7 @@ rule rnaseq_step3_checker :
     os.path.join(config["directories"]["methylation_call"], "methrixh5","assays.h5"),
     os.path.join(config["directories"]["methylation_call"], "methrixh5","se.rds"),
     os.path.join(config["directories"]["methylation_call"], "methrixh5","bsseq.RDS"),
-    os.path.join(config["directories"]["bsmap"]["main"],config["workflow.species"]["graft"], "bismark_summary_report.html"),
+    os.path.join(config["directories"]["bsmap"]["main"],config["workflow"]["species"]["graft"], "bismark_summary_report.html"),
     os.path.join(config["directories"]["qc_summary"],"qc_summary.txt") 
   output:
     os.path.join(config["directories"]["sid_log"], "step3_success.txt")

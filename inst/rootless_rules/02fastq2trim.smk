@@ -10,13 +10,13 @@ rule fastq2trim:
     R2report = os.path.join(config["output"]["trim_dir"], "{sample}" + "_R2.fastq.gz_trimming_report.txt")
   params:
     dir= config["output"]["trim_dir"],
-    error = config["workflow.adapters"]["error"],
-    C1=config["workflow.alignment"]["c1"],
-    C2=config["workflow.alignment"]["c2"],
-    T1=config["workflow.alignment"]["t1"],
-    T2=config["workflow.alignment"]["t2"],
-    adapter1= lambda wildcards: config["workflow.adapters"]["seq1"][config["metadata"]["sample_ids"].index(wildcards.sample)],
-    adapter2= lambda wildcards: config["workflow.adapters"]["seq2"][config["metadata"]["sample_ids"].index(wildcards.sample)],
+    error = config["workflow"]["adapters"]["error"],
+    C1=config["workflow"]["alignment"]["c1"],
+    C2=config["workflow"]["alignment"]["c2"],
+    T1=config["workflow"]["alignment"]["t1"],
+    T2=config["workflow"]["alignment"]["t2"],
+    adapter1= lambda wildcards: config["workflow"]["adapters"]["seq1"][config["metadata"]["sample_ids"].index(wildcards.sample)],
+    adapter2= lambda wildcards: config["workflow"]["adapters"]["seq2"][config["metadata"]["sample_ids"].index(wildcards.sample)],
     SIDs= lambda wildcards: wildcards.sample
   threads: 6
   shell:

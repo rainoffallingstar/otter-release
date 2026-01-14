@@ -7,7 +7,7 @@ rule picard_pdx_patch:
   params:
     marker = lambda wildcards:os.path.join(config["directories"]["bsmap"]["main"], f"{wildcards.sample}_"+f"{wildcards.species}"+"_pdx_patch_success"),
     bam_fixed = lambda wildcards:os.path.join(config["directories"]["bsmap"]["main"], f"{wildcards.sample}_fixed_"+f"{wildcards.species}"+".bam"),
-    fasta = lambda wildcards:config["gnome_fasta"][config["workflow.species"]["name"].index(wildcards.species)]
+    fasta = lambda wildcards:config["reference"]["files"]["fasta"][config["workflow"]["species"]["name"].index(wildcards.species)]
   threads:4
   run:
         if config["workflow"]["mode"] == "RNASEQ":

@@ -8,7 +8,7 @@ rule collectGCbias:
     os.path.join(config["directories"]["qc"]["main"],"GCbias","{sample}_{species}", "summary_metrics.txt")
   params:
     outdir_gcbias = lambda wildcards:os.path.join(config["directories"]["qc"]["main"],"GCbias",f"{wildcards.sample}_{wildcards.species}"),
-    fasta = lambda wildcards:config["gnome_fasta"][config["workflow.species"]["name"].index(wildcards.species)],
+    fasta = lambda wildcards:config["reference"]["files"]["fasta"][config["workflow"]["species"]["name"].index(wildcards.species)],
     gc_txt = lambda wildcards:os.path.join(config["directories"]["qc"]["main"],"GCbias",f"{wildcards.sample}_{wildcards.species}","gc_bias_metrics.txt"),
     gc_pdf = lambda wildcards:os.path.join(config["directories"]["qc"]["main"],"GCbias",f"{wildcards.sample}_{wildcards.species}","gc_bias_metrics.pdf"),
     gc_sum = lambda wildcards:os.path.join(config["directories"]["qc"]["main"],"GCbias",f"{wildcards.sample}_{wildcards.species}","summary_metrics.txt")
