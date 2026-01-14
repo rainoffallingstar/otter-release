@@ -8,24 +8,82 @@ import (
 	"github.com/xdxtools/xdxtools-go/internal/logger"
 )
 
+const DefaultFallbackEnv = "xdxtools-snakemake"
+
 // SnakemakeExecutor executes Snakemake workflows
 type SnakemakeExecutor struct {
-	WorkflowIdx string
-	Step        int
-	ConfigFile  string
-	Options     *WorkflowOptions
-	CondaEnv    string // Conda environment for Snakemake
+	WorkflowIdx  string
+	Step         int
+	ConfigFile   string
+	Options      *WorkflowOptions
+	CondaEnv     string // Conda environment for Snakemake
+	FallbackEnv  string // Fallback environment (default: xdxtools-snakemake)
+	NoFallback   bool   // Disable automatic fallback
 }
 
 // NewSnakemakeExecutor creates a new Snakemake executor
 func NewSnakemakeExecutor(workflowIdx string, step int, configFile string, options *WorkflowOptions, condaEnv string) *SnakemakeExecutor {
 	return &SnakemakeExecutor{
-		WorkflowIdx: workflowIdx,
-		Step:        step,
-		ConfigFile:  configFile,
-		Options:     options,
-		CondaEnv:    condaEnv,
+		WorkflowIdx:  workflowIdx,
+		Step:         step,
+		ConfigFile:   configFile,
+		Options:      options,
+		CondaEnv:     condaEnv,
+		FallbackEnv:  DefaultFallbackEnv,
+		NoFallback:   false,
 	}
+}
+
+// SetFallbackConfig sets the fallback configuration
+func (e *SnakemakeExecutor) SetFallbackConfig(fallbackEnv string, noFallback bool) {
+	e.FallbackEnv = fallbackEnv
+	e.NoFallback = noFallback
+}
+
+// ValidateAndFallback validates the conda environment and falls back if needed
+func (e *SnakemakeExecutor) ValidateAndFallback() error {
+	if e.NoFallback {
+		logger.Debug("Fallback disabled, skipping validation")
+		return nil
+	}
+
+	// Get the environment to validate
+	envToValidate := e.CondaEnv
+	logger.Infof("Validating conda environment: %s", getEnvDisplayName(envToValidate))
+
+	// Validate the environment
+	if err := enva.ValidateEnvironment(envToValidate); err != nil {
+		// Validation failed
+		if envToValidate == "" || envToValidate == e.FallbackEnv {
+			// Already using fallback or system snakemake, no more options
+			return fmt.Errorf("snakemake environment validation failed: %w", err)
+		}
+
+		// Fall back to default environment
+		logger.Warnf("Environment '%s' validation failed: %v", getEnvDisplayName(envToValidate), err)
+		logger.Infof("Falling back to '%s' environment...", e.FallbackEnv)
+
+		e.CondaEnv = e.FallbackEnv
+
+		// Validate the fallback environment
+		if err := enva.ValidateEnvironment(e.CondaEnv); err != nil {
+			return fmt.Errorf("fallback environment '%s' also failed: %w", e.FallbackEnv, err)
+		}
+
+		logger.Infof("Successfully using fallback environment: %s", e.FallbackEnv)
+	} else {
+		logger.Infof("Environment validation successful: %s", getEnvDisplayName(envToValidate))
+	}
+
+	return nil
+}
+
+// getEnvDisplayName returns a display name for the environment
+func getEnvDisplayName(env string) string {
+	if env == "" {
+		return "system"
+	}
+	return env
 }
 
 // BuildCommand builds the Snakemake command

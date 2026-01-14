@@ -161,6 +161,56 @@ shell:
 
 **所有 67 个 .smk 文件已自动更新！**
 
+## Snakemake 环境自动回退
+
+### 什么是自动回退？
+
+当您指定的 conda 环境无效或不存在时，xdxtools 会自动回退到 `xdxtools-snakemake` 环境，确保工作流能够正常运行。
+
+### 工作原理
+
+1. **验证阶段**：在运行 Snakemake 之前，工具会先验证指定的环境
+2. **自动回退**：如果验证失败，会自动使用 `xdxtools-snakemake` 重试
+3. **清晰日志**：所有验证和回退操作都会有清晰的日志记录
+
+### 配置方法
+
+在 `config.yaml` 中添加：
+
+```yaml
+engine:
+  type: auto
+  conda_env: my-custom-env      # 主要环境
+  fallback_env: xdxtools-snakemake  # 回退环境（可选，默认：xdxtools-snakemake）
+  no_fallback: false            # 禁用自动回退（可选，默认：false）
+```
+
+### 日志输出示例
+
+```
+Validating conda environment: my-custom-env
+Environment 'my-custom-env' validation failed: ...
+Falling back to 'xdxtools-snakemake' environment...
+Environment validation successful: xdxtools-snakemake
+```
+
+### 命令行覆盖
+
+```bash
+# 指定 conda 环境（如需要会自动回退）
+xdxtools run --config config.yaml --conda-env my-custom-env
+
+# 禁用回退（环境无效时立即失败）
+# 编辑 config.yaml：no_fallback: true
+```
+
+### 主要优势
+
+- ✅ **弹性**：自动处理环境问题
+- ✅ **透明**：清晰的日志显示当前状态
+- ✅ **可配置**：需要时可以禁用
+- ✅ **安全**：仅在主环境失败时才回退
+
 ## 快速上手 - 三命令工作流
 
 xdxtools 采用简单的三命令工作流：
@@ -180,7 +230,8 @@ xdxtools init my_project --engine-type rootless
 这会复制：
 - 22 个 Snakemake 工作流文件
 - 15+ 个 R/Python 脚本
-- 34 个 Snakemake 规则
+- 27 个活跃 Snakemake 规则
+- 7 个已归档规则（在 .depress/rules/ 中）
 - 5 个工作流配置模板
 
 ### 2️⃣ `create` - 创建分析项目

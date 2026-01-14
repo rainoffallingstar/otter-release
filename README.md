@@ -172,6 +172,56 @@ shell:
 
 **All 67 .smk files have been updated automatically!**
 
+## Snakemake Environment Automatic Fallback
+
+### What is Automatic Fallback?
+
+When your specified conda environment is invalid or doesn't exist, xdxtools automatically falls back to the `xdxtools-snakemake` environment to ensure your workflow can run.
+
+### How It Works
+
+1. **Validation**: Before running Snakemake, the tool validates the specified environment
+2. **Fallback**: If validation fails, it automatically retries with `xdxtools-snakemake`
+3. **Clear Logging**: All validation and fallback actions are logged
+
+### Configuration
+
+Add to your `config.yaml`:
+
+```yaml
+engine:
+  type: auto
+  conda_env: my-custom-env      # Primary environment
+  fallback_env: xdxtools-snakemake  # Fallback (optional, default: xdxtools-snakemake)
+  no_fallback: false            # Disable fallback (optional, default: false)
+```
+
+### Log Output Example
+
+```
+Validating conda environment: my-custom-env
+Environment 'my-custom-env' validation failed: ...
+Falling back to 'xdxtools-snakemake' environment...
+Environment validation successful: xdxtools-snakemake
+```
+
+### Command Line Override
+
+```bash
+# Specify conda environment (will fallback if needed)
+xdxtools run --config config.yaml --conda-env my-custom-env
+
+# Disable fallback (fail immediately if environment invalid)
+# Edit config.yaml: no_fallback: true
+```
+
+### Benefits
+
+- ✅ **Resilient**: Automatically handles environment issues
+- ✅ **Transparent**: Clear logging shows what's happening
+- ✅ **Configurable**: Can be disabled if needed
+- ✅ **Safe**: Only falls back if primary environment fails
+
 ## Quick Start - Three Command Workflow
 
 xdxtools follows a simple three-command workflow:
@@ -194,7 +244,8 @@ xdxtools init .
 This copies:
 - 22 Snakemake workflow files
 - 15+ R/Python scripts
-- 34 Snakemake rules
+- 27 Snakemake rules (active)
+- 7 archived rules (in .depress/rules/)
 
 ### 2️⃣ `create` - Create Analysis Project
 

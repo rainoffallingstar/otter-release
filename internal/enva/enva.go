@@ -1,7 +1,9 @@
 package enva
 
 import (
+	"fmt"
 	"os/exec"
+	"strings"
 )
 
 // IsAvailable 检查 enva 是否在 PATH 中
@@ -46,4 +48,32 @@ func BuildCondaCommandWithFlags(envName string, command string, flags []string, 
 	result = append(result, command)
 	result = append(result, args...)
 	return result
+}
+
+// ValidateEnvironment validates if a conda environment can run snakemake
+func ValidateEnvironment(envName string) error {
+	if envName == "" {
+		// Empty means use system snakemake, just check if snakemake exists
+		_, err := exec.LookPath("snakemake")
+		if err != nil {
+			return fmt.Errorf("snakemake not found in PATH")
+		}
+		return nil
+	}
+
+	// Check if snakemake --version works in the specified environment
+	var checkCmd []string
+	if IsAvailable() {
+		checkCmd = []string{"enva", "run", envName, "--", "snakemake", "--version"}
+	} else {
+		checkCmd = []string{"conda", "run", "-n", envName, "--no-capture-output", "snakemake", "--version"}
+	}
+
+	cmd := exec.Command(checkCmd[0], checkCmd[1:]...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("environment '%s' validation failed: %w (output: %s)", envName, err, strings.TrimSpace(string(output)))
+	}
+
+	return nil
 }

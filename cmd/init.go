@@ -12,7 +12,8 @@ import (
 )
 
 var (
-	initMode = "RRBS" // Default mode, can be changed by editing config later
+	initMode   = "RRBS"  // Default mode, can be changed by editing config later
+	legacyFlag bool     // Use legacy rules instead of new rules
 )
 
 // initCmd represents the init command
@@ -47,6 +48,7 @@ Examples:
 
 func init() {
 	rootCmd.AddCommand(initCmd)
+	initCmd.Flags().BoolVar(&legacyFlag, "legacy", false, "Use legacy rules instead of new rules")
 }
 
 func runInit(cmd *cobra.Command, args []string) error {
@@ -73,8 +75,14 @@ func runInit(cmd *cobra.Command, args []string) error {
 		logger.Warnf("Directory %s already exists", projectDir)
 	}
 
+	// Determine rules type
+	rulesType := "rootless"
+	if legacyFlag {
+		rulesType = "legacy"
+	}
+
 	// Create asset copier
-	copier := assets.NewAssetCopier(projectDir, "")
+	copier := assets.NewAssetCopier(projectDir, rulesType)
 
 	// Step 1: Create directory structure
 	logger.Info("Creating project directory structure...")

@@ -23,17 +23,19 @@ func SetEmbeddedAssets(fs embed.FS) {
 // AssetCopier handles copying embedded assets to a project directory
 type AssetCopier struct {
 	ProjectDir string
-	EngineType string // "root" or "rootless"
+	RulesType  string // "rootless" or "legacy"
+	EngineType string // "root" or "rootless" (deprecated)
 }
 
 // NewAssetCopier creates a new AssetCopier
-func NewAssetCopier(projectDir, engineType string) *AssetCopier {
-	if engineType == "" {
-		engineType = "rootless"
+func NewAssetCopier(projectDir, rulesType string) *AssetCopier {
+	if rulesType == "" {
+		rulesType = "rootless"
 	}
 	return &AssetCopier{
 		ProjectDir: projectDir,
-		EngineType: engineType,
+		RulesType:  rulesType,
+		EngineType: "rootless", // Deprecated, always rootless
 	}
 }
 
@@ -51,11 +53,23 @@ func (c *AssetCopier) CopyAll() error {
 	}
 	logger.Info("Copied Snakemake files")
 
-	// 3. Copy rules (rootless_rules only)
-	if err := c.copyDir("inst/rootless_rules", "rules"); err != nil {
+	// 3. Copy rules based on type
+	var rulesDir string
+	if c.RulesType == "legacy" {
+		rulesDir = "inst/rules_legacy"
+	} else {
+		rulesDir = "inst/rules"
+	}
+
+	if err := c.copyDir(rulesDir, "rules"); err != nil {
 		return fmt.Errorf("failed to copy rules: %w", err)
 	}
-	logger.Info("Copied rootless rules to rules/")
+
+	if c.RulesType == "legacy" {
+		logger.Info("Copied legacy rules to rules/")
+	} else {
+		logger.Info("Copied new rules (4-environment aligned) to rules/")
+	}
 
 	// 4. Copy conda environments
 	if err := c.copyDir("inst/envs", "envs"); err != nil {

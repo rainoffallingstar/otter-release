@@ -248,6 +248,13 @@ func runRun(cmd *cobra.Command, args []string) error {
 		logger.Infof("Using conda environment: %s", condaEnv)
 	}
 
+	// Set fallback configuration from config
+	fallbackEnv := cfg.Engine.FallbackEnv
+	if fallbackEnv == "" {
+		fallbackEnv = "xdxtools-snakemake" // Default fallback
+	}
+	manager.SetFallbackConfig(fallbackEnv, cfg.Engine.NoFallback)
+
 	// Prepare FASTQ files if requested
 	if copyFastq || moveFastq {
 		if err := prepareFastqFiles(cfg, moveFastq); err != nil {

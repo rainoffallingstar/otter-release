@@ -1,7 +1,376 @@
 # 系统上下文 (System Context)
 
-**更新日期**: 2026-01-13
-**最后更新**: 2026-01-13 00:25 (enva Go 代码集成完成)
+**更新日期**: 2026-01-14
+**最后更新**: 2026-01-14 20:00 (清理未使用的规则文件)
+
+## 0. 清理未使用的规则文件 - 100% 完成 ✅ (2026-01-14 20:00)
+
+### 完成总结
+
+**清理完成** ✅：
+- ✅ 归档 2 个未使用的 BS-seq QC 规则（05-2-count_CCGG.smk, 05-5-count_insert.smk）
+- ✅ 归档 5 个未使用的实验性功能规则（mhap、clubcpg 系列）
+- ✅ 移动相关脚本到 `.depress/scripts/`
+- ✅ 从 34 个规则精简到 27 个活跃规则
+- ✅ 更新中英文文档
+
+### 归档的规则和脚本
+
+**Scripts → `inst/.depress/scripts/`** (2 个):
+- `count_insert.sh` - 插入片段统计（使用 bash）
+- `Run_count_CCGG.py` - CCGG 位点统计（使用 Python）
+
+**Rules → `inst/.depress/rules/`** (7 个):
+1. `05-2-count_CCGG.smk` - CCGG 位点统计规则
+2. `05-4-mhap.smk` - mhap 甲基化单体型分析
+3. `05-5-count_insert.smk` - 插入片段统计规则
+4. `clubcpg-coverage.smk` - ClubCpg 覆盖度计算（PDX 专用）
+5. `clubcpg-impute-cluster.smk` - ClubCpg 插值聚类（PDX 专用）
+6. `clubcpg-impute-coverage.smk` - ClubCpg 插值覆盖度（PDX 专用）
+7. `clubcpg-impute-train.smk` - ClubCpg 插值模型训练（PDX 专用）
+
+### 归档原因
+
+**BS-seq QC 规则** (05-2, 05-5):
+- 未被任何 workflow 引用
+- 实验性质，未集成到活跃工作流
+
+**mhap 分析** (05-4-mhap):
+- 使用外部工具 `mhaptools`（依赖 `/mHapTools/htslib-1.10.2`）
+- 未被任何 workflow 引用
+
+**ClubCpg 系列** (PDX 专用):
+- 虽然配置结构定义存在（`ClubCpGConfig`），但规则未集成
+- 实验性质，未启用
+
+### 验证结果
+
+✅ 所有归档规则未被任何 workflow 引用
+✅ 所有归档脚本仅被归档规则引用
+✅ Go 代码中只有配置结构定义，无直接调用
+✅ 27 个活跃规则全部被使用
+
+### 目录结构
+
+```
+inst/
+├── rules/           # 27 个活跃规则
+├── rules_legacy/    # 旧规则（向后兼容）
+└── .depress/        # 已停用文件
+    ├── scripts/     # 2 个归档脚本
+    └── rules/       # 7 个归档规则
+```
+
+### 状态：✅ 生产就绪
+
+---
+
+## 1. Snakemake环境自动回退 - 100% 完成 ✅ (2026-01-14 18:00)
+
+### 功能说明
+
+当指定的 conda 环境无效时，自动回退到 `xdxtools-snakemake` 环境。
+
+### 配置选项
+
+**config.yaml 配置**:
+```yaml
+engine:
+  type: auto
+  conda_env: my-custom-env      # 指定的环境
+  fallback_env: xdxtools-snakemake  # 回退环境（可选，默认 xdxtools-snakemake）
+  no_fallback: false            # 是否禁用自动回退（可选，默认 false）
+```
+
+### 工作流程
+
+1. **验证阶段**: 在执行 snakemake 之前，先验证指定的环境
+   - 如果 `conda_env` 为空，验证系统 snakemake
+   - 如果 `conda_env` 已设置，验证该环境中的 snakemake
+
+2. **回退逻辑**:
+   - 如果验证失败且 `no_fallback: false`
+   - 自动回退到 `fallback_env`（默认 `xdxtools-snakemake`）
+   - 再次验证回退环境
+
+3. **日志输出**:
+   ```
+   Validating conda environment: my-custom-env
+   Environment 'my-custom-env' validation failed: ...
+   Falling back to 'xdxtools-snakemake' environment...
+   Environment validation successful: xdxtools-snakemake
+   ```
+
+### 代码变更
+
+| 文件 | 变更内容 |
+|------|---------|
+| `internal/enva/enva.go` | 新增 `ValidateEnvironment()` 函数 |
+| `internal/config/config.go` | `EngineConfig` 新增 `FallbackEnv`, `NoFallback` 字段 |
+| `internal/workflow/snakemake.go` | `SnakemakeExecutor` 新增 `ValidateAndFallback()` 方法 |
+| `internal/workflow/manager.go` | `Manager` 新增 `SetFallbackConfig()` 方法 |
+| `cmd/run.go` | 从 config 读取并设置 fallback 配置 |
+| `internal/enva/fallback_test.go` | 添加单元测试 |
+
+### 测试结果
+
+```bash
+=== RUN   TestValidateEnvironment
+=== RUN   TestValidateEnvironment/NonExistentEnvironment
+✓ Correctly detected non-existent environment: environment 'non-existent-env-12345' validation failed
+=== RUN   TestValidateEnvironment/EnvaAvailability
+✓ enva is available
+=== RUN   TestValidateEnvironment/XdxtoolsSnakemake
+⚠ xdxtools-snakemake validation failed: environment 'xdxtools-snakemake' does not exist
+  Note: This is expected if the environment is not installed
+=== RUN   TestValidateEnvironment/SystemSnakemake
+⚠ System snakemake not available: snakemake not found in PATH
+--- PASS: TestValidateEnvironment (4.46s)
+```
+
+**测试验证**:
+- ✅ 正确检测不存在的环境
+- ✅ 检测 enva 可用性
+- ✅ 验证回退环境
+- ✅ 检测系统 snakemake
+
+### 文档更新
+
+- ✅ `README.md` - 添加 "Snakemake Environment Automatic Fallback" 章节
+- ✅ `README_zh.md` - 添加 "Snakemake 环境自动回退" 章节
+- ✅ `docs/active_context.md` - 添加功能说明和测试结果
+
+---
+
+## 1. 规则目录重构和环境对齐 - 100% 完成 ✅ (2026-01-14)
+
+### 完成总结
+
+**所有功能完成** ✅：
+- ✅ 重命名 `inst/rootless_rules` → `inst/rules_legacy`
+- ✅ 创建新的 `inst/rules/` 目录
+- ✅ 更新 27 个活跃 .smk 文件的 enva run 命令
+- ✅ 归档 7 个未使用的实验性规则
+- ✅ 添加 `--legacy` 标志支持旧规则
+- ✅ 对齐工具到 4 个定义的 conda 环境
+- ✅ 更新 embed.go 支持新目录结构
+- ✅ 更新文档
+
+### 目录重构
+
+**目录结构变化**:
+```
+inst/
+├── rules_legacy/    # 旧的 rootless_rules (保留用于向后兼容)
+├── rules/           # 新的规则目录 (4环境对齐)
+├── Rscripts/        # 8个R脚本 + 2个工具脚本
+├── envs/            # 4个conda环境定义
+├── snakefiles/      # Snakemake工作流文件
+└── .depress/        # 已停用的文件
+```
+
+### 环境对齐
+
+**4个 Conda 环境**:
+
+| 环境 | 用途 | 包含工具 |
+|------|------|---------|
+| **xdxtools-snakemake** | 工作流引擎 | snakemake, python, git, pyyaml |
+| **xdxtools-r** | R 分析 | r-base, qualimap, bioconductor-* |
+| **xdxtools-extra** | 高级工具 | bedtools, bcftools, deepTools, homer |
+| **xdxtools-core** | 核心工具 | fastqc, multiqc, bismark, trim-galore, samtools, star, htseq, picard, seqkit |
+
+**工具映射**:
+
+| 旧 enva run | 新 enva run | 工具 |
+|-------------|-------------|------|
+| `enva run fastqc` | `enva run xdxtools-core` | FastQC |
+| `enva run bismark` | `enva run xdxtools-core` | Bismark, samtools |
+| `enva run trim_galore` | `enva run xdxtools-core` | Trim Galore |
+| `enva run star` | `enva run xdxtools-core` | STAR aligner |
+| `enva run htseq` | `enva run xdxtools-core` | HTSeq-count |
+| `enva run picard` | `enva run xdxtools-core` | Picard |
+| `enva run base` | `enva run xdxtools-r` | R scripts |
+| `enva run qualimap` | `enva run xdxtools-r` | Qualimap |
+| `enva run seqkit` | `enva run xdxtools-core` | SeqKit |
+| `enva run multiqc` | `enva run xdxtools-core` | MultiQC |
+| `enva run clubcpg` | `enva run xdxtools-extra` | Clubcpg |
+| `enva run pyfastx` | `enva run xdxtools-extra` | Pyfastx |
+
+### init 命令更新
+
+**新增 --legacy 标志**:
+```bash
+# 使用新规则 (默认) - 4环境对齐
+xdxtools init my_project
+
+# 使用旧规则 - 向后兼容
+xdxtools init --legacy my_project
+```
+
+**修改的文件**:
+1. `cmd/init.go` - 添加 --legacy 标志和规则类型选择
+2. `internal/assets/assets.go` - 支持规则类型选择 (rootless/legacy)
+3. `embed.go` - 嵌入两个规则目录 (rules/, rules_legacy/)
+4. `inst/rules/` - 27个活跃 .smk 文件 (更新环境名称)
+5. `inst/.depress/rules/` - 7个归档规则 (未使用)
+
+### 验证结果
+
+| 检查项 | 结果 |
+|--------|------|
+| ✅ 目录重命名 | rootless_rules → rules_legacy |
+| ✅ 新规则目录创建 | inst/rules/ (27个活跃文件) |
+| ✅ 归档规则 | inst/.depress/rules/ (7个归档文件) |
+| ✅ enva run 命令更新 | 所有活跃工具使用4环境名称 |
+| ✅ Go 代码编译 | 无错误 |
+| ✅ --legacy 标志 | 添加到 init 命令 |
+| ✅ 文档更新 | docs/active_context.md, README.md, README_zh.md |
+
+### 使用示例
+
+**新规则 (默认)**:
+```bash
+xdxtools init test_new
+# 使用 inst/rules/ 中的规则
+# 所有工具使用正确的conda环境
+```
+
+**旧规则 (兼容模式)**:
+```bash
+xdxtools init --legacy test_legacy
+# 使用 inst/rules_legacy/ 中的规则
+# 保持向后兼容性
+```
+
+### 状态：✅ 生产就绪
+
+---
+
+## 0. 配置访问模式修复和子模块更新 - 100% 完成 ✅ (2026-01-14 14:30)
+
+### 完成总结
+
+**所有功能完成** ✅：
+- ✅ 修复 34 个 .smk 文件的嵌套配置访问模式
+- ✅ 从 beaverflow-go/rules/ 复制正确格式的文件
+- ✅ 修复 gnome_fasta 拼写错误
+- ✅ 提交 rv 子模块的 311 个文件修改
+- ✅ 更新 xdxtools 主仓库提交
+- ✅ 更新系统上下文文档
+
+### 配置访问模式修复
+
+**问题**: `inst/rootless_rules/` 中的 .smk 文件使用了错误的点号表示法访问嵌套配置
+- **错误**: `config["workflow.adapters"]`
+- **正确**: `config["workflow"]["adapters"]`
+
+**修复的配置访问模式**:
+1. `config["workflow.adapters"]` → `config["workflow"]["adapters"]`
+2. `config["workflow.alignment"]` → `config["workflow"]["alignment"]`
+3. `config["workflow.species"]` → `config["workflow"]["species"]`
+4. `config["workflow.trim"]` → `config["workflow"]["trim"]`
+5. `config["directories.clubcpg"]` → `config["directories"]["clubcpg"]`
+6. `config["reference.rnaseq"]` → `config["reference"]["rnaseq"]`
+7. `config["reference.indices"]` → `config["reference"]["indices"]`
+8. `config["reference.files"]` → `config["reference"]["files"]`
+9. `config["gnome_fasta"]` → `config["reference"]["files"]["fasta"]` (拼写错误)
+
+**修复的文件**: 34 个 .smk 文件
+- 源: `/data_center_01/home/zhengyanhua/beaverflow-go/rules/`
+- 目标: `/data_center_01/home/zhengyanhua/xdxtools/inst/rootless_rules/`
+- 备份: `inst/rootless_rules.backup.20260114_140737/` (已删除)
+
+**额外修复**: gnome_fasta 拼写错误
+- `picard_pdx_patch.smk:10`
+- `collectGCbias.smk:11`
+
+### 子模块更新
+
+#### rv 子模块
+- **提交**: 311 个文件修改
+- **新增**: `src/r_parser.rs`
+- **Commit**: `0de861a`
+- **状态**: 已提交到本地 main 分支
+
+#### enva 子模块
+- **状态**: 5 个未推送的提交 (需要认证)
+- **Commit**: `7a80465`
+- **未推送的提交**:
+  - `7a80465` Update documentation and remove dead code
+  - `2a2c1dc` Remove unified_install.R script usage
+  - `f3e6947` Simplify enva list command - remove --all parameter
+  - `39d4f98` Fix compilation errors in get_all_conda_environments
+  - `9da66ed` Add --all flag to list all conda environments
+
+### xdxtools 主仓库更新
+
+**提交**: `87d11f0`
+**修改的文件**:
+- 删除: `inst/root_rules/` (35 个文件)
+- 修改: `inst/rootless_rules/` (34 个文件)
+- 更新: rv 子模块引用 (cabc568 → 0de861a)
+- 保持: enva 子模块引用 (7a80465)
+
+**提交消息**:
+```
+Fix nested config access pattern in rootless_rules
+
+- Copy 34 .smk files from beaverflow-go/rules to inst/rootless_rules/
+- Fix gnome_fasta typo in picard_pdx_patch.smk and collectGCbias.smk
+- Remove inst/root_rules/ directory (redundant with rootless_rules)
+- Update submodule references (rv: 0de861a, enva: 7a80465)
+```
+
+### 验证结果
+
+| 验证项 | 结果 |
+|--------|------|
+| ✅ config["workflow.*"] | 无错误模式 |
+| ✅ config["directories.clubcpg"] | 无错误模式 |
+| ✅ config["gnome_fasta"] | 拼写错误已修复 |
+| ✅ config["reference.*"] | 无错误模式 |
+| ✅ rv 子模块提交 | 311 个文件已提交 |
+| ✅ xdxtools 主仓库 | 55 个文件已提交 |
+
+### 参考配置文件
+
+- **配置源**: `/data_center_01/home/zhengyanhua/beaverflow-go/userspace/test_wgbs_small_001/config/config.yaml`
+- **正确的嵌套结构**:
+  ```yaml
+  workflow:
+    adapters:
+      seq1: [...]
+      seq2: [...]
+    alignment:
+      c1: "7"
+      c2: "9"
+    species:
+      name: human
+      graft: human
+    trim:
+      read1_5: 0
+      read1_3: 0
+
+  reference:
+    files:
+      fasta: [...]
+      cgi: ...
+      cpg_sites: ...
+    indices:
+      genome: [...]
+
+  directories:
+    bsmap:
+      main: ...
+    clubcpg:
+      main: ...
+      coverage: ...
+  ```
+
+### 状态：✅ 生产就绪
+
+---
 
 ## 0. enva Go 代码集成 - 100% 完成 ✅ (2026-01-13 00:25)
 

@@ -181,10 +181,12 @@ type MetadataConfig struct {
 
 // EngineConfig represents execution engine configuration
 type EngineConfig struct {
-	Type     string      `mapstructure:"type"` // auto/slurm/local
-	Slurm    SlurmConfig `mapstructure:"slurm,omitempty"`
-	Local    LocalConfig `mapstructure:"local,omitempty"`
-	CondaEnv  string      `mapstructure:"conda_env,omitempty"` // Conda environment for Snakemake
+	Type       string      `mapstructure:"type"` // auto/slurm/local
+	Slurm      SlurmConfig `mapstructure:"slurm,omitempty"`
+	Local      LocalConfig `mapstructure:"local,omitempty"`
+	CondaEnv   string      `mapstructure:"conda_env,omitempty"`   // Conda environment for Snakemake
+	FallbackEnv string     `mapstructure:"fallback_env,omitempty"` // Fallback environment (default: xdxtools-snakemake)
+	NoFallback bool        `mapstructure:"no_fallback,omitempty"`  // Disable automatic fallback
 }
 
 // SlurmConfig represents Slurm cluster configuration

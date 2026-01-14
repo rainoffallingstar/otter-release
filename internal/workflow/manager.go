@@ -17,6 +17,8 @@ type Manager struct {
 	state           *State
 	dryRun          bool
 	condaEnv        string
+	fallbackEnv     string // Fallback environment (default: xdxtools-snakemake)
+	noFallback      bool   // Disable automatic fallback
 	samples         []string
 	stepResources   map[int]*config.StepResource
 	parallelJobs    int
@@ -25,9 +27,11 @@ type Manager struct {
 // NewManager creates a new workflow manager
 func NewManager(w *Workflow) *Manager {
 	return &Manager{
-		workflow: w,
-		dryRun:   false,
-		condaEnv: "",
+		workflow:    w,
+		dryRun:      false,
+		condaEnv:    "",
+		fallbackEnv: DefaultFallbackEnv,
+		noFallback:  false,
 	}
 }
 
@@ -39,6 +43,12 @@ func (m *Manager) SetDryRun(dryRun bool) {
 // SetCondaEnv sets the conda environment for Snakemake execution
 func (m *Manager) SetCondaEnv(condaEnv string) {
 	m.condaEnv = condaEnv
+}
+
+// SetFallbackConfig sets the fallback environment configuration
+func (m *Manager) SetFallbackConfig(fallbackEnv string, noFallback bool) {
+	m.fallbackEnv = fallbackEnv
+	m.noFallback = noFallback
 }
 
 // SetSamples sets the sample names for the workflow
@@ -181,7 +191,19 @@ func (m *Manager) ExecuteStep(step int) error {
 		DryRun: m.dryRun,
 	}, m.condaEnv)
 
-	// Build command
+	// Set fallback configuration from manager or config
+	if m.fallbackEnv != "" {
+		executor.SetFallbackConfig(m.fallbackEnv, m.noFallback)
+	} else if m.workflow.Config.Engine.FallbackEnv != "" {
+		executor.SetFallbackConfig(m.workflow.Config.Engine.FallbackEnv, m.workflow.Config.Engine.NoFallback)
+	}
+
+	// Validate environment and apply fallback if needed
+	if err := executor.ValidateAndFallback(); err != nil {
+		return fmt.Errorf("environment validation failed: %w", err)
+	}
+
+	// Build command (may use fallback environment)
 	cmd := executor.BuildCommand()
 
 	// Unified parallelization strategy based on --parallel-jobs parameter
