@@ -77,6 +77,12 @@ func (c *AssetCopier) CopyAll() error {
 	}
 	logger.Info("Copied conda environments to envs/")
 
+	// 5. Copy gene annotation databases
+	if err := c.copyDir("inst/data", "data"); err != nil {
+		return fmt.Errorf("failed to copy data: %w", err)
+	}
+	logger.Info("Copied gene annotation databases to data/")
+
 	return nil
 }
 

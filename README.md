@@ -246,6 +246,7 @@ This copies:
 - 15+ R/Python scripts
 - 27 Snakemake rules (active)
 - 7 archived rules (in .depress/rules/)
+- 3 gene annotation database files (.rda format for RNA-seq analysis)
 
 ### 2️⃣ `create` - Create Analysis Project
 

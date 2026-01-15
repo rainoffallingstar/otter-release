@@ -12,7 +12,11 @@ rule construct_expression_matrix :
   threads:5
   shell:
     """
-    enva run xdxtools-r Rscript R/htseq2matrix.R --htseq_dir {params.htseq_dir} --output_dir {params.output_dir} --postfix {params.postfix}
+    enva run xdxtools-r -- \
+      Rscript R/htseq2matrix.R \
+      --htseq_dir {params.htseq_dir} \
+      --output_dir {params.output_dir} \
+      --postfix {params.postfix}
 
     """
    

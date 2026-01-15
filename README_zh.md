@@ -233,6 +233,7 @@ xdxtools init my_project --engine-type rootless
 - 27 个活跃 Snakemake 规则
 - 7 个已归档规则（在 .depress/rules/ 中）
 - 5 个工作流配置模板
+- 3 个基因注释数据库文件（.rda 格式，用于 RNA-seq 分析）
 
 ### 2️⃣ `create` - 创建分析项目
 

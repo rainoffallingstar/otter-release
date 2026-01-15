@@ -1,9 +1,88 @@
 # 系统上下文 (System Context)
 
 **更新日期**: 2026-01-14
-**最后更新**: 2026-01-14 20:00 (清理未使用的规则文件)
+**最后更新**: 2026-01-14 22:00 (集成基因注释数据库)
 
-## 0. 清理未使用的规则文件 - 100% 完成 ✅ (2026-01-14 20:00)
+## 0. 集成基因注释数据库 - 100% 完成 ✅ (2026-01-14 22:00)
+
+### 完成总结
+
+**集成完成** ✅：
+- ✅ 将基因注释数据库（`.rda` 文件）嵌入到二进制文件
+- ✅ 更新 `htseq2matrix.R` 从文件加载而非 R 包
+- ✅ `xdxtools init` 自动复制数据库到 `data/` 目录
+- ✅ 移除对 xdxtools R 包的依赖
+- ✅ 符合 4 环境架构标准
+
+### 集成的数据库文件
+
+**数据库文件** (`inst/data/`):
+- `Entrez_Gene_Id_db.rda` (333 KB) - 人类基因数据库
+  - 包含字段：ENSEMBL, SYMBOL
+  - 用于人类 RNA-seq 基因 ID 转换
+
+- `Entrez_Gene_Id_db_mmu.rda` (1.6 MB) - 小鼠基因数据库
+  - 包含字段：UNIPROT, SYMBOL
+  - 用于小鼠 RNA-seq 基因 ID 转换
+
+- `hg19_promoters.rda` (1.5 MB) - 人类启动子区域
+
+### 修改的文件
+
+1. **embed.go** - 添加 `inst/data/*` 到嵌入指令
+2. **internal/assets/assets.go** - 添加 data 目录复制逻辑
+3. **inst/Rscripts/htseq2matrix.R** - 改为文件加载方式
+4. **inst/rules/rnaseq_matrix.smk** - 添加 enva `--` 分隔符
+
+### R 脚本修改
+
+**之前（从 R 包加载）**:
+```r
+if (postfix == "_human.txt"){
+  Entrez_Gene_Id_db <- xdxtools::Entrez_Gene_Id_db
+```
+
+**之后（从文件加载）**:
+```r
+if (postfix == "_human.txt"){
+  load("data/Entrez_Gene_Id_db.rda")
+  # Entrez_Gene_Id_db 对象已加载到环境中
+```
+
+### 数据流
+
+```
+xdxtools 二进制
+    ↓ (embed)
+inst/data/*.rda (嵌入)
+    ↓ (xdxtools init)
+项目/data/Entrez_Gene_Id_db.rda
+    ↓ (htseq2matrix.R)
+load("data/Entrez_Gene_Id_db.rda")
+    ↓
+基因 ID 转换 (ENSEMBL/UNIPROT → SYMBOL)
+```
+
+### 优势
+
+- ✅ **自包含**：数据库随二进制分发
+- ✅ **版本控制**：数据库纳入 git 管理
+- ✅ **可重现**：所有用户使用相同版本
+- ✅ **无 R 包依赖**：移除 xdxtools R 包要求
+- ✅ **简单部署**：单个二进制包含所有资源
+
+### 验证结果
+
+✅ 文件成功嵌入（`strings xdxtools | grep Entrez`）
+✅ init 自动复制到 `data/` 目录
+✅ 文件大小正确（人类 333KB，小鼠 1.6MB）
+✅ 符合 4 环境架构标准
+
+### 状态：✅ 生产就绪
+
+---
+
+## 1. 清理未使用的规则文件 - 100% 完成 ✅ (2026-01-14 20:00)
 
 ### 完成总结
 
