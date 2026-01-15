@@ -22,6 +22,67 @@ A bioinformatics workflow management tool for RRBS, WGBS, RNA-seq, and PDX analy
 - **Dynamic Reference Configuration**: Automatic generation of reference genome paths based on species and mode
 - **Comprehensive Testing**: 175+ tests with 100% pass rate
 
+## Git Submodules
+
+This project uses git submodules to integrate two external tools for enhanced functionality:
+
+### Submodules Overview
+
+| Submodule | Purpose | URL |
+|-----------|---------|-----|
+| **enva** | Lightweight micromamba environment manager with auto-detection of conda/mamba/micromamba | [rainoffallingstar/enva](https://github.com/rainoffallingstar/enva) |
+| **rv** | Fast, reproducible R package manager with conda environment support | [rainoffallingstar/rv](https://github.com/rainoffallingstar/rv) |
+
+### Why Submodules?
+
+- **enva**: Provides 2-5x faster environment activation compared to standard conda, with automatic detection of the fastest available package manager
+- **rv**: Manages R dependencies reproducibly with support for conda environments, automatic dependency discovery from R scripts, and fast binary package installation
+
+### Initializing Submodules
+
+When cloning this repository, use one of these methods:
+
+```bash
+# Method 1: Clone with submodules (recommended)
+git clone --recurse-submodules https://github.com/xdxtools/xdxtools-go.git
+cd xdxtools-go
+
+# Method 2: Clone and init separately
+git clone https://github.com/xdxtools/xdxtools-go.git
+cd xdxtools-go
+git submodule init
+git submodule update
+
+# Method 3: If you already cloned without --recurse-submodules
+git submodule update --init --recursive
+```
+
+### Updating Submodules
+
+To update submodules to their latest versions:
+
+```bash
+# Update all submodules
+git submodule update --remote --merge
+
+# Update specific submodule
+git submodule update --remote --merge enva
+git submodule update --remote --merge rv
+
+# After updating, rebuild the project
+go build -o xdxtools
+```
+
+### Checking Submodule Status
+
+```bash
+# Check submodule status
+git submodule status
+
+# View submodule commits
+git submodule summary
+```
+
 ## Installation
 
 ### From Source
@@ -44,10 +105,12 @@ go build -o xdxtools
 sudo mv xdxtools /usr/local/bin/
 ```
 
-**Note**: This repository uses `enva` as a git submodule. If you cloned without `--recurse-submodules`, run:
+**Note**: This repository uses `enva` and `rv` as git submodules. If you cloned without `--recurse-submodules`, run:
 ```bash
 git submodule update --init --recursive
 ```
+
+See the [Git Submodules](#git-submodules) section above for more details.
 
 ### Requirements
 

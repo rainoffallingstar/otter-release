@@ -22,14 +22,81 @@ xdxtools 的 Go 语言重写版本，用于 RRBS、WGBS、RNA-seq 和 PDX 分析
 - **动态参考配置**：根据物种和模式自动生成参考基因组路径
 - **全面测试**：175+ 个测试用例，100% 通过率
 
+## Git 子模块
+
+本项目使用 git 子模块集成两个外部工具以增强功能：
+
+### 子模块概览
+
+| 子模块 | 用途 | 链接 |
+|-----------|---------|-----|
+| **enva** | 轻量级 micromamba 环境管理器，自动检测 conda/mamba/micromamba | [rainoffallingstar/enva](https://github.com/rainoffallingstar/enva) |
+| **rv** | 快速、可复现的 R 包管理器，支持 conda 环境 | [rainoffallingstar/rv](https://github.com/rainoffallingstar/rv) |
+
+### 为什么使用子模块？
+
+- **enva**：相比标准 conda，提供快 2-5 倍的环境激活速度，自动检测最快的可用包管理器
+- **rv**：可复现地管理 R 依赖，支持 conda 环境，从 R 脚本自动发现依赖，快速安装二进制包
+
+### 初始化子模块
+
+克隆此仓库时，使用以下方法之一：
+
+```bash
+# 方法 1：克隆时包含子模块（推荐）
+git clone --recurse-submodules https://github.com/xdxtools/xdxtools-go.git
+cd xdxtools-go
+
+# 方法 2：分别克隆和初始化
+git clone https://github.com/xdxtools/xdxtools-go.git
+cd xdxtools-go
+git submodule init
+git submodule update
+
+# 方法 3：如果已克隆但未包含子模块
+git submodule update --init --recursive
+```
+
+### 更新子模块
+
+将子模块更新到最新版本：
+
+```bash
+# 更新所有子模块
+git submodule update --remote --merge
+
+# 更新特定子模块
+git submodule update --remote --merge enva
+git submodule update --remote --merge rv
+
+# 更新后重新构建项目
+go build -o xdxtools
+```
+
+### 检查子模块状态
+
+```bash
+# 检查子模块状态
+git submodule status
+
+# 查看子模块提交记录
+git submodule summary
+```
+
 ## 安装
 
 ### 从源码构建
 
 ```bash
-# 克隆仓库
+# 克隆仓库（包含子模块）
+git clone --recurse-submodules https://github.com/xdxtools/xdxtools-go.git
+cd xdxtools-go
+
+# 或者分别克隆和初始化子模块
 git clone https://github.com/xdxtools/xdxtools-go.git
 cd xdxtools-go
+git submodule init
+git submodule update
 
 # 构建二进制文件
 go build -o xdxtools
@@ -37,6 +104,13 @@ go build -o xdxtools
 # 安装到 PATH（可选）
 sudo mv xdxtools /usr/local/bin/
 ```
+
+**注意**：本仓库使用 `enva` 和 `rv` 作为 git 子模块。如果克隆时未使用 `--recurse-submodules`，请运行：
+```bash
+git submodule update --init --recursive
+```
+
+详见上方 [Git 子模块](#git-子模块) 章节。
 
 ### 系统要求
 
