@@ -15,10 +15,10 @@ QC_summary <- function(configfile){
 
   config <- yaml::read_yaml(configfile)
   SIDs <- config$SIDs
-  graft <- config$graft
+  graft <- config$workflow$species$graft
   qc_df_list <- list()
   for (i in 1:length(SIDs)){
-    seqkit_file <- glue::glue("{config$qcDir}/{SIDs[i]}_seqkit_stat.txt")
+    seqkit_file <- glue::glue("{config$directories$qc$main}/{SIDs[i]}_seqkit_stat.txt")
     message(seqkit_file)
     # seqkit
     seqStatT = read.table(seqkit_file, header = TRUE)
@@ -61,7 +61,7 @@ QC_summary <- function(configfile){
     clean_data_ratio = signif(bases_clean / bases_raw, 4)
 
     # trim
-    trimQcR1 = glue::glue("{config$trimDir}/{SIDs[i]}_R1.fastq.gz_trimming_report.txt")
+    trimQcR1 = glue::glue("{config$output$trim_dir}/{SIDs[i]}_R1.fastq.gz_trimming_report.txt")
     message(trimQcR1)
     trimQcR1T = readLines(trimQcR1)
     reads_with_adapter_R1 = trimQcR1T[grep("Reads with adapters:  ",trimQcR1T)] %>%
@@ -80,7 +80,7 @@ QC_summary <- function(configfile){
       stringr::str_split(.,":") %>%
       {.[[1]][2]} %>%
       stringr::str_trim()
-    trimQcR2 = glue::glue("{config$trimDir}/{SIDs[i]}_R2.fastq.gz_trimming_report.txt")
+    trimQcR2 = glue::glue("{config$output$trim_dir}/{SIDs[i]}_R2.fastq.gz_trimming_report.txt")
     trimQcR2T = readLines(trimQcR2)
     reads_with_adapter_R2 = trimQcR2T[grep("Reads with adapters:  ",trimQcR2T)] %>%
       stringr::str_remove(.,"Reads with adapters:  ") %>%
@@ -101,8 +101,8 @@ QC_summary <- function(configfile){
       {.[[1]][2]} %>%
       stringr::str_trim()
     # GC_raw
-    GC_R1_raw = glue::glue("{config$qcDir_before}/{SIDs[i]}_R1_fastqc/fastqc_data.txt")
-    GC_R2_raw = glue::glue("{config$qcDir_before}/{SIDs[i]}_R2_fastqc/fastqc_data.txt")
+    GC_R1_raw = glue::glue("{config$directories$qc$before}/{SIDs[i]}_R1_fastqc/fastqc_data.txt")
+    GC_R2_raw = glue::glue("{config$directories$qc$before}/{SIDs[i]}_R2_fastqc/fastqc_data.txt")
     GC_R1 <- readLines(GC_R1_raw)[11] %>%
       stringr::str_split(.,"\t") %>%
       {as.numeric(.[[1]][2])}
@@ -113,8 +113,8 @@ QC_summary <- function(configfile){
 
     # GC_clean
 
-    GC_R1_clean = glue::glue("{config$qcDir_after}/{SIDs[i]}_val_1_fastqc/fastqc_data.txt")
-    GC_R2_clean = glue::glue("{config$qcDir_after}/{SIDs[i]}_val_2_fastqc/fastqc_data.txt")
+    GC_R1_clean = glue::glue("{config$directories$qc$after}/{SIDs[i]}_val_1_fastqc/fastqc_data.txt")
+    GC_R2_clean = glue::glue("{config$directories$qc$after}/{SIDs[i]}_val_2_fastqc/fastqc_data.txt")
     GC_R1 <- readLines(GC_R1_clean)[11] %>%
       stringr::str_split(.,"\t") %>%
       {as.numeric(.[[1]][2])}
@@ -124,7 +124,7 @@ QC_summary <- function(configfile){
     GC_clean = (GC_R1+GC_R2)/2
 
     # bismark
-    bismarkfile = glue::glue("{config$bsmapDir}/{graft}/{SIDs[i]}_val_1_bismark_bt2_PE_report.txt")
+    bismarkfile = glue::glue("{config$directories$bsmap$main}/{graft}/{SIDs[i]}_val_1_bismark_bt2_PE_report.txt")
     bsmapStatT = readLines(bismarkfile)
     mapping_ratio = bsmapStatT[grep("Mapping efficiency:",bsmapStatT)] %>%
       stringr::str_split(.,":") %>%
@@ -143,7 +143,7 @@ QC_summary <- function(configfile){
     unique_reads_pairs_ratio = aligned_reads_paires_ratio
 
     # Conversion Rate
-    split_file = glue::glue("{config$outDir_mCall}/{SIDs[i]}_nsort_splitting_report.txt")
+    split_file = glue::glue("{config$directories$methylation_call}/{SIDs[i]}_nsort_splitting_report.txt")
     conversion_ratio = readLines(split_file)
     conversion_ratio = conversion_ratio[grep("C methylated in non-CpG context:",conversion_ratio)] %>%
       stringr::str_split(.,":") %>%
@@ -153,7 +153,7 @@ QC_summary <- function(configfile){
       as.numeric()
     conversion_ratio = 1 - (conversion_ratio/100)
     # qualimap
-    qualimapfile = glue::glue("{config$qcDir}/qualimap/{SIDs[i]}_{graft}/genome_results.txt")
+    qualimapfile = glue::glue("{config$directories$qc$main}/qualimap/{SIDs[i]}_{graft}/genome_results.txt")
     message(qualimapfile)
     qualimapT = readLines(qualimapfile)
     mapping_quality = qualimapT[grep("mean mapping quality =",qualimapT)] %>%
@@ -229,15 +229,15 @@ QC_summary <- function(configfile){
   }
   qc_df <- data.table::rbindlist(qc_df_list) %>%
     as.data.frame()
-  if (file.exists(paste0(config$bsmapDir,"/Filtered_bams/filtered_reads_summary.xlsx"))){
-    filtered_patch_qc <- openxlsx::read.xlsx(paste0(config$bsmapDir,
+  if (file.exists(paste0(config$directories$bsmap$main,"/Filtered_bams/filtered_reads_summary.xlsx"))){
+    filtered_patch_qc <- openxlsx::read.xlsx(paste0(config$directories$bsmap$main,
                                                     "/Filtered_bams/filtered_reads_summary.xlsx"))
     qc_df <- qc_df %>%
       dplyr::left_join(filtered_patch_qc,
                        by = "sampleid")
   }
-  if (file.exists(paste0(config$outDir_mCall,"/methrixh5/CpG_coverage.xlsx"))){
-    CpG_patch_qc <- openxlsx::read.xlsx(paste0(config$outDir_mCall,
+  if (file.exists(paste0(config$directories$methylation_call,"/methrixh5/CpG_coverage.xlsx"))){
+    CpG_patch_qc <- openxlsx::read.xlsx(paste0(config$directories$methylation_call,
                                                     "/methrixh5/CpG_coverage.xlsx"))
     qc_df <- qc_df %>%
       dplyr::left_join(CpG_patch_qc,
