@@ -25,6 +25,20 @@ go test -v ./internal/input -run TestAdapterGenerator
 go test -cover ./...
 ```
 
+## Git Submodules
+
+This project uses two git submodules:
+- **enva**: Lightweight micromamba environment manager (2-5x faster than conda)
+- **rv**: Fast, reproducible R package manager
+
+```bash
+# Clone with submodules (recommended)
+git clone --recurse-submodules https://github.com/xdxtools/xdxtools-go.git
+
+# Or initialize after cloning
+git submodule update --init --recursive
+```
+
 ## Three-Command Workflow
 
 ```bash
@@ -37,6 +51,25 @@ xdxtools create --fastq /data/fastq --mode RRBS --pdata samples.csv
 # 3. Execute workflow
 xdxtools run --config userspace/my_project/config/config.yaml --engine slurm
 ```
+
+## CLI Commands
+
+| Command | Purpose |
+|---------|---------|
+| `init` | Install Snakemake workflow files to project directory |
+| `create` | Scan FASTQ, validate samples, generate config.yaml |
+| `run` | Execute Snakemake workflow |
+| `status` | Display workflow status and progress |
+| `config` | Validate configuration files |
+| `tui` | Interactive terminal UI |
+
+### Key Run Flags
+
+- `--engine`: Execution engine (auto/slurm/local)
+- `--parallel-jobs`: Unified parallelization control (1 = sequential, >1 = parallel)
+- `--dry-run`: Test configuration without executing
+- `--resume/-r`: Resume from last completed step
+- `--slurm-partition`: SLURM partition for all steps
 
 ## Architecture
 
@@ -52,6 +85,15 @@ Cobra-based commands: `init`, `create`, `run`, `config`, `tui`
 | **input** | FASTQ scanning, pdata parsing, adapter generation | `fastq.go`, `pdata.go`, `adapter.go` |
 | **workflow** | Directory structure, Snakemake integration | `manager.go`, `snakemake.go` |
 | **assets** | Embedded resources (Snakemake files, R scripts) | Uses Go `embed` package |
+
+### Engine Types
+
+Three execution engines are available (defined in `internal/engine/types.go`):
+- `EngineSlurm` - Submit jobs to SLURM cluster
+- `EngineSlurmArray` - Use SLURM Job Array for parallel sample processing
+- `EngineLocal` - Run locally with worker pool
+
+Use `engine.CreateEngineFromConfig(cfg)` to create the appropriate engine.
 
 ### Data Flow
 ```
@@ -80,11 +122,18 @@ engine.CreateEngineFromConfig(cfg) // Returns SlurmEngine, SlurmArrayEngine, or 
 - Reads `inline_barcode_sequence` from pdata
 - Computes reverse complement
 - RRBS: adds "TGA" (R1) / "A" (R2) prefix
+- WGBS: no prefix added
 - Empty barcode → "NO_ADAPTER_CAL_USE_DEFAULT"
 
 ### Group Levels
 - Counts unique values in `sample_group` or `condition` column
 - Priority: `sample_group` > `condition`
+
+### Chinese Column Name Support
+Automatically maps Chinese columns to English:
+- "样本编号" / "样本ID" → `sampleid`
+- "条件" → `condition`
+- "样本分组" / "分组" → `sample_group`
 
 ## Embedded Resources
 
@@ -95,6 +144,52 @@ Located in `inst/`:
 - `envs/` - Conda environment definitions
 
 Copied to project during `xdxtools init`.
+
+## Key Interfaces
+
+### Engine Interface
+```go
+// internal/engine/engine.go
+type Engine interface {
+    Execute(cmd []string) error
+    ExecuteWithOutput(cmd []string) (string, error)
+    GetName() EngineType
+    GetStatus() *Status
+    Wait() error
+    Kill() error
+    SetLogDir(dir string) error
+}
+```
+
+### Status States
+```go
+const (
+    StatusPending   = "PENDING"
+    StatusRunning   = "RUNNING"
+    StatusCompleted = "COMPLETED"
+    StatusFailed    = "FAILED"
+    StatusKilled    = "KILLED"
+)
+```
+
+### Key Configuration Types
+```go
+// internal/config/config.go
+type XDXToolsConfig struct {
+    Workflow      WorkflowConfig
+    Input         InputConfig
+    Output        OutputConfig
+    Reference     ReferenceConfig
+    Engine        EngineConfig
+}
+
+type WorkflowConfig struct {
+    Mode      string   // RRBS, WGBS, RNASEQ
+    Species   SpeciesConfig
+    Adapters  AdapterConfig
+    Samples   []SampleConfig
+}
+```
 
 ## Test Data
 
@@ -108,30 +203,7 @@ Centralized in `testdata/`:
 
 - Go 1.21+
 - YAML configuration with struct tags
-- FASTQ naming: `*_R1.fastq.gz` / `*_R2.fastq.gz`
+- FASTQ naming: `*_R1.fastq.gz` / `*_R2.fastq.gz` (or `*_1.fastq.gz` / `*_2.fastq.gz`)
 - Project output: `userspace/{jobid}/`
-- Chinese column names auto-mapped to English
-
-## Key Configuration Types
-
-```go
-// internal/config/config.go
-type WorkflowConfig struct {
-    Mode      string   // RRBS, WGBS, RNASEQ
-    Species1  string   // Primary species
-    Species2  string   // Secondary species (enables PDX)
-    SIDs      []string // Sample IDs
-    TrimSeq1  []string // Per-sample R1 adapters
-    TrimSeq2  []string // Per-sample R2 adapters
-}
-```
-
-## Engine Interface
-
-```go
-// internal/engine/types.go
-type Engine interface {
-    Execute(cmd []string) error
-    GetType() string
-}
-```
+- Job ID: 40-character hexadecimal string (auto-generated)
+- Excel (.xlsx/.xls) pdata files supported natively
