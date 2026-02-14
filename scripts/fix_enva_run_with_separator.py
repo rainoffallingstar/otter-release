@@ -111,7 +111,6 @@ def main():
     directories = [
         'inst/root_rules',
         'inst/rootless_rules',
-        'testdata/e2e/test_init/rules',
         '/data_center_01/home/zhengyanhua/beaverflow-go/rules',  # Added beaverflow-go
     ]
 

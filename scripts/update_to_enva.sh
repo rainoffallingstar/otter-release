@@ -11,7 +11,6 @@ echo "=========================================="
 DIRS=(
     "inst/root_rules"
     "inst/rootless_rules"
-    "testdata/e2e/test_init/rules"
 )
 
 # Counters

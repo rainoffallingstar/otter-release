@@ -23,27 +23,21 @@ testdata/
 │   ├── test_pdata_no_condition.csv # No condition field
 │   └── test_pdata_single.csv      # Single sample
 │
-├── configs/               # Configuration test files
-│   └── test_wgbs_config.yaml    # WGBS mode configuration
-│
-├── projects/              # Sample generated projects
-│   └── sample_projects/   # 13 different test scenarios
-│       ├── test_adapter/          # Adapter generation test
-│       ├── test_barcode_alias/   # Barcode alias test
-│       ├── test_chinese_columns/ # Chinese columns test
-│       ├── test_complete_fields/ # Complete fields test
-│       ├── test_group_levels/    # Group levels calculation
-│       ├── test_group_pdata/     # Group pdata test
-│       ├── test_job1/            # Basic job test
-│       ├── test_missing_fields/   # Missing fields test
-│       ├── test_mixed_columns/   # Mixed columns test
-│       ├── test_no_condition/    # No condition test
-│       ├── test_pdx/             # PDX mode test
-│       ├── test_single_group/    # Single group test
-│       └── test_with_pdata/      # With pdata test
-│
-└── e2e/                  # End-to-end test scenarios
-    └── test_init/         # Init command test
+└── projects/              # Sample generated projects
+    └── sample_projects/   # 13 different test scenarios
+        ├── test_adapter/          # Adapter generation test
+        ├── test_barcode_alias/   # Barcode alias test
+        ├── test_chinese_columns/ # Chinese columns test
+        ├── test_complete_fields/ # Complete fields test
+        ├── test_group_levels/    # Group levels calculation
+        ├── test_group_pdata/     # Group pdata test
+        ├── test_job1/            # Basic job test
+        ├── test_missing_fields/   # Missing fields test
+        ├── test_mixed_columns/   # Mixed columns test
+        ├── test_no_condition/    # No condition test
+        ├── test_pdx/             # PDX mode test
+        ├── test_single_group/    # Single group test
+        └── test_with_pdata/      # With pdata test
 ```
 
 ## Usage
