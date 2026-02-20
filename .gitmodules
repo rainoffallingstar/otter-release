@@ -4,3 +4,6 @@
 [submodule "rv"]
 	path = rv
 	url = https://github.com/rainoffallingstar/rv.git
+[submodule "xenofilter-go"]
+	path = xenofilter-go
+	url = /public3/home/scg9946/xenofilter-go

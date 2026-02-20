@@ -1,21 +1,10 @@
 [project]
 name = "Rscripts"
 r_version = "4.4"
-conda_env = "xdxtools-r"
-
-# A list of repositories to fetch packages from. Order matters: we will try to get a package from each repository in order.
-# The alias is only used in this file if you want to specifically require a dependency to come from a certain repository.
-# Example: { alias = "PPM", url = "https://packagemanager.posit.co/cran/latest" },
-repositories = [
-    {alias = "posit", url = "https://packagemanager.posit.co/cran/latest"},
-    {alias = "bioc", url = "https://packagemanager.posit.co/bioc/latest"},
-]
-
-# A list of packages to install and any additional configuration
-# Examples:
-    # "dplyr",
-    # {name = "dplyr", repository = "CRAN"},
-    # {name = "dplyr", git = "https://github.com/tidyverse/dplyr.git", tag = "v1.1.4"},
+description = ""
+authors = []
+keywords = []
+suggests = []
 dependencies = [
     "BSgenome",
     "BiocParallel",
@@ -28,10 +17,29 @@ dependencies = [
     "methrix",
     "openxlsx",
     "optparse",
-    "pak",
     "readr",
     "stringr",
     "tibble",
     "tidyr",
     "yaml",
 ]
+dev_dependencies = []
+prefer_repositories_for = []
+conda_env = "xdxtools-r"
+pak_fallback = true
+
+[[project.repositories]]
+alias = "posit"
+url = "https://packagemanager.posit.co/cran/latest"
+force_source = true
+
+[[project.repositories]]
+alias = "bioc"
+url = "https://bioconductor.org/packages/release/bioc"
+force_source = true
+
+[project.urls]
+
+[project.packages_env_vars]
+
+[project.configure_args]

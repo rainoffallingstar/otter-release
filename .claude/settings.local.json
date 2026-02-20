@@ -107,7 +107,10 @@
       "Bash(RUST_LOG=debug /data_center_01/home/zhengyanhua/xdxtools/rv/target/release/rv init:*)",
       "Bash(du:*)",
       "mcp__acp__Edit",
-      "mcp__acp__Bash"
+      "mcp__acp__Bash",
+      "Bash(git stash pop:*)",
+      "Bash(git checkout:*)",
+      "Bash(git rm:*)"
     ]
   }
 }
