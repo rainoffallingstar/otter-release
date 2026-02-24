@@ -11,7 +11,7 @@ rule qcsummary:
     expand(os.path.join(config["directories"]["bsmap"]["main"], "{sample}_{species}.bam"), sample=config["metadata"]["sample_ids"],species =config["workflow"]["species"]["name"]) ,
     expand(os.path.join(config["directories"]["qualimap"],"{sample}_{species}","qualimapReport.html") , sample=config["metadata"]["sample_ids"],species =config["workflow"]["species"]["name"])
   output:
-    os.path.join(config["directories"]["qc_summary"],"qc_summary.txt")
+    os.path.join(config["directories"]["qc_summary"],"qc_summary.xlsx")
   params:
     self_config = config["directories"]["selfconfig"],
     qc_output = config["directories"]["qc_summary"]
@@ -19,7 +19,6 @@ rule qcsummary:
   threads:5
   shell:
     """
-    enva run xdxtools-r Rscript R/QC_summary_rnaseq.R --configfolder {params.self_config} --output_dir {params.qc_output}
-
+    qctb --config {params.self_config}/config.yaml --output {params.qc_output}/qc_summary.xlsx --rnaseq
     """
     

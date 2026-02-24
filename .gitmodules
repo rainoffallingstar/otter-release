@@ -7,3 +7,15 @@
 [submodule "xenofilter-go"]
 	path = xenofilter-go
 	url = /public3/home/scg9946/xenofilter-go
+[submodule "Paireads"]
+	path = Paireads
+	url = https://github.com/rainoffallingstar/Paireads
+[submodule "htseq2matrix-go"]
+	path = htseq2matrix-go
+	url = https://github.com/rainoffallingstar/htseq2matrix-go
+[submodule "methrix-cli"]
+	path = methrix-cli-local
+	url = https://github.com/rainoffallingstar/methrix-cli
+[submodule "qctb"]
+	path = qctb
+	url = https://github.com/rainoffallingstar/qctb

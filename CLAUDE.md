@@ -27,9 +27,17 @@ go test -cover ./...
 
 ## Git Submodules
 
-This project uses two git submodules:
-- **enva**: Lightweight micromamba environment manager (2-5x faster than conda)
-- **rv**: Fast, reproducible R package manager
+This project uses 7 git submodules:
+
+| Submodule | Path | Branch | Description | Binary |
+|-----------|------|--------|-------------|--------|
+| **enva** | enva/ | master | Lightweight micromamba environment manager (2-5x faster than conda) | `enva` |
+| **rv** | rv/ | main | Fast, reproducible R package manager | `rv` |
+| **xenofilter-go** | xenofilter-go/ | master | Xenofilter filter for contamination removal | `xenofilter` |
+| **Paireads** | Paireads/ | master | Paired-end reads processing and analysis | `paireads` |
+| **htseq2matrix-go** | htseq2matrix-go/ | master | Convert HTSeq counts to expression matrix | `htseq2matrix` |
+| **methrix-cli** | methrix-cli-local/ | main | Methylation analysis and visualization CLI | `methrix-cli` |
+| **qctb** | qctb/ | main | Quality control toolbox for bioinformatics | `qctb` |
 
 ```bash
 # Clone with submodules (recommended)
@@ -37,7 +45,42 @@ git clone --recurse-submodules https://github.com/xdxtools/xdxtools-go.git
 
 # Or initialize after cloning
 git submodule update --init --recursive
+
+# Build all submodules (requires conda/micromamba)
+cd <submodule> && conda run -n <submodule>-build go build -o $HOME/.cargo/bin/<binary>
+
+# Or use the build script
+bash scripts/build-all-submodules.sh
 ```
+
+### Build Environments Required
+- **Rust projects**: Use conda environment `rust_build` (or system cargo)
+- **Go projects**: Use conda environment `go-build` with `CGO_ENABLED=0`
+
+### Successfully Compiled Binaries
+The following submodules have been compiled and installed to `$HOME/.cargo/bin`:
+- `enva` - micromamba environment manager (v0.1.0)
+- `rv` - R package manager (v0.17.1)
+- `htseq2matrix` - HTSeq expression matrix converter
+- `methrix-cli` - Methylation analysis and visualization CLI
+- `xenofilter` - Xenofilter for contamination removal
+- `paireads` - Paired-end reads processing
+- `qctb` - Quality control toolbox (v0.1.0)
+
+### HDF5 Environment Variables
+HDF5 library paths have been added to `~/.bashrc` for methrix-cli compilation and runtime:
+```bash
+export HDF5_DIR="/public3/home/scg9946/TTest/soft/MyMiniconda/envs/rust_build"
+export HDF5_INCLUDE_DIR="$HDF5_DIR/include"
+export HDF5_LIB_DIR="$HDF5_DIR/lib"
+export LD_LIBRARY_PATH="$HDF5_DIR/lib:$LD_LIBRARY_PATH"
+export PKG_CONFIG_PATH="$HDF5_DIR/lib/pkgconfig:$PKG_CONFIG_PATH"
+```
+
+### Notes
+- All 7 submodules successfully compiled and installed
+- `htseq2matrix` was compiled from complete source code provided by user
+- `methrix-cli` requires HDF5 libraries (now configured via environment variables)
 
 ## Three-Command Workflow
 

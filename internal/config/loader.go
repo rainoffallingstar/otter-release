@@ -53,6 +53,9 @@ func (l *Loader) LoadConfig() (*XDXToolsConfig, error) {
 	// Merge environment variables
 	l.mergeEnvOverrides(config)
 
+	// Merge flat reference fields into nested structure
+	l.mergeReferenceFields(config)
+
 	// Validate configuration
 	if err := ValidateConfig(config); err != nil {
 		return nil, fmt.Errorf("config validation failed: %w", err)
@@ -110,6 +113,15 @@ func (l *Loader) mergeEnvOverrides(config *XDXToolsConfig) {
 	}
 
 	logger.Debug("Environment variable overrides applied")
+}
+
+// mergeReferenceFields merges flat reference fields into nested structure
+func (l *Loader) mergeReferenceFields(config *XDXToolsConfig) {
+	// Merge GenomeFasta into Files.Fasta for backward compatibility
+	if len(config.Reference.GenomeFasta) > 0 && len(config.Reference.Files.Fasta) == 0 {
+		config.Reference.Files.Fasta = config.Reference.GenomeFasta
+		logger.Debugf("Merged genome_fasta into files.fasta")
+	}
 }
 
 // deriveSuffix2 auto-derives suffix2 from suffix1

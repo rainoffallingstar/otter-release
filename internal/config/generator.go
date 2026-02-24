@@ -42,7 +42,7 @@ type SnakemakeConfig struct {
 
 	// Reference files
 	GenomeFile  []string `yaml:"genomeFile"`
-	GenomeFasta []string `yaml:"gnome_fasta"`
+	GenomeFasta []string `yaml:"genome_fasta"`
 	GenomeAnno  []string `yaml:"genomeAnno"`
 	RNASEQGTF   interface{} `yaml:"rnaseq_gtf"`
 	RNASEQRef   interface{} `yaml:"rnaseq_ref"`

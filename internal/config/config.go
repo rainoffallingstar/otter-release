@@ -138,11 +138,13 @@ type ReferenceConfig struct {
 	Indices     ReferenceIndices `mapstructure:"indices"`
 	Annotations AnnotationConfig `mapstructure:"annotations"`
 	RNAseq      RNAseqConfig     `mapstructure:"rnaseq"`
+	// Flat fields for backward compatibility with YAML
+	GenomeFasta []string `mapstructure:"genome_fasta"`
 }
 
 // ReferenceFiles represents reference files
 type ReferenceFiles struct {
-	Fasta    []string `mapstructure:"fasta"`
+	Fasta    []string `mapstructure:"fasta,genome_fasta"`
 	Genome   []string `mapstructure:"genomeFile"`
 	CGI      string   `mapstructure:"CGI"`
 	CpGSites string   `mapstructure:"cgGR_gz"`
