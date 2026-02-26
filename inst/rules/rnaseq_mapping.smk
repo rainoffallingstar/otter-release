@@ -16,7 +16,7 @@ rule rnaseqmappingbowtie:
   threads: 40
   shell:
     """
-    enva run xdxtools-core STAR --runThreadN {threads} \
+    enva run xdxtools-core -- STAR --runThreadN {threads} \
     --readFilesCommand zcat \
     --quantMode GeneCounts \
     --genomeDir {params.rnaseq_ref} \

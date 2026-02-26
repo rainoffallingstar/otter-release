@@ -27,7 +27,6 @@ func TestSlurmArrayEngine(t *testing.T) {
 		Threads:    8,
 		JobArray:   true,
 		MaxJobs:    5,
-		Inherit:    false,
 	}
 
 	// Create SlurmArrayEngine
@@ -98,6 +97,8 @@ func TestEngineFactorySlurmArray(t *testing.T) {
 		&config.EngineConfig{}, // Minimal config, not used in this test
 		samples,
 		stepResource,
+		0,   // maxBatchSize=0: no batching limit
+		0.0, // loadRatio=0: disable dynamic pool for test
 	)
 
 	// Override with our specific config for testing

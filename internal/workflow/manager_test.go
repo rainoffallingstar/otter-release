@@ -80,8 +80,8 @@ func TestManagerGetStepResource(t *testing.T) {
 	if resource1 == nil {
 		t.Error("Expected default resource for step 1, got nil")
 	}
-	if resource1.Cores != 4 {
-		t.Errorf("Expected default cores 4, got %d", resource1.Cores)
+	if resource1.Cores != 20 {
+		t.Errorf("Expected default cores 20, got %d", resource1.Cores)
 	}
 }
 
@@ -95,44 +95,27 @@ func TestManagerIntelligentStrategy(t *testing.T) {
 	w := NewWorkflow(cfg, []string{})
 	manager := NewManager(w)
 
-	// Test with many samples (>= 5) - should use parallel
-	samples := []string{"sample1", "sample2", "sample3", "sample4", "sample5"}
-	manager.SetSamples(samples)
-
-	if !manager.shouldUseParallel() {
-		t.Error("Expected parallel strategy for >= 5 samples")
+	// Parallelization is now controlled by parallelJobs > 1 (not sample count)
+	// shouldUseSingleSampleMode returns true for step 2 and 3 (uses per-sample mode)
+	// and false for step 1 (uses all-samples mode)
+	if manager.shouldUseSingleSampleMode(1) {
+		t.Error("Expected all-samples mode for step 1 (shouldUseSingleSampleMode=false)")
 	}
 
-	// Test with 4 samples - should NOT use parallel
-	samples = []string{"sample1", "sample2", "sample3", "sample4"}
-	manager.SetSamples(samples)
-
-	if manager.shouldUseParallel() {
-		t.Error("Expected sequential strategy for < 5 samples")
+	if !manager.shouldUseSingleSampleMode(2) {
+		t.Error("Expected single-sample mode for step 2 (shouldUseSingleSampleMode=true)")
 	}
 
-	// Test with 3 samples - should NOT use parallel
-	samples = []string{"sample1", "sample2", "sample3"}
-	manager.SetSamples(samples)
-
-	if manager.shouldUseParallel() {
-		t.Error("Expected sequential strategy for < 5 samples")
+	if !manager.shouldUseSingleSampleMode(3) {
+		t.Error("Expected single-sample mode for step 3 (shouldUseSingleSampleMode=true)")
 	}
 
-	// Test with single sample
-	samples = []string{"sample1"}
+	// Large sample counts should still work
+	samples := []string{"sample1", "sample2", "sample3", "sample4", "sample5", "sample6", "sample7", "sample8", "sample9", "sample10"}
 	manager.SetSamples(samples)
 
-	if manager.shouldUseParallel() {
-		t.Error("Expected sequential strategy for single sample")
-	}
-
-	// Test with 10 samples - should use parallel
-	samples = []string{"sample1", "sample2", "sample3", "sample4", "sample5", "sample6", "sample7", "sample8", "sample9", "sample10"}
-	manager.SetSamples(samples)
-
-	if !manager.shouldUseParallel() {
-		t.Error("Expected parallel strategy for >= 5 samples")
+	if !manager.shouldUseSingleSampleMode(2) {
+		t.Error("Expected single-sample mode for step 2 regardless of sample count")
 	}
 }
 

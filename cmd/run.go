@@ -49,6 +49,9 @@ var (
 	// Parallel control
 	parallelJobs int
 
+	// Dynamic pool load ratio (replaces fixed batching for SLURM)
+	loadRatio float64
+
 	// Legacy unified partition parameter (kept for backward compatibility)
 	slurmUnifiedPartition string
 
@@ -109,6 +112,11 @@ func init() {
 
 	// Parallel control
 	runCmd.Flags().IntVar(&parallelJobs, "parallel-jobs", 2, "Max parallel jobs (local/Snakemake)")
+
+	// Dynamic pool load ratio for SLURM
+	runCmd.Flags().Float64Var(&loadRatio, "load-ratio", 1.0,
+		"Job pool load ratio (0.1-1.0). SLURM: slot_limit=floor(min(parallel-jobs, MaxSubmitJobs-1)×ratio). "+
+			"Local: slot_limit=floor(parallel-jobs×ratio). Set to 0 to disable dynamic pool.")
 
 	// Legacy unified partition parameter (kept for backward compatibility)
 	runCmd.Flags().StringVar(&slurmUnifiedPartition, "slurm-unified-partition", "", "Unified SLURM partition for all steps (overrides individual step partitions)")
@@ -205,6 +213,18 @@ func runRun(cmd *cobra.Command, args []string) error {
 	// Build step resources from command line arguments
 	stepResources := buildStepResources()
 
+	// Sync partition from stepResources to cfg.Engine.Slurm.Partition
+	// This ensures --slurm-unified-partition is passed to the engine
+	if stepResources != nil && cfg.Engine.Slurm.Partition == "" {
+		// Find the first non-empty partition from stepResources
+		for _, res := range stepResources {
+			if res != nil && res.Partition != "" {
+				cfg.Engine.Slurm.Partition = res.Partition
+				break
+			}
+		}
+	}
+
 	// Set step resources in config
 	cfg.StepResources = stepResources
 
@@ -215,6 +235,9 @@ func runRun(cmd *cobra.Command, args []string) error {
 	manager.SetSamples(sampleNames)
 	manager.SetStepResources(stepResources)
 	manager.SetParallelJobs(parallelJobs)
+	if loadRatio > 0 {
+		manager.SetLoadRatio(loadRatio)
+	}
 
 	// Create engine (after setting resources so manager can make intelligent decisions)
 	eng, err := engine.CreateEngineFromConfig(cfg)
@@ -224,9 +247,26 @@ func runRun(cmd *cobra.Command, args []string) error {
 
 	w.SetEngine(eng)
 
+	// Warn if --parallel-jobs explicitly set alongside --load-ratio for SLURM
+	if loadRatio > 0 && cmd.Flags().Changed("parallel-jobs") {
+		if eng.GetName().String() == "slurm" || eng.GetName().String() == "slurm_array" {
+			logger.Warn("--parallel-jobs is deprecated for SLURM step2/3 when --load-ratio is set; load-ratio takes priority")
+		}
+	}
+
 	// Validate resources before execution
 	if err := validateResources(eng.GetName().String(), cfg, stepResources, parallelJobs); err != nil {
 		return fmt.Errorf("resource validation failed: %w", err)
+	}
+
+	// Auto-detect and adjust parallel jobs based on SLURM limits
+	if eng.GetName().String() == "slurm" || eng.GetName().String() == "slurm_array" {
+		adjustedJobs := adjustParallelJobsForSlurmLimits(parallelJobs)
+		if adjustedJobs != parallelJobs {
+			logger.Infof("Auto-adjusted parallel jobs from %d to %d based on SLURM limits",
+				parallelJobs, adjustedJobs)
+			parallelJobs = adjustedJobs
+		}
 	}
 
 	// Set dry-run mode if requested
@@ -586,4 +626,16 @@ func buildStepResources() map[int]*config.StepResource {
 	}
 
 	return resources
+}
+
+// adjustParallelJobsForSlurmLimits 输出 SLURM 限制信息，实际分批逻辑由 engine 层处理
+// 返回原始 requestedJobs，不做调整
+func adjustParallelJobsForSlurmLimits(requestedJobs int) int {
+	limits := engine.GetSlurmUserLimits()
+	if limits.MaxSubmitJobs > 0 {
+		logger.Infof("SLURM limits: MaxSubmit=%d, Current=%d, Available=%d",
+			limits.MaxSubmitJobs, limits.CurrentJobCount, limits.AvailableJobs)
+	}
+	// 分批逻辑由 engine 层（SlurmArrayEngine.executeStepWithBatches）处理
+	return requestedJobs
 }

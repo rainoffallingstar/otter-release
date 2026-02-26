@@ -556,14 +556,16 @@ func generateProjectConfig(configPath, mode, species1, species2,
 	}
 
 	// Prepare rnaseq fields based on mode
+	// Always use list format for snakemake compatibility (index operation requires list)
 	var rnaseqGTF interface{}
 	var rnaseqRef interface{}
 	if len(gtf) == 0 {
 		rnaseqGTF = ""
-		rnaseqRef = ""
+		rnaseqRef = []string{}
 	} else if len(gtf) == 1 {
-		rnaseqGTF = gtf[0]
-		rnaseqRef = ref[0]
+		// Wrap in list for snakemake index operation
+		rnaseqGTF = []string{gtf[0]}
+		rnaseqRef = []string{ref[0]}
 	} else {
 		rnaseqGTF = gtf
 		rnaseqRef = ref

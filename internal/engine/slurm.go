@@ -152,14 +152,15 @@ func getPartitionNodes(partition string) ([]NodeInfo, error) {
 
 // SlurmEngine represents a Slurm cluster execution engine
 type SlurmEngine struct {
-	partition  string
-	cores      int
-	memory     string
-	jobName    string
-	maxRetries int
-	scriptPath string
-	status     *Status
-	logDir     string
+	partition   string
+	cores       int
+	memory      string
+	jobName     string
+	maxRetries  int
+	scriptPath  string
+	successFile string
+	status      *Status
+	logDir      string
 }
 
 // SlurmConfig represents Slurm-specific configuration
@@ -176,7 +177,7 @@ func NewSlurmEngine(config *SlurmConfig) *SlurmEngine {
 	// Set default values if not provided
 	partition := config.Partition
 	if partition == "" {
-		partition = "cpu112c"
+		partition = "all" // Use "all" as default instead of hardcoded "cpu112c"
 	}
 	cores := config.Cores
 	if cores <= 0 {
@@ -368,6 +369,13 @@ touch {{.SuccessFile}}
 		Commands:    cmd,
 	}
 
+	// Record success file path for later job status checking
+	e.successFile = data.SuccessFile
+
+	// Remove any stale success file from a previous run before submitting a new job.
+	// Without this, a failed job would appear successful because the old file still exists.
+	_ = os.Remove(e.successFile)
+
 	tmpl, err := template.New("slurm").Parse(scriptTemplate)
 	if err != nil {
 		return "", err
@@ -457,10 +465,18 @@ func (e *SlurmEngine) checkJobStatus(jobID string) (*Status, error) {
 	cmd := exec.Command("squeue", "-j", jobID, "-o", "%T,%L")
 	output, err := cmd.Output()
 	if err != nil {
-		// Job might have completed
+		// Job has left the queue; determine success/failure via .success marker file
+		if e.successFile != "" {
+			if _, statErr := os.Stat(e.successFile); statErr == nil {
+				return &Status{
+					State:   StatusCompleted,
+					Message: "Job completed",
+				}, nil
+			}
+		}
 		return &Status{
-			State:   StatusCompleted,
-			Message: "Job completed",
+			State:   StatusFailed,
+			Message: "Job failed (no success marker)",
 		}, nil
 	}
 
@@ -505,4 +521,161 @@ func (e *SlurmEngine) collectJobOutput(jobID string) (string, error) {
 	logger.Infof("Job output collected: %s", outputStr)
 
 	return outputStr, nil
+}
+
+// SlurmUserLimits 存储 SLURM 用户限制信息
+type SlurmUserLimits struct {
+	MaxSubmitJobs    int // 最大提交任务数
+	CurrentJobCount  int // 当前任务数
+	AvailableJobs    int // 可用任务数
+	QOSMaxJobs       int // QoS 最大任务数
+	AccountMaxJobs   int // 账户最大任务数
+}
+
+// GetSlurmUserLimits 获取用户的 SLURM 任务提交限制
+// 通过多个命令尝试获取限制信息，如果无法获取则返回安全的默认值
+func GetSlurmUserLimits() *SlurmUserLimits {
+	limits := &SlurmUserLimits{
+		MaxSubmitJobs:   100, // 默认值
+		CurrentJobCount: 0,
+		AvailableJobs:   100,
+	}
+
+	username := os.Getenv("USER")
+	if username == "" {
+		logger.Debugf("Cannot get username for SLURM limit detection")
+		return limits
+	}
+
+	// 1. 获取当前任务数
+	limits.CurrentJobCount = getCurrentJobCount(username)
+
+	// 2. 尝试从 sacctmgr 获取 MaxSubmitJobs 限制
+	if maxJobs := getAssocMaxJobs(username); maxJobs > 0 {
+		limits.MaxSubmitJobs = maxJobs
+		logger.Debugf("Detected SLURM MaxSubmitJobs limit: %d", maxJobs)
+	}
+
+	// 3. 尝试从 scontrol show assoc 获取限制
+	if maxJobs := getControlMaxJobs(username); maxJobs > 0 {
+		if limits.MaxSubmitJobs == 100 || maxJobs < limits.MaxSubmitJobs {
+			limits.MaxSubmitJobs = maxJobs
+		}
+		logger.Debugf("Detected SLURM association limit: %d", maxJobs)
+	}
+
+	// 4. 计算可用任务数
+	limits.AvailableJobs = limits.MaxSubmitJobs - limits.CurrentJobCount
+	if limits.AvailableJobs < 0 {
+		limits.AvailableJobs = 0
+	}
+
+	logger.Infof("SLURM limits: MaxSubmit=%d, Current=%d, Available=%d",
+		limits.MaxSubmitJobs, limits.CurrentJobCount, limits.AvailableJobs)
+
+	return limits
+}
+
+// getCurrentJobCount 获取用户当前运行中的任务数
+func getCurrentJobCount(username string) int {
+	cmd := exec.Command("squeue", "-u", username, "-h", "-o", "%i")
+	output, err := cmd.Output()
+	if err != nil {
+		logger.Debugf("Failed to get current job count: %v", err)
+		return 0
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	count := 0
+	for _, line := range lines {
+		if strings.TrimSpace(line) != "" {
+			count++
+		}
+	}
+	return count
+}
+
+// getAssocMaxJobs 从 sacctmgr 获取最大任务数限制
+func getAssocMaxJobs(username string) int {
+	cmd := exec.Command("sacctmgr", "show", "assoc", "where", fmt.Sprintf("user=%s", username),
+		"-s", "-n", "-o", "MaxSubmitJobs")
+	output, err := cmd.Output()
+	if err != nil {
+		logger.Debugf("sacctmgr command failed: %v", err)
+		return 0
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || line == "MaxSubmitJobs" {
+			continue
+		}
+		// 尝试解析数字
+		if val, err := strconv.Atoi(line); err == nil && val > 0 {
+			return val
+		}
+	}
+	return 0
+}
+
+// getControlMaxJobs 从 scontrol 获取最大任务数限制
+func getControlMaxJobs(username string) int {
+	cmd := exec.Command("bash", "-c", fmt.Sprintf("scontrol show assoc | grep -A 30 'UserName=%s(' | grep 'MaxSubmitJobs=' | head -1 || true", username))
+	output, err := cmd.Output()
+	if err != nil {
+		logger.Debugf("scontrol show assoc failed: %v", err)
+		return 0
+	}
+
+	outputStr := strings.TrimSpace(string(output))
+	logger.Debugf("scontrol MaxSubmitJobs output: [%s]", outputStr)
+
+	// 查找 MaxSubmitJobs=20(0) 格式，可能前面有其他字段
+	if idx := strings.Index(outputStr, "MaxSubmitJobs="); idx >= 0 {
+		maxStr := outputStr[idx+len("MaxSubmitJobs="):] // 跳过 "MaxSubmitJobs="（14字符）
+		// 去掉括号部分，例如 "20(0)" -> "20"
+		if parenIdx := strings.Index(maxStr, "("); parenIdx > 0 {
+			maxStr = maxStr[:parenIdx]
+		}
+		if endIdx := strings.IndexAny(maxStr, " \t"); endIdx > 0 {
+			maxStr = maxStr[:endIdx]
+		}
+		// 处理 "N(0)" 格式，N 表示无限制
+		if maxStr == "N" || maxStr == "" {
+			return -1 // -1 表示无限制
+		}
+		if val, err := strconv.Atoi(maxStr); err == nil && val > 0 {
+			logger.Debugf("Found MaxSubmitJobs=%s from scontrol", maxStr)
+			return val
+		}
+	}
+	return 0
+}
+
+// GetJobState returns the SLURM state string for a single job (non-blocking).
+// Returns one of: "RUNNING", "PENDING", "COMPLETED", "FAILED", "CANCELLED", "TIMEOUT", "UNKNOWN".
+func GetJobState(jobID string) string {
+	// 1. 先查 squeue（job 仍在队列中）
+	out, err := exec.Command("squeue", "-j", jobID, "-o", "%T", "--noheader").Output()
+	if err == nil {
+		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+			if l := strings.TrimSpace(line); l != "" {
+				return l
+			}
+		}
+	}
+	// 2. squeue 无结果 → job 已离队，查 sacct
+	out, err = exec.Command("sacct", "-j", jobID, "-X", "-o", "State",
+		"--noheader", "--parsable2").Output()
+	if err != nil {
+		return "UNKNOWN"
+	}
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if l := strings.TrimSpace(line); l != "" {
+			// sacct state 可能有 "CANCELLED by 1234" 后缀，取第一个词
+			return strings.Fields(l)[0]
+		}
+	}
+	return "UNKNOWN"
 }

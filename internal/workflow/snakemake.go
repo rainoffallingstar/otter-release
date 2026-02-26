@@ -2,6 +2,8 @@ package workflow
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/xdxtools/xdxtools-go/internal/enva"
@@ -86,6 +88,18 @@ func getEnvDisplayName(env string) string {
 	return env
 }
 
+// snakefileForStep returns the snakemake filename for a given step number.
+func snakefileForStep(workflowIdx string, step int) string {
+	switch step {
+	case 102:
+		return fmt.Sprintf("%s_step2_checker.snakemake", workflowIdx)
+	case 103:
+		return fmt.Sprintf("%s_step3_checker.snakemake", workflowIdx)
+	default:
+		return fmt.Sprintf("%s_step%d.snakemake", workflowIdx, step)
+	}
+}
+
 // BuildCommand builds the Snakemake command
 func (e *SnakemakeExecutor) BuildCommand() []string {
 	cmd := []string{}
@@ -115,10 +129,12 @@ func (e *SnakemakeExecutor) BuildCommand() []string {
 	cmd = append(cmd, "--cores", "all")
 
 	// Snakefile
-	snakefile := fmt.Sprintf("%s_step%d.snakemake", e.WorkflowIdx, e.Step)
+	snakefile := snakefileForStep(e.WorkflowIdx, e.Step)
 	if e.Options.Snakefile != "" {
 		snakefile = e.Options.Snakefile
 	}
+	// Resolve snakemake file path (check current dir and xdxtools-project/)
+	snakefile = e.resolveSnakefilePath(snakefile)
 	cmd = append(cmd, "--snakefile", snakefile)
 
 	// Config file
@@ -148,7 +164,39 @@ func (e *SnakemakeExecutor) BuildCommand() []string {
 	return cmd
 }
 
+// GetResolvedSnakefilePath 返回已解析的 snakemake 文件路径（与 BuildCommand 保持一致）
+func (e *SnakemakeExecutor) GetResolvedSnakefilePath() string {
+	snakefile := snakefileForStep(e.WorkflowIdx, e.Step)
+	return e.resolveSnakefilePath(snakefile)
+}
+
 // GetSnakefilePath returns the path to the snakefile
 func (e *SnakemakeExecutor) GetSnakefilePath() string {
-	return fmt.Sprintf("%s_step%d.snakemake", e.WorkflowIdx, e.Step)
+	return snakefileForStep(e.WorkflowIdx, e.Step)
+}
+
+// resolveSnakefilePath finds the snakemake file by checking multiple locations
+// It checks: 1) current directory, 2) xdxtools-project/ subdirectory
+func (e *SnakemakeExecutor) resolveSnakefilePath(snakefile string) string {
+	// If it's an absolute path, return as-is
+	if filepath.IsAbs(snakefile) {
+		return snakefile
+	}
+
+	// Check current directory first
+	if _, err := os.Stat(snakefile); err == nil {
+		logger.Debugf("Found snakemake file in current directory: %s", snakefile)
+		return snakefile
+	}
+
+	// Check xdxtools-project subdirectory
+	projectPath := filepath.Join("xdxtools-project", snakefile)
+	if _, err := os.Stat(projectPath); err == nil {
+		logger.Debugf("Found snakemake file in xdxtools-project/: %s", projectPath)
+		return projectPath
+	}
+
+	// Fallback to original path (will cause error if not found)
+	logger.Warnf("Snakemake file not found in current directory or xdxtools-project/, using: %s", snakefile)
+	return snakefile
 }

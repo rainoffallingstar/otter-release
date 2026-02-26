@@ -208,11 +208,10 @@ type LocalConfig struct {
 
 // StepResource represents per-step resource configuration
 type StepResource struct {
-	Cores      int    `mapstructure:"cores"`
-	Memory     string `mapstructure:"memory"`
-	Partition  string `mapstructure:"partition"`
-	Threads    int    `mapstructure:"threads"`
-	JobArray   bool   `mapstructure:"job_array"`
-	MaxJobs    int    `mapstructure:"max_jobs"`
-	Inherit    bool   `mapstructure:"inherit"`
+	Cores     int    `mapstructure:"cores"`
+	Memory    string `mapstructure:"memory"`
+	Partition string `mapstructure:"partition"`
+	Threads   int    `mapstructure:"threads"`
+	JobArray  bool   `mapstructure:"job_array"`
+	MaxJobs   int    `mapstructure:"max_jobs"`
 }

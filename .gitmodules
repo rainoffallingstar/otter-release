@@ -19,3 +19,6 @@
 [submodule "qctb"]
 	path = qctb
 	url = https://github.com/rainoffallingstar/qctb
+[submodule "fastqc-rs"]
+	path = fastqc-rs
+	url = /public3/home/scg9946/fastqc-rs

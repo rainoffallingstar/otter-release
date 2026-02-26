@@ -3,6 +3,7 @@ package engine
 import (
 	"bytes"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -22,6 +23,8 @@ type SlurmArrayEngine struct {
 	stepResource  *config.StepResource
 	arraySize    int
 	maxArrayJobs int
+	maxBatchSize int    // 每批最大 Task 数（0 = 不限制，一次提交全部）
+	loadRatio    float64 // > 0: 动态池模式；0: 旧批处理模式
 }
 
 // NewSlurmArrayEngine creates a new SlurmArrayEngine
@@ -38,7 +41,7 @@ func NewSlurmArrayEngine(config *SlurmConfig, samples []string, stepResource *co
 }
 
 // ExecuteStepWithArray executes a workflow step using SLURM Job Array for multi-sample parallelization
-func (e *SlurmArrayEngine) ExecuteStepWithArray(step int, condaEnv string, workflowFile string, stepResource *config.StepResource) error {
+func (e *SlurmArrayEngine) ExecuteStepWithArray(step int, condaEnv string, workflowFile string, configFile string, stepResource *config.StepResource) error {
 	e.status.State = StatusRunning
 	e.status.Message = fmt.Sprintf("Executing Step %d with Job Array (%d samples)", step, e.arraySize)
 
@@ -48,8 +51,18 @@ func (e *SlurmArrayEngine) ExecuteStepWithArray(step int, condaEnv string, workf
 		e.maxArrayJobs = maxJobs
 	}
 
-	// Generate Job Array script
-	scriptPath, err := e.generateArrayScript(step, condaEnv, workflowFile)
+	// 动态池优先：loadRatio > 0 时使用动态池调度
+	if e.loadRatio > 0 {
+		return e.executeWithDynamicPool(step, condaEnv, workflowFile, configFile)
+	}
+
+	// 检查是否需要分批提交
+	if e.maxBatchSize > 0 && len(e.samples) > e.maxBatchSize {
+		return e.executeStepWithBatches(step, condaEnv, workflowFile, configFile)
+	}
+
+	// 原有逻辑：一次提交所有样本
+	scriptPath, err := e.generateArrayScript(step, condaEnv, workflowFile, configFile)
 	if err != nil {
 		return fmt.Errorf("failed to generate Job Array script: %w", err)
 	}
@@ -66,15 +79,271 @@ func (e *SlurmArrayEngine) ExecuteStepWithArray(step int, condaEnv string, workf
 	logger.Infof("SLURM Job Array submitted: %s (Array size: %d)", jobID, e.arraySize)
 
 	// Wait for completion
-	if err := e.waitForArrayJob(jobID); err != nil {
+	if err := e.waitForArrayJob(jobID, e.arraySize); err != nil {
 		return fmt.Errorf("Job Array execution failed: %w", err)
 	}
 
 	return nil
 }
 
+// buildCondaCommand constructs the conda/enva prefix for snakemake invocation.
+func buildCondaCommand(condaEnv string) string {
+	if condaEnv != "" {
+		if enva.IsAvailable() {
+			return fmt.Sprintf("enva run %s --", condaEnv)
+		}
+		return fmt.Sprintf("conda run -n %s", condaEnv)
+	}
+	return ""
+}
+
+// executeWithDynamicPool 动态池调度：始终保持 slot_limit 个 job 并发运行。
+// slot_limit = floor(min(maxArrayJobs, MaxSubmitJobs-1) × loadRatio)，最小为 1。
+func (e *SlurmArrayEngine) executeWithDynamicPool(step int, condaEnv, workflowFile, configFile string) error {
+	// 1. 计算槽位限制
+	limits := GetSlurmUserLimits()
+	slurmMax := limits.MaxSubmitJobs - 1
+	if slurmMax < 1 {
+		slurmMax = 1
+	}
+	effectiveMax := slurmMax
+	if e.maxArrayJobs > 0 && e.maxArrayJobs < effectiveMax {
+		effectiveMax = e.maxArrayJobs
+	}
+	slotLimit := int(math.Floor(float64(effectiveMax) * e.loadRatio))
+	if slotLimit < 1 {
+		slotLimit = 1
+	}
+	logger.Infof("Dynamic pool: slot_limit=%d (min(parallel-jobs=%d, MaxSubmitJobs-1=%d) × %.2f)",
+		slotLimit, e.maxArrayJobs, slurmMax, e.loadRatio)
+
+	// 2. 初始化状态
+	pending := make([]string, len(e.samples))
+	copy(pending, e.samples)
+	running := make(map[string]string) // jobID → sampleName
+	var completed, failed []string
+
+	// 3. 初始填充
+	pending = e.refillPool(step, condaEnv, workflowFile, configFile, pending, running, slotLimit)
+
+	// 4. 轮询循环
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for len(pending) > 0 || len(running) > 0 {
+		<-ticker.C
+
+		// 检查运行中 jobs 的状态
+		for jobID, sample := range running {
+			state := GetJobState(jobID)
+			switch state {
+			case "COMPLETED":
+				completed = append(completed, sample)
+				delete(running, jobID)
+			case "FAILED", "CANCELLED", "TIMEOUT":
+				failed = append(failed, sample)
+				delete(running, jobID)
+				logger.Errorf("Sample %s failed (job %s, state %s)", sample, jobID, state)
+			}
+		}
+
+		// 动态填充空槽
+		pending = e.refillPool(step, condaEnv, workflowFile, configFile, pending, running, slotLimit)
+
+		logger.Infof("Pool status: %d running, %d pending, %d completed, %d failed",
+			len(running), len(pending), len(completed), len(failed))
+
+		// 有失败立即终止（fail-fast）
+		if len(failed) > 0 {
+			e.status.State = StatusFailed
+			return fmt.Errorf("dynamic pool: %d sample(s) failed: %v", len(failed), failed)
+		}
+	}
+
+	e.status.State = StatusCompleted
+	e.status.EndTime = time.Now()
+	logger.Infof("Dynamic pool completed: %d/%d samples", len(completed), len(e.samples))
+	return nil
+}
+
+// refillPool 向运行池中补充样本，直到达到 slotLimit 或 pending 耗尽。
+func (e *SlurmArrayEngine) refillPool(
+	step int, condaEnv, workflowFile, configFile string,
+	pending []string, running map[string]string, slotLimit int,
+) []string {
+	for len(running) < slotLimit && len(pending) > 0 {
+		sample := pending[0]
+		pending = pending[1:]
+
+		scriptPath, err := e.generateSingleSampleScript(step, condaEnv, workflowFile, configFile, sample)
+		if err != nil {
+			logger.Errorf("Failed to generate script for %s: %v", sample, err)
+			continue
+		}
+		jobID, err := e.submitSingleJob(scriptPath)
+		if err != nil {
+			logger.Errorf("Failed to submit job for %s: %v", sample, err)
+			continue
+		}
+		running[jobID] = sample
+		logger.Infof("Submitted job %s for sample %s (%d/%d slots used)",
+			jobID, sample, len(running), slotLimit)
+	}
+	return pending
+}
+
+// generateSingleSampleScript 为单个样本生成独立的 SLURM 脚本（SAMPLE_NAME 硬编码）。
+func (e *SlurmArrayEngine) generateSingleSampleScript(
+	step int, condaEnv, workflowFile, configFile, sample string,
+) (string, error) {
+	tmpDir := e.logDir
+	if tmpDir == "" {
+		tmpDir = os.TempDir()
+	}
+	scriptPath := filepath.Join(tmpDir,
+		fmt.Sprintf("xdxtools_pool_step%d_%s_%s.sh", step, e.jobName, sample))
+
+	const scriptTemplate = `#!/bin/bash
+#SBATCH --job-name={{.JobName}}
+#SBATCH --partition={{.Partition}}
+#SBATCH --cpus-per-task={{.Cores}}
+#SBATCH --mem={{.Memory}}
+#SBATCH --output={{.OutputFile}}
+#SBATCH --error={{.ErrorFile}}
+#SBATCH --time=24:00:00
+
+set -e
+
+cd {{.WorkDir}}
+
+SAMPLE_NAME="{{.SampleName}}"
+
+{{.CondaCommand}} snakemake --cores all \
+  --snakefile {{.WorkflowFile}} \
+  --configfile {{.ConfigFile}} \
+  --rerun-incomplete --nolock \
+  --config "SIDs=['$SAMPLE_NAME']"
+`
+
+	cores := e.cores
+	memory := e.memory
+	if e.stepResource != nil {
+		if e.stepResource.Cores > 0 {
+			cores = e.stepResource.Cores
+		}
+		if e.stepResource.Memory != "" {
+			memory = e.stepResource.Memory
+		}
+	}
+
+	data := struct {
+		JobName, Partition, Memory, WorkDir string
+		Cores                               int
+		OutputFile, ErrorFile               string
+		SampleName, CondaCommand            string
+		WorkflowFile, ConfigFile            string
+	}{
+		JobName:      fmt.Sprintf("%s_step%d_%s", e.jobName, step, sample),
+		Partition:    e.partition,
+		Cores:        cores,
+		Memory:       memory,
+		WorkDir:      e.getWorkDir(),
+		OutputFile:   filepath.Join(tmpDir, fmt.Sprintf("%s_step%d_%s_%%j.out", e.jobName, step, sample)),
+		ErrorFile:    filepath.Join(tmpDir, fmt.Sprintf("%s_step%d_%s_%%j.err", e.jobName, step, sample)),
+		SampleName:   sample,
+		CondaCommand: buildCondaCommand(condaEnv),
+		WorkflowFile: workflowFile,
+		ConfigFile:   configFile,
+	}
+
+	tmpl, err := template.New("slurm_pool").Parse(scriptTemplate)
+	if err != nil {
+		return "", err
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return "", err
+	}
+
+	if err := os.WriteFile(scriptPath, buf.Bytes(), 0755); err != nil {
+		return "", err
+	}
+	return scriptPath, nil
+}
+
+// submitSingleJob 提交单个 SLURM 脚本并返回 jobID。
+func (e *SlurmArrayEngine) submitSingleJob(scriptPath string) (string, error) {
+	cmd := exec.Command("sbatch", scriptPath)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("sbatch failed: %w\nstderr: %s", err, stderr.String())
+	}
+	// "Submitted batch job 12345"
+	parts := strings.Fields(strings.TrimSpace(stdout.String()))
+	if len(parts) >= 4 {
+		return parts[3], nil
+	}
+	return "", fmt.Errorf("failed to parse job ID from sbatch output: %s", stdout.String())
+}
+
+// executeStepWithBatches 将样本分批提交，每批独立提交并等待完成
+func (e *SlurmArrayEngine) executeStepWithBatches(step int, condaEnv string, workflowFile string, configFile string) error {
+	batches := splitIntoBatches(e.samples, e.maxBatchSize)
+	totalBatches := len(batches)
+	logger.Infof("Splitting %d samples into %d batches (max %d per batch)", len(e.samples), totalBatches, e.maxBatchSize)
+
+	for i, batch := range batches {
+		logger.Infof("Submitting batch %d/%d: %d samples as Job Array", i+1, totalBatches, len(batch))
+
+		scriptPath, err := e.generateArrayScriptForBatch(step, condaEnv, workflowFile, configFile, batch, i)
+		if err != nil {
+			return fmt.Errorf("batch %d/%d: failed to generate script: %w", i+1, totalBatches, err)
+		}
+
+		jobID, err := e.submitArrayJob(scriptPath)
+		if err != nil {
+			return fmt.Errorf("batch %d/%d: failed to submit Job Array: %w", i+1, totalBatches, err)
+		}
+
+		e.status.JobID = jobID
+		logger.Infof("SLURM Job Array submitted: %s", jobID)
+
+		if err := e.waitForArrayJob(jobID, len(batch)); err != nil {
+			return fmt.Errorf("batch %d/%d: Job Array execution failed: %w", i+1, totalBatches, err)
+		}
+
+		logger.Infof("Batch %d/%d completed successfully", i+1, totalBatches)
+	}
+
+	e.status.State = StatusCompleted
+	e.status.EndTime = time.Now()
+	e.status.Message = "All batches completed successfully"
+	logger.Info("All batches completed successfully")
+
+	return nil
+}
+
+// splitIntoBatches 将切片分成指定大小的批次
+func splitIntoBatches(items []string, batchSize int) [][]string {
+	if batchSize <= 0 || len(items) <= batchSize {
+		return [][]string{items}
+	}
+	var batches [][]string
+	for len(items) > batchSize {
+		batches = append(batches, items[:batchSize])
+		items = items[batchSize:]
+	}
+	if len(items) > 0 {
+		batches = append(batches, items)
+	}
+	return batches
+}
+
 // generateArrayScript generates a SLURM Job Array batch script
-func (e *SlurmArrayEngine) generateArrayScript(step int, condaEnv string, workflowFile string) (string, error) {
+func (e *SlurmArrayEngine) generateArrayScript(step int, condaEnv string, workflowFile string, configFile string) (string, error) {
 	// Use log directory if set, otherwise fall back to temp directory
 	tmpDir := e.logDir
 	if tmpDir == "" {
@@ -111,7 +380,7 @@ cd {{.WorkDir}}
 SAMPLE_NAME=${SAMPLES[$SLURM_ARRAY_TASK_ID]}
 
 # Execute step using conda environment
-{{.CondaCommand}} snakemake --cores all --snakefile {{.WorkflowFile}} --config "SIDs=[$SAMPLE_NAME]"
+{{.CondaCommand}} snakemake --cores all --snakefile {{.WorkflowFile}} --configfile {{.ConfigFile}} --rerun-incomplete --nolock --config "SIDs=['$SAMPLE_NAME']"
 
 # Touch success file for this task
 touch {{.SuccessFile}}.$SLURM_ARRAY_TASK_ID
@@ -132,6 +401,7 @@ touch {{.SuccessFile}}.$SLURM_ARRAY_TASK_ID
 		CondaCommand  string
 		Step          int
 		WorkflowFile  string
+		ConfigFile    string
 	}{
 		JobName:     fmt.Sprintf("%s_step%d_array", e.jobName, step),
 		Partition:   e.partition,
@@ -162,6 +432,7 @@ touch {{.SuccessFile}}.$SLURM_ARRAY_TASK_ID
 		}(),
 		Step:         step,
 		WorkflowFile: workflowFile,
+		ConfigFile:   configFile,
 	}
 
 	tmpl, err := template.New("slurm_array").Parse(scriptTemplate)
@@ -175,6 +446,118 @@ touch {{.SuccessFile}}.$SLURM_ARRAY_TASK_ID
 	}
 
 	// Write script to file
+	if err := os.WriteFile(scriptPath, buf.Bytes(), 0755); err != nil {
+		return "", err
+	}
+
+	return scriptPath, nil
+}
+
+// generateArrayScriptForBatch generates a SLURM Job Array script for a specific batch of samples
+func (e *SlurmArrayEngine) generateArrayScriptForBatch(step int, condaEnv string, workflowFile string, configFile string, samples []string, batchIdx int) (string, error) {
+	tmpDir := e.logDir
+	if tmpDir == "" {
+		tmpDir = os.TempDir()
+	}
+	scriptPath := filepath.Join(tmpDir, fmt.Sprintf("xdxtools_array_step%d_%s_batch%d.sh", step, e.jobName, batchIdx))
+
+	// Prepare sample array for script
+	sampleLines := make([]string, len(samples))
+	for i, sample := range samples {
+		sampleLines[i] = fmt.Sprintf(`SAMPLES[%d]=%q`, i, sample)
+	}
+
+	// ArraySize = len(samples) - 1 for 0-indexed SLURM array
+	arraySize := len(samples) - 1
+	if arraySize < 0 {
+		arraySize = 0
+	}
+
+	const scriptTemplate = `#!/bin/bash
+#SBATCH --job-name={{.JobName}}
+#SBATCH --partition={{.Partition}}
+#SBATCH --cpus-per-task={{.Cores}}
+#SBATCH --mem={{.Memory}}
+#SBATCH --output={{.OutputFile}}
+#SBATCH --error={{.ErrorFile}}
+#SBATCH --array=0-{{.ArraySize}}{{.MaxArrayJobs}}
+#SBATCH --time=24:00:00
+
+set -e
+
+# Sample array
+{{.SampleLines}}
+
+# Change to working directory
+cd {{.WorkDir}}
+
+# Get sample name for this array task
+SAMPLE_NAME=${SAMPLES[$SLURM_ARRAY_TASK_ID]}
+
+# Execute step using conda environment
+{{.CondaCommand}} snakemake --cores all --snakefile {{.WorkflowFile}} --configfile {{.ConfigFile}} --rerun-incomplete --nolock --config "SIDs=['$SAMPLE_NAME']"
+
+# Touch success file for this task
+touch {{.SuccessFile}}.$SLURM_ARRAY_TASK_ID
+`
+
+	data := struct {
+		JobName      string
+		Partition    string
+		Cores        int
+		Memory       string
+		WorkDir      string
+		OutputFile   string
+		ErrorFile    string
+		SuccessFile  string
+		ArraySize    int
+		MaxArrayJobs string
+		SampleLines  string
+		CondaCommand string
+		Step         int
+		WorkflowFile string
+		ConfigFile   string
+	}{
+		JobName:     fmt.Sprintf("%s_step%d_array_b%d", e.jobName, step, batchIdx),
+		Partition:   e.partition,
+		Cores:       e.stepResource.Cores,
+		Memory:      e.stepResource.Memory,
+		WorkDir:     e.getWorkDir(),
+		OutputFile:  filepath.Join(tmpDir, fmt.Sprintf("%s_step%d_batch%d_array_%%A_%%a.out", e.jobName, step, batchIdx)),
+		ErrorFile:   filepath.Join(tmpDir, fmt.Sprintf("%s_step%d_batch%d_array_%%A_%%a.err", e.jobName, step, batchIdx)),
+		SuccessFile: filepath.Join(tmpDir, fmt.Sprintf("%s_step%d_batch%d_array_success", e.jobName, step, batchIdx)),
+		ArraySize:   arraySize,
+		MaxArrayJobs: func() string {
+			if e.maxArrayJobs > 0 {
+				return fmt.Sprintf("%%%d", e.maxArrayJobs)
+			}
+			return ""
+		}(),
+		SampleLines: strings.Join(sampleLines, "\n"),
+		CondaCommand: func() string {
+			if condaEnv != "" {
+				if enva.IsAvailable() {
+					return fmt.Sprintf("enva run %s --", condaEnv)
+				}
+				return fmt.Sprintf("conda run -n %s", condaEnv)
+			}
+			return ""
+		}(),
+		Step:         step,
+		WorkflowFile: workflowFile,
+		ConfigFile:   configFile,
+	}
+
+	tmpl, err := template.New("slurm_array_batch").Parse(scriptTemplate)
+	if err != nil {
+		return "", err
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return "", err
+	}
+
 	if err := os.WriteFile(scriptPath, buf.Bytes(), 0755); err != nil {
 		return "", err
 	}
@@ -211,12 +594,11 @@ func (e *SlurmArrayEngine) submitArrayJob(scriptPath string) (string, error) {
 }
 
 // waitForArrayJob waits for the SLURM Job Array to complete
-func (e *SlurmArrayEngine) waitForArrayJob(jobID string) error {
+func (e *SlurmArrayEngine) waitForArrayJob(jobID string, totalTasks int) error {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
 	completedTasks := 0
-	totalTasks := e.arraySize
 
 	for {
 		select {

@@ -15,6 +15,6 @@ rule rnaseq_step3_checker :
   threads:5
   shell:
     """
-    enva run xdxtools-r Rscript R/beaver_mail.R --step 3 --jobid {params.jobid} --send_to {params.user_email}
+    # Skip email notification, just create success marker
     touch {params.log_marker}
     """

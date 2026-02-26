@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/xdxtools/xdxtools-go/internal/config"
+	"github.com/xdxtools/xdxtools-go/internal/logger"
 )
 
 // EngineFactory creates engines based on type and configuration
@@ -51,16 +52,39 @@ func (f *EngineFactory) NewSlurmArrayEngineWithResources(
 	cfg *config.EngineConfig,
 	samples []string,
 	stepResource *config.StepResource,
+	maxBatchSize int,
+	loadRatio float64,
 ) (*SlurmArrayEngine, error) {
+	// Use stepResource values if available, otherwise fallback to cfg.Slurm values
+	cores := cfg.Slurm.Cores
+	memory := cfg.Slurm.Memory
+
+	logger.Debugf("NewSlurmArrayEngineWithResources: cfg.Slurm.Cores=%d, cfg.Slurm.Memory=%s", cores, memory)
+
+	if stepResource != nil {
+		logger.Debugf("stepResource.Cores=%d, stepResource.Memory=%s", stepResource.Cores, stepResource.Memory)
+		if stepResource.Cores > 0 {
+			cores = stepResource.Cores
+		}
+		if stepResource.Memory != "" {
+			memory = stepResource.Memory
+		}
+	}
+
+	logger.Debugf("Final cores=%d, memory=%s", cores, memory)
+
 	slurmConfig := &SlurmConfig{
 		Partition:  cfg.Slurm.Partition,
-		Cores:      cfg.Slurm.Cores,
-		Memory:     cfg.Slurm.Memory,
+		Cores:      cores,
+		Memory:     memory,
 		JobName:    cfg.Slurm.JobName,
 		MaxRetries: cfg.Slurm.MaxRetries,
 	}
 
-	return NewSlurmArrayEngine(slurmConfig, samples, stepResource), nil
+	eng := NewSlurmArrayEngine(slurmConfig, samples, stepResource)
+	eng.maxBatchSize = maxBatchSize
+	eng.loadRatio = loadRatio
+	return eng, nil
 }
 
 // DetectEngine automatically detects the execution environment

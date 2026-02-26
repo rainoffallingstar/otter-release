@@ -27,7 +27,7 @@ go test -cover ./...
 
 ## Git Submodules
 
-This project uses 7 git submodules:
+This project uses 8 git submodules:
 
 | Submodule | Path | Branch | Description | Binary |
 |-----------|------|--------|-------------|--------|
@@ -38,6 +38,7 @@ This project uses 7 git submodules:
 | **htseq2matrix-go** | htseq2matrix-go/ | master | Convert HTSeq counts to expression matrix | `htseq2matrix` |
 | **methrix-cli** | methrix-cli-local/ | main | Methylation analysis and visualization CLI | `methrix-cli` |
 | **qctb** | qctb/ | main | Quality control toolbox for bioinformatics | `qctb` |
+| **fastqc-rs** | fastqc-rs/ | master | Rust-based FastQC replacement, outputs fastqc_data.txt with Seqkit Statistics | `fqc` |
 
 ```bash
 # Clone with submodules (recommended)
