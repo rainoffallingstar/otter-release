@@ -11,20 +11,18 @@ This guide provides step-by-step instructions for building and installing xdxtoo
   - [Step 1: Build and Install Binaries](#step-1-build-and-install-binaries)
   - [Step 2: Initialize Runtime Directory](#step-2-initialize-runtime-directory)
   - [Step 3: Create Conda Environments](#step-3-create-conda-environments)
-  - [Step 4: Install R Packages](#step-4-install-r-packages)
 - [Verification](#verification)
 - [Troubleshooting](#troubleshooting)
 - [Platform-Specific Notes](#platform-specific-notes)
 
 ## Overview
 
-xdxtools consists of three main components:
+xdxtools consists of two main components:
 
 | Component | Language | Purpose |
 |-----------|----------|---------|
 | **xdxtools** | Go 1.21+ | Main CLI for bioinformatics workflows |
 | **enva** | Rust 1.92+ | Lightweight micromamba environment manager |
-| **rv** | Rust 1.92+ | Fast R package manager with conda support |
 
 ### Git Submodules
 
@@ -205,12 +203,11 @@ ls -la
 ```bash
 cd ~/xdxtools-runtime
 
-# Create all 4 environments
+# Create all 3 environments
 enva create --all
 
 # Expected output:
 # ✓ Creating xdxtools-core environment...
-# ✓ Creating xdxtools-r environment...
 # ✓ Creating xdxtools-snakemake environment...
 # ✓ Creating xdxtools-extra environment...
 ```
@@ -218,11 +215,12 @@ enva create --all
 **Or create individually:**
 
 ```bash
-enva create --core          # Core bioinformatics tools
-enva create --r             # R/Bioconductor packages
+enva create --core          # Core bioinformatics tools (includes qualimap)
 enva create --snakemake     # Snakemake workflow engine
 enva create --extra         # Additional visualization tools
 ```
+
+**Note**: The R environment (xdxtools-r) is no longer required - gomats replaces RNA_Splicing.R and htseq2matrix-go replaces htseq2matrix.R.
 
 **Verify environments:**
 
@@ -236,38 +234,11 @@ enva validate --all
 # Detailed information
 enva list --detailed | grep xdxtools
 ```
-
-### Step 4: Install R Packages
-
-```bash
-cd ~/xdxtools-runtime/R
-
-# Initialize rv project
-rv init --condaenv xdxtools-r
-
-# Install R packages with auto-create
-rv sync --condaenv xdxtools-r --auto-create
 ```
 
-**What this does:**
-
-1. Creates `rproject.toml` configuration file
-2. Creates `xdxtools-r` conda environment (if it doesn't exist)
-3. Installs all R dependencies from `rproject.toml`
-4. Creates `rv.lock` file for reproducibility
-
-**Verify installation:**
-
-```bash
-# Check lock file
-cat rv.lock
-
-# Test R packages
-enva run xdxtools-r -- R -e "library(methrix); library(dplyr)"
-
-# Check library path
-enva run xdxtools-r -- Rscript -e ".libPaths()"
-```
+**Note**: Step 4 (Install R Packages) is no longer required. The following tools have been replaced:
+- `gomats` replaces RNA_Splicing.R
+- `htseq2matrix-go` replaces htseq2matrix.R
 
 ## Verification
 
@@ -298,8 +269,8 @@ ls -la config/ data/ envs/ R/ rules/
 # Test environment
 enva list --detailed
 
-# Test R packages
-enva run xdxtools-r -- Rscript -e "library(methrix); library(dplyr)"
+# Test gomats
+gomats --help
 ```
 
 ### Test Workflow
@@ -315,38 +286,6 @@ cat config/config.yaml
 ```
 
 ## Troubleshooting
-
-### Rust Version Too Old for rv
-
-**Problem**: `error: failed to parse: Unknown edition: 2024`
-
-**Solution**: rv requires Rust 1.92+ for edition 2024 support. Use a conda environment:
-
-```bash
-# Create environment with Rust 1.92
-conda create -n rustenv rust=1.92 -y
-conda activate rustenv
-
-# Build rv in this environment
-cd rv
-cargo build --release --features=cli
-```
-
-### rv init Fails with "No such file or directory"
-
-**Problem**: Running `rv init --condaenv xdxtools-r` when environment doesn't exist.
-
-**Solution**: This is expected behavior. rv will use default R version 4.4 and show a warning:
-
-```
-Warning: Conda environment 'xdxtools-r' does not exist. Using default R version 4.4.
-The environment will be created during 'rv sync --auto-create'.
-```
-
-Then run:
-```bash
-rv sync --condaenv xdxtools-r --auto-create
-```
 
 ### enva Not Found During Setup
 
@@ -455,16 +394,10 @@ If you don't want to build from source:
 If you prefer standard conda over enva:
 
 ```bash
-# Create environments manually
+# Create environments manually (3 environments, no R environment needed)
 conda env create -f ~/xdxtools-runtime/envs/xdxtools-core.yaml
-conda env create -f ~/xdxtools-runtime/envs/xdxtools-r.yaml
 conda env create -f ~/xdxtools-runtime/envs/xdxtools-snakemake.yaml
 conda env create -f ~/xdxtools-runtime/envs/xdxtools-extra.yaml
-
-# Install R packages with rv (still recommended)
-cd ~/xdxtools-runtime/R
-rv init --condaenv xdxtools-r
-rv sync --condaenv xdxtools-r
 ```
 
 ## Uninstallation
@@ -475,7 +408,6 @@ To remove xdxtools completely:
 # Remove binaries
 rm ~/.cargo/bin/xdxtools
 rm ~/.cargo/bin/enva
-rm ~/.cargo/bin/rv
 
 # Remove runtime directory
 rm -rf ~/xdxtools-runtime
@@ -483,7 +415,6 @@ rm -rf ~/xdxtools-runtime
 # Remove conda environments (optional)
 enva remove --all
 # Or: conda env remove -n xdxtools-core
-#      conda env remove -n xdxtools-r
 #      conda env remove -n xdxtools-snakemake
 #      conda env remove -n xdxtools-extra
 ```

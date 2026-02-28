@@ -169,8 +169,8 @@ graph TB
     Input --> PData[pdata 处理]
     
     Engine --> Slurm[Slurm 引擎]
+    Engine --> SlurmArray[SLURM Job Array]
     Engine --> Local[本地引擎]
-    Engine --> Docker[Docker 引擎]
     
     Workflow --> Snakemake[Snakemake 执行器]
     Script --> R[R 脚本执行]
@@ -260,10 +260,10 @@ func NewEngine(engineType EngineType, config map[string]interface{}) (Engine, er
     switch engineType {
     case EngineSlurm:
         return &SlurmEngine{...}, nil
+    case EngineSlurmArray:
+        return &SlurmArrayEngine{...}, nil
     case EngineLocal:
         return &LocalEngine{...}, nil
-    case EngineDocker:
-        return &DockerEngine{...}, nil
     }
 }
 ```
@@ -473,18 +473,6 @@ go build -o xdxtools -ldflags="-s -w"
 
 # 大小检查
 ls -lh xdxtools  # < 20MB
-```
-
-### Docker 镜像
-```dockerfile
-FROM golang:1.21-alpine AS builder
-WORKDIR /app
-COPY . .
-RUN go build -o xdxtools
-
-FROM alpine:latest
-COPY --from=builder /app/xdxtools /usr/local/bin/
-ENTRYPOINT ["xdxtools"]
 ```
 
 ### 包管理

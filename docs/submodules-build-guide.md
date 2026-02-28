@@ -16,17 +16,18 @@
 
 ## 概述
 
-xdxtools 项目包含 7 个子仓库（git submodules），用于不同的生物信息学分析任务：
+xdxtools 项目包含 8 个子仓库（git submodules），用于不同的生物信息学分析任务：
 
 | 子仓库 | 语言 | 功能 | 二进制文件 |
 |--------|------|------|-----------|
 | enva | Rust | micromamba 环境管理器 | enva |
-| rv | Rust | R 包管理器 | rv |
 | htseq2matrix-go | Go | HTSeq 表达矩阵转换 | htseq2matrix |
 | methrix-cli | Rust | 甲基化分析 CLI | methrix-cli |
 | xenofilter-go | Go | xenofilter 污染过滤 | xenofilter |
 | Paireads | Go | 配对 reads 处理 | paireads |
 | qctb | Rust | 质量控制工具箱 | qctb |
+| fastqc-rs | Rust | FastQC Rust 实现 | fqc |
+| gomats | Go | rMATS 可变剪接分析 | gomats |
 
 ---
 
@@ -82,22 +83,23 @@ source ~/.bashrc
 
 ## 子仓库列表
 
-### Rust 项目（5 个）
+### Rust 项目（4 个）
 
 | 项目 | 版本 | 编译时间 | 特殊依赖 |
 |------|------|----------|----------|
 | enva | 0.1.0 | ~2 分钟 | 无 |
-| rv | 0.17.1 | ~2 分钟 | 需要 `--features cli` |
 | methrix-cli | 0.1.0 | ~2.5 分钟 | HDF5 库 |
 | qctb | 0.1.0 | ~1 分钟 | 无 |
+| fastqc-rs | latest | ~2 分钟 | 无 |
 
-### Go 项目（2 个）
+### Go 项目（4 个）
 
 | 项目 | 编译时间 | 特殊依赖 | 编译选项 |
 |------|----------|----------|----------|
 | xenofilter-go | ~30 秒 | 无 | `CGO_ENABLED=0` |
 | Paireads | ~30 秒 | 无 | `CGO_ENABLED=0` |
 | htseq2matrix-go | ~30 秒 | 完整源码 | `CGO_ENABLED=0` |
+| gomats | ~30 秒 | excelize, cobra | `CGO_ENABLED=0` |
 
 ---
 
@@ -130,11 +132,6 @@ cd enva
 conda run -n rust_build cargo build --release
 cp target/release/enva $HOME/.cargo/bin/
 
-# rv (需要 cli feature)
-cd ../rv
-conda run -n rust_build cargo build --release --features cli
-cp target/release/rv $HOME/.cargo/bin/
-
 # methrix-cli (需要 HDF5 环境变量)
 cd ../methrix-cli-local
 conda run -n rust_build cargo build --release
@@ -144,6 +141,11 @@ cp target/release/methrix $HOME/.cargo/bin/methrix-cli
 cd ../qctb
 conda run -n rust_build cargo build --release
 cp target/release/qctb $HOME/.cargo/bin/
+
+# fastqc-rs
+cd ../fastqc-rs
+conda run -n rust_build cargo build --release
+cp target/release/fqc $HOME/.cargo/bin/
 ```
 
 #### Go 项目编译
@@ -164,6 +166,10 @@ conda run -n go-build go build -o $HOME/.cargo/bin/paireads ./cmd/paireads
 # htseq2matrix-go
 cd ../htseq2matrix-go
 conda run -n go-build go build -o $HOME/.cargo/bin/htseq2matrix ./cmd/htseq2matrix
+
+# gomats
+cd ../gomats
+conda run -n go-build go build -o $HOME/.cargo/bin/gomats ./cmd/gomats
 ```
 
 ---
@@ -214,10 +220,10 @@ export CGO_ENABLED=0
 
 ```bash
 # 检查文件是否存在
-ls -la $HOME/.cargo/bin/ | grep -E "enva|rv|htseq2matrix|xenofilter|paireads|qctb|methrix"
+ls -la $HOME/.cargo/bin/ | grep -E "enva|htseq2matrix|xenofilter|paireads|qctb|methrix|fqc|gomats"
 
 # 测试命令行调用
-which enva rv htseq2matrix xenofilter paireads qctb methrix-cli
+which enva htseq2matrix xenofilter paireads qctb methrix-cli fqc gomats
 ```
 
 ### 版本信息验证
@@ -226,10 +232,6 @@ which enva rv htseq2matrix xenofilter paireads qctb methrix-cli
 # enva
 enva --version
 # 输出: enva 0.1.0
-
-# rv
-rv --version
-# 输出: rv 0.17.1
 
 # qctb
 qctb --version
@@ -249,6 +251,10 @@ paireads
 
 # methrix-cli
 methrix-cli --help
+# 输出: Usage 信息
+
+# gomats
+gomats --help
 # 输出: Usage 信息
 ```
 
@@ -297,18 +303,7 @@ ls -la $HDF5_DIR/lib/libhdf5.so*
 ls -la $HDF5_DIR/include/hdf5.h
 ```
 
-### 4. rv 编译后找不到二进制文件
-
-**问题**: rv 编译成功但 `target/release/rv` 不存在
-
-**原因**: rv 需要使用 `--features cli` 编译
-
-**解决方案**:
-```bash
-conda run -n rust_build cargo build --release --features cli
-```
-
-### 5. htseq2matrix-go 缺少 main.go
+### 4. htseq2matrix-go 缺少 main.go
 
 **问题**: cmd/htseq2matrix/main.go 不存在
 
@@ -327,12 +322,13 @@ cp -r $HOME/htseq2matrix-go/* /path/to/xdxtools/htseq2matrix-go/
 | 项目 | 编译时间 | 输出大小 |
 |------|----------|----------|
 | enva | ~2 分钟 | ~5.4 MB |
-| rv | ~2 分钟 | ~8 MB |
 | methrix-cli | ~2.5 分钟 | ~3.7 MB |
 | qctb | ~1 分钟 | ~4 MB |
+| fastqc-rs | ~2 分钟 | ~3 MB |
 | xenofilter-go | ~30 秒 | ~2 MB |
 | Paireads | ~30 秒 | ~2 MB |
 | htseq2matrix-go | ~30 秒 | ~3 MB |
+| gomats | ~30 秒 | ~4 MB |
 
 ---
 

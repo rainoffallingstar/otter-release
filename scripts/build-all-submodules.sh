@@ -89,9 +89,9 @@ build_rust() {
 # Go Projects
 # ============================================
 
-build_go "rv" "rv" "rv" "./cmd/rv"
 build_go "xenofilter-go" "xenofilter-go" "xenofilter" "./cmd/xenofilter"
 build_go "Paireads" "Paireads" "paireads" "./cmd/paireads"
+build_go "gomats" "gomats" "gomats" "./cmd/gomats"
 
 # ============================================
 # Rust Projects
@@ -109,7 +109,7 @@ echo "======================================"
 echo "Verifying installations"
 echo "======================================"
 
-for binary in enva rv xenofilter paireads methrix-cli qctb; do
+for binary in enva xenofilter paireads methrix-cli qctb gomats; do
     if [ -x "$CARGO_BIN/$binary" ]; then
         VERSION=$("$CARGO_BIN/$binary" --version 2>&1 | head -1 || echo "OK")
         echo "✓ $binary - $VERSION"

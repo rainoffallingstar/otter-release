@@ -24,19 +24,25 @@ xdxtools 的 Go 语言重写版本，用于 RRBS、WGBS、RNA-seq 和 PDX 分析
 
 ## Git 子模块
 
-本项目使用 git 子模块集成两个外部工具以增强功能：
+本项目使用 8 个 git 子模块集成外部工具以增强功能：
 
 ### 子模块概览
 
 | 子模块 | 用途 | 链接 |
 |-----------|---------|-----|
 | **enva** | 轻量级 micromamba 环境管理器，自动检测 conda/mamba/micromamba | [rainoffallingstar/enva](https://github.com/rainoffallingstar/enva) |
-| **rv** | 快速、可复现的 R 包管理器，支持 conda 环境 | [rainoffallingstar/rv](https://github.com/rainoffallingstar/rv) |
+| **xenofilter-go** | Xenofilter 污染过滤 | [rainoffallingstar/xenofilter-go](https://github.com/rainoffallingstar/xenofilter-go) |
+| **Paireads** | 配对 reads 处理和分析 | [rainoffallingstar/Paireads](https://github.com/rainoffallingstar/Paireads) |
+| **htseq2matrix-go** | 将 HTSeq 计数转换为表达矩阵 | [rainoffallingstar/htseq2matrix-go](https://github.com/rainoffallingstar/htseq2matrix-go) |
+| **methrix-cli** | 甲基化分析和可视化 CLI | [rainoffallingstar/methrix-cli](https://github.com/rainoffallingstar/methrix-cli) |
+| **qctb** | 生物信息学质量控制工具箱 | [rainoffallingstar/qctb](https://github.com/rainoffallingstar/qctb) |
+| **fastqc-rs** | Rust 版 FastQC，输出 fastqc_data.txt 含 Seqkit 统计 | [rainoffallingstar/fastqc-rs](https://github.com/rainoffallingstar/fastqc-rs) |
+| **gomats** | Go rMATS 可变剪接分析编排器 | [rainoffallingstar/gomats](https://github.com/rainoffallingstar/gomats) |
 
 ### 为什么使用子模块？
 
 - **enva**：相比标准 conda，提供快 2-5 倍的环境激活速度，自动检测最快的可用包管理器
-- **rv**：可复现地管理 R 依赖，支持 conda 环境，从 R 脚本自动发现依赖，快速安装二进制包
+- **gomats**：替代 R 脚本 RNA_Splicing.R，消除嵌套 enva 调用
 
 ### 初始化子模块
 
@@ -67,7 +73,6 @@ git submodule update --remote --merge
 
 # 更新特定子模块
 git submodule update --remote --merge enva
-git submodule update --remote --merge rv
 
 # 更新后重新构建项目
 go build -o xdxtools
@@ -105,7 +110,7 @@ go build -o xdxtools
 sudo mv xdxtools /usr/local/bin/
 ```
 
-**注意**：本仓库使用 `enva` 和 `rv` 作为 git 子模块。如果克隆时未使用 `--recurse-submodules`，请运行：
+**注意**：本仓库使用 `enva` 等 git 子模块。如果克隆时未使用 `--recurse-submodules`，请运行：
 ```bash
 git submodule update --init --recursive
 ```

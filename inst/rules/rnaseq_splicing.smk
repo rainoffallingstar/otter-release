@@ -17,8 +17,8 @@ rule rnaseq_splicing:
         if config["metadata"]["group_levels"] >= 2:
             shell(
                 """
-                enva run xdxtools-r -- \
-                  Rscript R/RNA_Splicing.R \
+                enva run xdxtools-core -- \
+                  gomats run \
                   --root {params.run_dir} \
                   --threads {threads} \
                   --pdata {params.pdata} \

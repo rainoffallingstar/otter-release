@@ -31,8 +31,8 @@
 
 ### 4. 执行引擎
 - **Slurm 集群** - Job Array 执行
+- **SLURM Job Array** - 并行样本处理
 - **本地执行** - 直接运行 Snakemake
-- **Docker 容器** - 容器化执行
 - **统一接口** - 引擎切换无缝
 
 ### 5. 基因组构建
@@ -101,7 +101,7 @@
 ### 运行环境
 - 需要安装 Snakemake
 - Slurm 模式需 Slurm 集群
-- Docker 模式需 Docker 运行时
+- 本地模式需 worker pool 并行
 
 ## 关键用例
 

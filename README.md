@@ -24,19 +24,25 @@ A bioinformatics workflow management tool for RRBS, WGBS, RNA-seq, and PDX analy
 
 ## Git Submodules
 
-This project uses git submodules to integrate two external tools for enhanced functionality:
+This project uses 8 git submodules to integrate external tools for enhanced functionality:
 
 ### Submodules Overview
 
 | Submodule | Purpose | URL |
 |-----------|---------|-----|
 | **enva** | Lightweight micromamba environment manager with auto-detection of conda/mamba/micromamba | [rainoffallingstar/enva](https://github.com/rainoffallingstar/enva) |
-| **rv** | Fast, reproducible R package manager with conda environment support | [rainoffallingstar/rv](https://github.com/rainoffallingstar/rv) |
+| **xenofilter-go** | Xenofilter filter for contamination removal | [rainoffallingstar/xenofilter-go](https://github.com/rainoffallingstar/xenofilter-go) |
+| **Paireads** | Paired-end reads processing and analysis | [rainoffallingstar/Paireads](https://github.com/rainoffallingstar/Paireads) |
+| **htseq2matrix-go** | Convert HTSeq counts to expression matrix | [rainoffallingstar/htseq2matrix-go](https://github.com/rainoffallingstar/htseq2matrix-go) |
+| **methrix-cli** | Methylation analysis and visualization CLI | [rainoffallingstar/methrix-cli](https://github.com/rainoffallingstar/methrix-cli) |
+| **qctb** | Quality control toolbox for bioinformatics | [rainoffallingstar/qctb](https://github.com/rainoffallingstar/qctb) |
+| **fastqc-rs** | Rust-based FastQC replacement, outputs fastqc_data.txt with Seqkit Statistics | [rainoffallingstar/fastqc-rs](https://github.com/rainoffallingstar/fastqc-rs) |
+| **gomats** | Go rMATS orchestrator for RNA splicing analysis | [rainoffallingstar/gomats](https://github.com/rainoffallingstar/gomats) |
 
 ### Why Submodules?
 
 - **enva**: Provides 2-5x faster environment activation compared to standard conda, with automatic detection of the fastest available package manager
-- **rv**: Manages R dependencies reproducibly with support for conda environments, automatic dependency discovery from R scripts, and fast binary package installation
+- **gomats**: Replaces R-based RNA_Splicing.R script, eliminates nested enva calls
 
 ### Initializing Submodules
 
@@ -67,7 +73,6 @@ git submodule update --remote --merge
 
 # Update specific submodule
 git submodule update --remote --merge enva
-git submodule update --remote --merge rv
 
 # After updating, rebuild the project
 go build -o xdxtools
@@ -105,7 +110,7 @@ go build -o xdxtools
 sudo mv xdxtools /usr/local/bin/
 ```
 
-**Note**: This repository uses `enva` and `rv` as git submodules. If you cloned without `--recurse-submodules`, run:
+**Note**: This repository uses `enva` and other submodules as git submodules. If you cloned without `--recurse-submodules`, run:
 ```bash
 git submodule update --init --recursive
 ```

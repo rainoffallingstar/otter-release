@@ -43,8 +43,7 @@ cd ~/xdxtools-runtime
 enva create --all
 
 # 或单独创建
-enva create --core      # xdxtools-core
-enva create --r         # xdxtools-r
+enva create --core      # xdxtools-core (包含 qualimap)
 enva create --snakemake # xdxtools-snakemake
 enva create --extra     # xdxtools-extra
 ```
@@ -63,29 +62,23 @@ enva create --yaml ./my-env.yaml --name myenv
 
 | 环境名 | 用途 | 主要工具 |
 |--------|------|----------|
-| xdxtools-core | 核心生物信息工具 | FastQC, MultiQC, Bismark, STAR, BWA, Bowtie2, Samtools, HTSlib 等 |
-| xdxtools-r | R/Bioconductor 包 | DESeq2, edgeR, limma, Seurat, ggplot2 等 |
+| xdxtools-core | 核心生物信息工具 | FastQC, MultiQC, Bismark, STAR, BWA, Bowtie2, Samtools, Qualimap 等 |
 | xdxtools-snakemake | 工作流引擎 | Snakemake, Python 3.10+ |
 | xdxtools-extra | 附加可视化工具 | 高级分析和可视化工具 |
 
+**注意**: xdxtools-r 环境已废弃，R 脚本已由 Go 替代品替换：
+- gomats → RNA_Splicing.R
+- htseq2matrix-go → htseq2matrix.R
+
 ### xdxtools-core 包含的主要工具
 
-- **质量控制**: FastQC, MultiQC
+- **质量控制**: FastQC, MultiQC, Qualimap
 - **甲基化分析**: Bismark, Bowtie2
 - **序列比对**: BWA, STAR, Bowtie2
 - **变异检测**: Samtools, HTSlib, Picard
 - **Peak calling**: MACS2, Homer
-- **RNA-seq**: HISAT2, StringTie, HTSeq
+- **RNA-seq**: HISAT2, StringTie, HTSeq, rMATS
 - **可视化**: matplotlib, seaborn
-
-### xdxtools-r 包含的主要 R 包
-
-- **甲基化分析**: bsseq, methrix
-- **RNA-seq**: DESeq2, edgeR, limma
-- **可视化**: EnhancedVolcano, ComplexHeatmap, ggplot2, plotly
-- **单细胞**: Seurat
-- **注释**: ChIPseeker, clusterProfiler, org.hs.eg.db
-- **数据处理**: tidyverse, dplyr, tidyr, data.table
 
 ## 常用命令
 
@@ -99,8 +92,8 @@ enva list
 # 运行单个命令
 enva run xdxtools-core -- fastqc --version
 
-# 运行 R
-enva run xdxtools-r -- R --version
+# 运行 qualimap
+enva run xdxtools-core -- qualimap --version
 
 # 运行 Python
 enva run xdxtools-snakemake -- python --version

@@ -1,9 +1,6 @@
 [submodule "enva"]
 	path = enva
 	url = https://github.com/rainoffallingstar/enva.git
-[submodule "rv"]
-	path = rv
-	url = https://github.com/rainoffallingstar/rv.git
 [submodule "xenofilter-go"]
 	path = xenofilter-go
 	url = /public3/home/scg9946/xenofilter-go
@@ -22,3 +19,6 @@
 [submodule "fastqc-rs"]
 	path = fastqc-rs
 	url = /public3/home/scg9946/fastqc-rs
+[submodule "gomats"]
+	path = gomats
+	url = https://github.com/rainoffallingstar/gomats

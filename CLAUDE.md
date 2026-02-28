@@ -32,13 +32,13 @@ This project uses 8 git submodules:
 | Submodule | Path | Branch | Description | Binary |
 |-----------|------|--------|-------------|--------|
 | **enva** | enva/ | master | Lightweight micromamba environment manager (2-5x faster than conda) | `enva` |
-| **rv** | rv/ | main | Fast, reproducible R package manager | `rv` |
 | **xenofilter-go** | xenofilter-go/ | master | Xenofilter filter for contamination removal | `xenofilter` |
 | **Paireads** | Paireads/ | master | Paired-end reads processing and analysis | `paireads` |
 | **htseq2matrix-go** | htseq2matrix-go/ | master | Convert HTSeq counts to expression matrix | `htseq2matrix` |
 | **methrix-cli** | methrix-cli-local/ | main | Methylation analysis and visualization CLI | `methrix-cli` |
 | **qctb** | qctb/ | main | Quality control toolbox for bioinformatics | `qctb` |
 | **fastqc-rs** | fastqc-rs/ | master | Rust-based FastQC replacement, outputs fastqc_data.txt with Seqkit Statistics | `fqc` |
+| **gomats** | gomats/ | master | Go rMATS orchestrator for RNA splicing analysis | `gomats` |
 
 ```bash
 # Clone with submodules (recommended)
@@ -61,12 +61,12 @@ bash scripts/build-all-submodules.sh
 ### Successfully Compiled Binaries
 The following submodules have been compiled and installed to `$HOME/.cargo/bin`:
 - `enva` - micromamba environment manager (v0.1.0)
-- `rv` - R package manager (v0.17.1)
 - `htseq2matrix` - HTSeq expression matrix converter
 - `methrix-cli` - Methylation analysis and visualization CLI
 - `xenofilter` - Xenofilter for contamination removal
 - `paireads` - Paired-end reads processing
 - `qctb` - Quality control toolbox (v0.1.0)
+- `gomats` - rMATS orchestrator for RNA splicing analysis
 
 ### HDF5 Environment Variables
 HDF5 library paths have been added to `~/.bashrc` for methrix-cli compilation and runtime:
@@ -79,9 +79,10 @@ export PKG_CONFIG_PATH="$HDF5_DIR/lib/pkgconfig:$PKG_CONFIG_PATH"
 ```
 
 ### Notes
-- All 7 submodules successfully compiled and installed
+- All 8 submodules successfully compiled and installed
 - `htseq2matrix` was compiled from complete source code provided by user
 - `methrix-cli` requires HDF5 libraries (now configured via environment variables)
+- `gomats` replaces the R-based RNA_Splicing.R script, eliminating nested enva calls
 
 ## Three-Command Workflow
 

@@ -193,39 +193,12 @@ else
 fi
 
 # ============================================================================
-# Step 4: Install R Packages
+# Step 4: Install R Packages (已废弃 - 使用 Go 替代方案)
 # ============================================================================
 if [ "$SKIP_R_PACKAGES" = false ]; then
-    echo "=== Step 4: Install R Packages ==="
-
-    # Check if rv is available
-    RV_PATH="$INSTALL_DIR/rv"
-    if [ ! -f "$RV_PATH" ]; then
-        RV_PATH="$PROJECT_ROOT/rv/target/release/rv"
-    fi
-
-    if [ ! -f "$RV_PATH" ]; then
-        echo "⚠ rv not found, skipping R package installation"
-        echo "  Build rv first or use --skip-r-packages"
-    else
-        if [ "$DRY_RUN" = false ]; then
-            cd "$RUNTIME_DIR/R"
-
-            # Check if already initialized
-            if [ ! -f "rproject.toml" ]; then
-                echo "Initializing rv project..."
-                "$RV_PATH" init --condaenv xdxtools-r
-            fi
-
-            # Sync R packages with auto-create
-            echo "Installing R packages..."
-            "$RV_PATH" sync --condaenv xdxtools-r --auto-create
-            echo "✓ R packages installed"
-        else
-            echo "[DRY RUN] Would install R packages using rv"
-        fi
-    fi
-
+    echo "=== Step 4: Skipped (R packages no longer required) ==="
+    echo "  - gomats 替代 RNA_Splicing.R"
+    echo "  - htseq2matrix-go 替代 htseq2matrix.R"
     echo ""
 else
     echo "=== Step 4: Skipped (--skip-r-packages) ==="
