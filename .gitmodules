@@ -3,7 +3,7 @@
 	url = https://github.com/rainoffallingstar/enva.git
 [submodule "xenofilter-go"]
 	path = xenofilter-go
-	url = /public3/home/scg9946/xenofilter-go
+	url = https://github.com/rainoffallingstar/xenofilter-go
 [submodule "Paireads"]
 	path = Paireads
 	url = https://github.com/rainoffallingstar/Paireads
@@ -18,7 +18,7 @@
 	url = https://github.com/rainoffallingstar/qctb
 [submodule "fastqc-rs"]
 	path = fastqc-rs
-	url = /public3/home/scg9946/fastqc-rs
+	url = https://github.com/rainoffallingstar/fastqc-rs
 [submodule "gomats"]
 	path = gomats
 	url = https://github.com/rainoffallingstar/gomats

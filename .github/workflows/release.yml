@@ -1,80 +1,206 @@
-name: Release
+name: Release Binaries
 
 on:
   push:
     tags:
-      - "v*.*.*"
+      - 'v*.*.*'
 
 permissions:
   contents: write
 
 jobs:
-  release:
+  build:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout code
+      - name: Checkout with submodules
         uses: actions/checkout@v4
         with:
+          submodules: recursive
           fetch-depth: 0
 
-      - name: Setup Go
+      - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.24"
+          go-version: '1.24'
           cache: true
 
-      - name: Import GPG key
-        if: github.event_name != 'pull_request'
-        uses: crazy-max/ghaction-import-gpg@v6
-        with:
-          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
-          passphrase: ${{ secrets.GPG_PASSPHRASE }}
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: Build binaries
-        env:
-          VERSION: ${{ github.ref_name }}
+      - name: Install system dependencies (HDF5 for methrix-cli)
         run: |
-          VERSION=${VERSION#refs/tags/}
-          # 静态链接构建（适用于CentOS等低版本GLIBC环境）
-          CGO_ENABLED=0 go build -trimpath -buildvcs=false -o xdxtools-linux-amd64-static .
-          # 动态链接构建（常规Linux）
-          CGO_ENABLED=0 go build -trimpath -buildvcs=false -o xdxtools-linux-amd64 .
-          mv xdxtools-linux-amd64 xdxtools-${VERSION#v}-linux-amd64
-          mv xdxtools-linux-amd64-static xdxtools-${VERSION#v}-linux-amd64-static
+          sudo apt-get update -qq
+          sudo apt-get install -y libhdf5-dev pkg-config
 
-      - name: Generate checksums
+      - name: Create dist directory
+        run: mkdir -p dist
+
+      # ── Go binaries (fully static, CGO_ENABLED=0) ──────────────────────────
+
+      - name: Build xdxtools (main project)
         run: |
-          sha256sum xdxtools-* > checksums.txt
+          CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o dist/xdxtools-linux-amd64 .
+          echo "  ✓ xdxtools-linux-amd64"
+
+      - name: Build Go submodule binaries
+        run: |
+          declare -A GO_MODS=(
+            ["xenofilter-go"]="xenofilter"
+            ["Paireads"]="paireads"
+            ["htseq2matrix-go"]="htseq2matrix"
+            ["gomats"]="gomats"
+          )
+          for dir in "${!GO_MODS[@]}"; do
+            bin="${GO_MODS[$dir]}"
+            if [ -d "$dir" ] && [ -f "$dir/go.mod" ]; then
+              echo "Building $bin from $dir ..."
+              (cd "$dir" && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" \
+                  -o "../dist/${bin}-linux-amd64" .)
+              echo "  ✓ ${bin}-linux-amd64"
+            else
+              echo "  ⚠ $dir not found or missing go.mod, skipping $bin"
+            fi
+          done
+
+      # ── Rust binaries ────────────────────────────────────────────────────────
+
+      - name: Build enva (Rust)
+        run: |
+          if [ -d enva ] && [ -f enva/Cargo.toml ]; then
+            (cd enva && cargo build --release 2>&1)
+            BIN=$(find enva/target/release -maxdepth 1 -type f -executable \
+                  ! -name "*.d" ! -name "*.rlib" ! -name "*.rmeta" | head -1)
+            if [ -n "$BIN" ]; then
+              cp "$BIN" dist/enva-linux-amd64
+              echo "  ✓ enva-linux-amd64"
+            else
+              echo "  ⚠ enva binary not found in release dir"
+            fi
+          else
+            echo "  ⚠ enva submodule not found, skipping"
+          fi
+
+      - name: Build qctb (Rust)
+        run: |
+          if [ -d qctb ] && [ -f qctb/Cargo.toml ]; then
+            (cd qctb && cargo build --release 2>&1)
+            BIN=$(find qctb/target/release -maxdepth 1 -type f -executable \
+                  ! -name "*.d" ! -name "*.rlib" ! -name "*.rmeta" | head -1)
+            if [ -n "$BIN" ]; then
+              cp "$BIN" dist/qctb-linux-amd64
+              echo "  ✓ qctb-linux-amd64"
+            else
+              echo "  ⚠ qctb binary not found"
+            fi
+          else
+            echo "  ⚠ qctb submodule not found, skipping"
+          fi
+
+      - name: Build methrix-cli (Rust, dynamic HDF5)
+        run: |
+          if [ -d methrix-cli-local ] && [ -f methrix-cli-local/Cargo.toml ]; then
+            export HDF5_DIR=/usr
+            export HDF5_INCLUDE_DIR=/usr/include/hdf5/serial
+            export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH
+            (cd methrix-cli-local && cargo build --release 2>&1)
+            # Try common binary names
+            for name in methrix methrix-cli; do
+              if [ -f "methrix-cli-local/target/release/$name" ]; then
+                cp "methrix-cli-local/target/release/$name" dist/methrix-linux-amd64
+                echo "  ✓ methrix-linux-amd64"
+                break
+              fi
+            done
+            if [ ! -f dist/methrix-linux-amd64 ]; then
+              echo "  ⚠ methrix binary not found in release dir"
+            fi
+          else
+            echo "  ⚠ methrix-cli-local submodule not found, skipping"
+          fi
+
+      - name: Build fqc / fastqc-rs (Rust)
+        run: |
+          if [ -d fastqc-rs ] && [ -f fastqc-rs/Cargo.toml ]; then
+            (cd fastqc-rs && cargo build --release 2>&1)
+            if [ -f fastqc-rs/target/release/fqc ]; then
+              cp fastqc-rs/target/release/fqc dist/fqc-linux-amd64
+              echo "  ✓ fqc-linux-amd64"
+            else
+              BIN=$(find fastqc-rs/target/release -maxdepth 1 -type f -executable \
+                    ! -name "*.d" ! -name "*.rlib" ! -name "*.rmeta" | head -1)
+              if [ -n "$BIN" ]; then
+                cp "$BIN" dist/fqc-linux-amd64
+                echo "  ✓ fqc-linux-amd64 (from $(basename $BIN))"
+              else
+                echo "  ⚠ fqc binary not found"
+              fi
+            fi
+          else
+            echo "  ⚠ fastqc-rs submodule not found, skipping"
+          fi
+
+      # ── Generate checksums ───────────────────────────────────────────────────
+
+      - name: Generate SHA256 checksums
+        run: |
+          cd dist
+          sha256sum * > checksums.txt
           cat checksums.txt
 
-      - name: Create Release
-        if: github.event_name != 'pull_request'
-        uses: softprops/action-gh-release@v1
+      # ── Verify all dist contents ─────────────────────────────────────────────
+
+      - name: List built artifacts
+        run: |
+          echo "=== Built artifacts ==="
+          ls -lh dist/
+          echo ""
+          echo "=== Build status ==="
+          for b in xdxtools enva xenofilter paireads htseq2matrix methrix qctb fqc gomats; do
+            if [ -f "dist/${b}-linux-amd64" ]; then
+              echo "  ✓ ${b}-linux-amd64"
+            else
+              echo "  ✗ ${b}-linux-amd64  (missing)"
+            fi
+          done
+
+      # ── Publish GitHub Release ───────────────────────────────────────────────
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          files: dist/* xdxtools-* checksums.txt
-          draft: false
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          files: dist/*
           generate_release_notes: true
+          fail_on_unmatched_files: false
           body: |
             ## Installation
 
-            ### Linux (Static - Recommended for CentOS/old systems)
+            ### Quick Install (recommended for end users)
             ```bash
-            curl -L -o xdxtools https://github.com/xdxtools/xdxtools-go/releases/download/${{ github.ref_name }}/xdxtools-${{ github.ref_name }}-linux-amd64-static
-            chmod +x xdxtools-${{ github.ref_name }}-linux-amd64-static
-            sudo mv xdxtools-${{ github.ref_name }}-linux-amd64-static /usr/local/bin/xdxtools
+            curl -fsSL https://raw.githubusercontent.com/xdxtools/xdxtools-go/main/scripts/install.sh | bash
             ```
 
-            ### Linux (Dynamic)
+            ### Manual Installation
+            Download the binary for your platform from the assets below, then:
             ```bash
-            curl -L -o xdxtools https://github.com/xdxtools/xdxtools-go/releases/download/${{ github.ref_name }}/xdxtools-${{ github.ref_name }}-linux-amd64
-            chmod +x xdxtools-${{ github.ref_name }}-linux-amd64
-            sudo mv xdxtools-${{ github.ref_name }}-linux-amd64 /usr/local/bin/xdxtools
+            chmod +x xdxtools-linux-amd64
+            mv xdxtools-linux-amd64 ~/.local/bin/xdxtools
             ```
 
-            **Note**: Use the `-static` version if you encounter GLIBC version errors on CentOS 7 or older systems.
+            ### Included Tools
+            | Binary | Description |
+            |--------|-------------|
+            | `xdxtools` | Main workflow orchestrator |
+            | `enva` | Micromamba environment manager |
+            | `xenofilter` | Xenograft contamination removal |
+            | `paireads` | Paired-end reads processing |
+            | `htseq2matrix` | HTSeq counts → expression matrix |
+            | `methrix` | Methylation analysis CLI (requires HDF5) |
+            | `qctb` | Quality control toolbox |
+            | `fqc` | FastQC replacement (Rust) |
+            | `gomats` | rMATS orchestrator for RNA splicing |
 
-            ## Changes
-            ${{ github.event.head_commit.message }}
+            > **Note**: `methrix` is dynamically linked to HDF5.
+            > Run `scripts/install.sh` to automatically configure HDF5 via conda.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
