@@ -16,6 +16,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.SUBMODULES_PAT }}
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -47,7 +50,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          submodules: recursive
           fetch-depth: 0
+          token: ${{ secrets.SUBMODULES_PAT }}
 
       - name: Setup Go
         uses: actions/setup-go@v5

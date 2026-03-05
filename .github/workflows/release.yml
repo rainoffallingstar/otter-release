@@ -21,7 +21,7 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.SUBMODULES_PAT }}
 
       - name: Generate UTC date-based tag
         id: tag
