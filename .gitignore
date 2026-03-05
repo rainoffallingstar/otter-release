@@ -57,6 +57,8 @@ www/
 
 # Conda environments
 envs/
+!inst/envs/
+!inst/envs/*.yaml
 *.yml.lock
 *.conda
 
