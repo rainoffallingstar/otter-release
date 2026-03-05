@@ -108,3 +108,4 @@ xdxtools
 
 # Test outputs
 test_slurm/
+gomats.lock

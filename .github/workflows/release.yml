@@ -1,9 +1,9 @@
 name: Release Binaries
 
 on:
-  push:
-    tags:
-      - 'v*.*.*'
+  workflow_dispatch:
+  schedule:
+    - cron: '0 2 * * 1'   # 每周一 UTC 02:00 自动发布（可按需删除）
 
 permissions:
   contents: write
@@ -18,12 +18,42 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── 生成日期 Tag ─────────────────────────────────────────────────────────
+
+      - name: Generate date-based tag
+        id: tag
+        run: |
+          BASE="v$(date -u +%Y.%m.%d)"
+          TAG="$BASE"
+          N=1
+          while git tag --list | grep -qx "$TAG"; do
+            N=$((N + 1))
+            TAG="${BASE}-${N}"
+          done
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Generated tag: $TAG"
+
+      - name: Create and push tag
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "${{ steps.tag.outputs.tag }}"
+          git push origin "${{ steps.tag.outputs.tag }}"
+
+      # ── Go 工具链 ────────────────────────────────────────────────────────────
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.24'
           cache: true
+
+      - name: Verify toolchain consistency
+        run: bash scripts/verify_toolchain_consistency.sh
+
+      # ── Rust 工具链 ──────────────────────────────────────────────────────────
 
       - name: Set up Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -45,6 +75,8 @@ jobs:
 
       - name: Build Go submodule binaries
         run: |
+          VERSION="${{ steps.tag.outputs.tag }}"
+          VERSION="${VERSION#v}"
           declare -A GO_MODS=(
             ["xenofilter-go"]="xenofilter"
             ["Paireads"]="paireads"
@@ -53,10 +85,25 @@ jobs:
           )
           for dir in "${!GO_MODS[@]}"; do
             bin="${GO_MODS[$dir]}"
+            ldflags=""
+            case "$dir" in
+              xenofilter-go)
+                ldflags="-X github.com/rainoffallingstar/xenofilter-go/pkg/cli.Version=${VERSION}"
+                ;;
+              Paireads)
+                ldflags="-X main.Version=${VERSION}"
+                ;;
+              htseq2matrix-go)
+                ldflags="-X main.Version=${VERSION}"
+                ;;
+              gomats)
+                ldflags="-X github.com/rainoffallingstar/gomats/pkg/cli.Version=${VERSION}"
+                ;;
+            esac
             if [ -d "$dir" ] && [ -f "$dir/go.mod" ]; then
               echo "Building $bin from $dir ..."
-              (cd "$dir" && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" \
-                  -o "../dist/${bin}-linux-amd64" .)
+              (cd "$dir" && CGO_ENABLED=0 go build -trimpath \
+                  -ldflags="-s -w ${ldflags}" -o "../dist/${bin}-linux-amd64" .)
               echo "  ✓ ${bin}-linux-amd64"
             else
               echo "  ⚠ $dir not found or missing go.mod, skipping $bin"
@@ -104,15 +151,15 @@ jobs:
             export HDF5_INCLUDE_DIR=/usr/include/hdf5/serial
             export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH
             (cd methrix-cli-local && cargo build --release 2>&1)
-            # Try common binary names
-            for name in methrix methrix-cli; do
+            for name in methrix-cli methrix; do
               if [ -f "methrix-cli-local/target/release/$name" ]; then
+                cp "methrix-cli-local/target/release/$name" dist/methrix-cli-linux-amd64
                 cp "methrix-cli-local/target/release/$name" dist/methrix-linux-amd64
-                echo "  ✓ methrix-linux-amd64"
+                echo "  ✓ methrix-cli-linux-amd64 (compat: methrix-linux-amd64)"
                 break
               fi
             done
-            if [ ! -f dist/methrix-linux-amd64 ]; then
+            if [ ! -f dist/methrix-cli-linux-amd64 ]; then
               echo "  ⚠ methrix binary not found in release dir"
             fi
           else
@@ -156,7 +203,7 @@ jobs:
           ls -lh dist/
           echo ""
           echo "=== Build status ==="
-          for b in xdxtools enva xenofilter paireads htseq2matrix methrix qctb fqc gomats; do
+          for b in xdxtools enva xenofilter paireads htseq2matrix methrix-cli qctb fqc gomats; do
             if [ -f "dist/${b}-linux-amd64" ]; then
               echo "  ✓ ${b}-linux-amd64"
             else
@@ -164,11 +211,15 @@ jobs:
             fi
           done
 
+      - name: Verify tool versions
+        run: bash scripts/verify_versions.sh dist
+
       # ── Publish GitHub Release ───────────────────────────────────────────────
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.tag.outputs.tag }}
           files: dist/*
           generate_release_notes: true
           fail_on_unmatched_files: false
@@ -177,7 +228,7 @@ jobs:
 
             ### Quick Install (recommended for end users)
             ```bash
-            curl -fsSL https://raw.githubusercontent.com/xdxtools/xdxtools-go/main/scripts/install.sh | bash
+            bash <(wget -qO- https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh)
             ```
 
             ### Manual Installation
@@ -195,12 +246,12 @@ jobs:
             | `xenofilter` | Xenograft contamination removal |
             | `paireads` | Paired-end reads processing |
             | `htseq2matrix` | HTSeq counts → expression matrix |
-            | `methrix` | Methylation analysis CLI (requires HDF5) |
+            | `methrix-cli` | Methylation analysis CLI (requires HDF5) |
             | `qctb` | Quality control toolbox |
             | `fqc` | FastQC replacement (Rust) |
             | `gomats` | rMATS orchestrator for RNA splicing |
 
-            > **Note**: `methrix` is dynamically linked to HDF5.
+            > **Note**: `methrix-cli` is dynamically linked to HDF5.
             > Run `scripts/install.sh` to automatically configure HDF5 via conda.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

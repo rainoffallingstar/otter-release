@@ -14,16 +14,16 @@ import (
 
 // Manager manages workflow execution
 type Manager struct {
-	workflow        *Workflow
-	state           *State
-	dryRun          bool
-	condaEnv        string
-	fallbackEnv     string // Fallback environment (default: xdxtools-snakemake)
-	noFallback      bool   // Disable automatic fallback
-	samples         []string
-	stepResources   map[int]*config.StepResource
-	parallelJobs    int
-	loadRatio       float64 // > 0: dynamic pool mode; 0: legacy batch mode
+	workflow      *Workflow
+	state         *State
+	dryRun        bool
+	condaEnv      string
+	fallbackEnv   string // Fallback environment (default: xdxtools-snakemake)
+	noFallback    bool   // Disable automatic fallback
+	samples       []string
+	stepResources map[int]*config.StepResource
+	parallelJobs  int
+	loadRatio     float64 // > 0: dynamic pool mode; 0: legacy batch mode
 }
 
 // NewManager creates a new workflow manager
@@ -247,7 +247,7 @@ func (m *Manager) ExecuteStep(step int) error {
 			case *engine.LocalEngine:
 				// Use local parallel execution for local environments
 				logger.Infof("Using local parallel strategy for step %d with %d workers", step, m.parallelJobs)
-				if err := m.executeStepWithLocalParallel(step, stepResource, cmd, resolvedSnakefile); err != nil {
+				if err := m.executeStepWithLocalParallel(step, stepResource, cmd, resolvedSnakefile, configFile); err != nil {
 					return fmt.Errorf("step %d parallel execution failed: %w", step, err)
 				}
 
@@ -344,7 +344,7 @@ func (m *Manager) executeStepWithJobArray(step int, resource *config.StepResourc
 }
 
 // executeStepWithLocalParallel executes a step using local parallel execution
-func (m *Manager) executeStepWithLocalParallel(step int, resource *config.StepResource, cmd []string, workflowFile string) error {
+func (m *Manager) executeStepWithLocalParallel(step int, resource *config.StepResource, cmd []string, workflowFile string, configFile string) error {
 	// Check if engine supports parallel execution
 	if localEngine, ok := m.workflow.Engine.(*engine.LocalEngine); ok {
 		// Compute slot limit: floor(parallelJobs × loadRatio), minimum 1
@@ -356,7 +356,7 @@ func (m *Manager) executeStepWithLocalParallel(step int, resource *config.StepRe
 			}
 			logger.Infof("Local dynamic pool: slot_limit=%d (parallel-jobs=%d × %.2f)", slotLimit, m.parallelJobs, m.loadRatio)
 		}
-		return localEngine.ExecuteSamples(step, m.samples, m.condaEnv, workflowFile, slotLimit)
+		return localEngine.ExecuteSamples(step, m.samples, m.condaEnv, workflowFile, configFile, slotLimit)
 	}
 
 	// Fallback to regular engine
@@ -471,6 +471,7 @@ func (m *Manager) initializeState() error {
 		m.workflow.Config.Workflow.Mode,
 		m.workflow.Config.Workflow.Species.Primary,
 		m.workflow.Config.Workflow.Species.Secondary,
+		m.workflow.Steps,
 		m.samples,
 		m.workflow.Config.Engine.Type,
 		partition,

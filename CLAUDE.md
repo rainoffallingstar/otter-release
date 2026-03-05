@@ -42,7 +42,7 @@ This project uses 8 git submodules:
 
 ```bash
 # Clone with submodules (recommended)
-git clone --recurse-submodules https://github.com/xdxtools/xdxtools-go.git
+git clone --recurse-submodules https://github.com/rainoffallingstar/xdxtools-go.git
 
 # Or initialize after cloning
 git submodule update --init --recursive

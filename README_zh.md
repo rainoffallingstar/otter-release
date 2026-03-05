@@ -21,8 +21,31 @@
 
 ## 安装
 
+### 快速安装（交互式）
+
 ```bash
-git clone --recurse-submodules https://github.com/xdxtools/xdxtools-go.git
+bash <(wget -qO- https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh)
+```
+
+脚本将从 GitHub Releases 下载预编译二进制文件，并以交互方式完成 conda 环境配置。
+
+常用选项：
+
+```bash
+# 非交互模式，全部使用默认值
+bash <(wget -qO- https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh) --non-interactive
+
+# 指定发布版本
+bash <(wget -qO- https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh) --version v0.3.0
+
+# 跳过 conda 环境创建
+bash <(wget -qO- https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh) --skip-envs
+```
+
+### 从源码构建
+
+```bash
+git clone --recurse-submodules https://github.com/rainoffallingstar/xdxtools-go.git
 cd xdxtools-go
 go build -o xdxtools
 ```

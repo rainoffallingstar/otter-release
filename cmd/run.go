@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/xdxtools/xdxtools-go/internal/config"
@@ -26,19 +27,19 @@ var (
 
 	// SLURM global settings (acts as unified partition)
 	slurmPartition string
-	slurmCores    int
-	slurmMemory   string
+	slurmCores     int
+	slurmMemory    string
 
 	// Per-step resources
-	step1Cores      int
-	step1Memory     string
-	step1Partition  string
-	step2Cores      int
-	step2Memory     string
-	step2Partition  string
-	step3Cores      int
-	step3Memory     string
-	step3Partition  string
+	step1Cores     int
+	step1Memory    string
+	step1Partition string
+	step2Cores     int
+	step2Memory    string
+	step2Partition string
+	step3Cores     int
+	step3Memory    string
+	step3Partition string
 
 	// Checker resources
 	step2CheckerCores  int
@@ -295,16 +296,17 @@ func runRun(cmd *cobra.Command, args []string) error {
 	}
 	manager.SetFallbackConfig(fallbackEnv, cfg.Engine.NoFallback)
 
+	// Preflight check for rnaseq_splicing dependency chain:
+	// gomats -> rmats.py in xdxtools-core environment via enva.
+	if err := validateRNAsplicingDependencies(cfg); err != nil {
+		return err
+	}
+
 	// Prepare FASTQ files if requested
 	if copyFastq || moveFastq {
 		if err := prepareFastqFiles(cfg, moveFastq); err != nil {
 			return fmt.Errorf("failed to prepare FASTQ files: %w", err)
 		}
-	}
-
-	// Initialize workflow
-	if err := manager.Initialize(); err != nil {
-		return fmt.Errorf("failed to initialize workflow: %w", err)
 	}
 
 	// Execute workflow
@@ -321,6 +323,47 @@ func runRun(cmd *cobra.Command, args []string) error {
 
 	// Close log file
 	logger.Close()
+
+	return nil
+}
+
+func shouldPreflightRNAsplicing(cfg *config.XDXToolsConfig) bool {
+	if strings.ToUpper(strings.TrimSpace(cfg.Workflow.Mode)) != "RNASEQ" {
+		return false
+	}
+	return cfg.Metadata.GroupLevels >= 2
+}
+
+func validateRNAsplicingDependencies(cfg *config.XDXToolsConfig) error {
+	if !shouldPreflightRNAsplicing(cfg) {
+		return nil
+	}
+
+	if _, err := exec.LookPath("enva"); err != nil {
+		return fmt.Errorf(
+			"RNA splicing preflight failed: enva not found in PATH: %w\n"+
+				"Required for rnaseq_splicing: enva + xdxtools-core environment with gomats and rmats.py.\n"+
+				"Try: enva run xdxtools-core -- gomats --help\n"+
+				"Try: enva run xdxtools-core -- rmats.py --help", err)
+	}
+
+	checks := [][]string{
+		{"enva", "run", "xdxtools-core", "--", "gomats", "--help"},
+		{"enva", "run", "xdxtools-core", "--", "rmats.py", "--help"},
+	}
+
+	for _, check := range checks {
+		cmd := exec.Command(check[0], check[1:]...)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf(
+				"RNA splicing preflight failed while running `%s`: %w\noutput:\n%s\n"+
+					"Required for rnaseq_splicing: enva + xdxtools-core with gomats and rmats.py.\n"+
+					"Try: enva run xdxtools-core -- gomats --help\n"+
+					"Try: enva run xdxtools-core -- rmats.py --help",
+				strings.Join(check, " "), err, string(output))
+		}
+	}
 
 	return nil
 }
@@ -452,7 +495,7 @@ func compressFastqFiles(fastqDir string) error {
 	}
 
 	for _, file := range uncompressedFiles {
-	compressedPath := file + ".gz"
+		compressedPath := file + ".gz"
 
 		// Skip if already compressed
 		if _, err := os.Stat(compressedPath); err == nil {

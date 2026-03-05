@@ -16,13 +16,13 @@ import (
 
 // LocalEngine represents a local execution engine
 type LocalEngine struct {
-	maxCores     int
-	maxMemory    string
-	maxParallel  int
-	cmd          *exec.Cmd
-	ctx          context.Context
-	cancel       context.CancelFunc
-	status       *Status
+	maxCores    int
+	maxMemory   string
+	maxParallel int
+	cmd         *exec.Cmd
+	ctx         context.Context
+	cancel      context.CancelFunc
+	status      *Status
 }
 
 // LocalConfig represents local execution configuration
@@ -39,9 +39,9 @@ func NewLocalEngine(config *LocalConfig) *LocalEngine {
 	}
 
 	return &LocalEngine{
-		maxCores:     config.MaxCores,
-		maxMemory:    config.MaxMemory,
-		maxParallel:  maxParallel,
+		maxCores:    config.MaxCores,
+		maxMemory:   config.MaxMemory,
+		maxParallel: maxParallel,
 		status: &Status{
 			State:     StatusPending,
 			StartTime: time.Now(),
@@ -269,7 +269,7 @@ func (e *LocalEngine) ExecuteWithParallel(commands [][]string, maxParallel int) 
 }
 
 // ExecuteSamples executes a workflow for multiple samples in parallel
-func (e *LocalEngine) ExecuteSamples(step int, samples []string, condaEnv string, workflowFile string, parallelJobs int) error {
+func (e *LocalEngine) ExecuteSamples(step int, samples []string, condaEnv string, workflowFile string, configFile string, parallelJobs int) error {
 	if len(samples) == 0 {
 		return fmt.Errorf("no samples provided")
 	}
@@ -286,15 +286,7 @@ func (e *LocalEngine) ExecuteSamples(step int, samples []string, condaEnv string
 	// Build commands for each sample
 	commands := make([][]string, len(samples))
 	for i, sample := range samples {
-		// Build snakemake command
-		cmd := []string{"snakemake", "--cores", "all"}
-
-		if workflowFile != "" {
-			cmd = append(cmd, "--snakefile", workflowFile)
-		}
-
-		// Use config override to process single sample
-		cmd = append(cmd, "--config", fmt.Sprintf("SIDs=[%s]", sample))
+		cmd := buildSampleSnakemakeCommand(sample, workflowFile, configFile)
 
 		if condaEnv != "" {
 			if enva.IsAvailable() {
@@ -311,4 +303,21 @@ func (e *LocalEngine) ExecuteSamples(step int, samples []string, condaEnv string
 
 	// Execute in parallel with controlled max parallel jobs
 	return e.ExecuteWithParallel(commands, maxParallel)
+}
+
+func buildSampleSnakemakeCommand(sample string, workflowFile string, configFile string) []string {
+	// Use shared command shape with the main executor.
+	cmd := []string{"snakemake", "--cores", "all"}
+
+	if workflowFile != "" {
+		cmd = append(cmd, "--snakefile", workflowFile)
+	}
+
+	if configFile != "" {
+		cmd = append(cmd, "--configfile", configFile)
+	}
+
+	// Use config override to process single sample.
+	cmd = append(cmd, "--config", fmt.Sprintf("SIDs=[%s]", sample))
+	return cmd
 }

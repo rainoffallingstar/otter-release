@@ -52,11 +52,11 @@ conda activate rust_build
 #### Go 编译环境
 
 ```bash
-# 创建 go-build 环境
-conda create -y -n go-build go
+# 创建 go-env 环境（推荐）
+conda create -y -n go-env go
 
 # 激活环境
-conda activate go-build
+conda activate go-env
 ```
 
 ### 2. 环境变量配置
@@ -107,7 +107,7 @@ source ~/.bashrc
 
 ### 方法 1: 使用统一编译脚本
 
-项目提供了 `scripts/build-all-submodules.sh` 脚本，可以一键编译所有子模块：
+项目提供了 `scripts/build-all-submodules.sh` 脚本，可以一键编译所有子模块并做必需工具校验：
 
 ```bash
 cd /public3/home/scg9946/xdxtools
@@ -118,6 +118,7 @@ bash scripts/build-all-submodules.sh
 - 自动检测 Go 和 Rust 编译环境
 - 使用 conda 环境编译各个项目
 - 将二进制文件安装到 `$HOME/.cargo/bin`
+- 默认严格模式（`STRICT_MODE=1`）：缺任一必需二进制时返回非 0
 
 ### 方法 2: 手动编译各个子模块
 
@@ -157,19 +158,19 @@ export CGO_ENABLED=0
 
 # xenofilter-go
 cd xenofilter-go
-conda run -n go-build go build -o $HOME/.cargo/bin/xenofilter ./cmd/xenofilter
+conda run -n go-env go build -o $HOME/.cargo/bin/xenofilter ./cmd/xenofilter
 
 # Paireads
 cd ../Paireads
-conda run -n go-build go build -o $HOME/.cargo/bin/paireads ./cmd/paireads
+conda run -n go-env go build -o $HOME/.cargo/bin/paireads ./cmd/paireads
 
 # htseq2matrix-go
 cd ../htseq2matrix-go
-conda run -n go-build go build -o $HOME/.cargo/bin/htseq2matrix ./cmd/htseq2matrix
+conda run -n go-env go build -o $HOME/.cargo/bin/htseq2matrix ./cmd/htseq2matrix
 
 # gomats
 cd ../gomats
-conda run -n go-build go build -o $HOME/.cargo/bin/gomats ./cmd/gomats
+conda run -n go-env go build -o $HOME/.cargo/bin/gomats ./cmd/gomats
 ```
 
 ---
@@ -210,7 +211,7 @@ Go 项目编译时需要禁用 CGO：
 export CGO_ENABLED=0
 ```
 
-**原因**: conda go-build 环境缺少 C 编译器，但这些 Go 项目都是纯 Go 实现，不需要 CGO。
+**原因**: conda go-env 环境缺少 C 编译器，但这些 Go 项目都是纯 Go 实现，不需要 CGO。
 
 ---
 
@@ -220,7 +221,7 @@ export CGO_ENABLED=0
 
 ```bash
 # 检查文件是否存在
-ls -la $HOME/.cargo/bin/ | grep -E "enva|htseq2matrix|xenofilter|paireads|qctb|methrix|fqc|gomats"
+ls -la $HOME/.cargo/bin/ | grep -E "enva|htseq2matrix|xenofilter|paireads|qctb|methrix-cli|fqc|gomats"
 
 # 测试命令行调用
 which enva htseq2matrix xenofilter paireads qctb methrix-cli fqc gomats

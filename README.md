@@ -21,8 +21,31 @@ A bioinformatics workflow CLI for RRBS, WGBS, RNA-seq, and PDX analysis.
 
 ## Installation
 
+### Quick install (interactive)
+
 ```bash
-git clone --recurse-submodules https://github.com/xdxtools/xdxtools-go.git
+bash <(wget -qO- https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh)
+```
+
+The script downloads pre-built binaries from GitHub Releases and sets up the required conda environments interactively.
+
+Common options:
+
+```bash
+# Non-interactive, use all defaults
+bash <(wget -qO- https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh) --non-interactive
+
+# Specify a release version
+bash <(wget -qO- https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh) --version v0.3.0
+
+# Skip conda environment creation
+bash <(wget -qO- https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh) --skip-envs
+```
+
+### Build from source
+
+```bash
+git clone --recurse-submodules https://github.com/rainoffallingstar/xdxtools-go.git
 cd xdxtools-go
 go build -o xdxtools
 ```

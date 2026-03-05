@@ -387,7 +387,10 @@
       "Bash(/public3/home/scg9946/xdxtools/enva/target/release/enva create --help)",
       "Bash(/public3/home/scg9946/xdxtools/enva/target/release/enva --help)",
       "Bash(cd /public3/home/scg9946/.cargo/bin && cp -v enva fqc gomats htseq2matrix methrix-cli paireads qctb xdxtools /public3/home/scg9946/xdxtools-dist/bin/linux/ && cp -v /public3/home/scg9946/xdxtools/xenofilter-go/xenofilter /public3/home/scg9946/xdxtools-dist/bin/linux/)",
-      "Bash(cp -v /public3/home/scg9946/xdxtools/inst/envs/xdxtools-core.yaml /public3/home/scg9946/xdxtools-dist/envs/ && cp -v /public3/home/scg9946/xdxtools/inst/envs/xdxtools-snakemake.yaml /public3/home/scg9946/xdxtools-dist/envs/ && cp -v /public3/home/scg9946/xdxtools/inst/envs/xdxtools-extra.yaml /public3/home/scg9946/xdxtools-dist/envs/)"
+      "Bash(cp -v /public3/home/scg9946/xdxtools/inst/envs/xdxtools-core.yaml /public3/home/scg9946/xdxtools-dist/envs/ && cp -v /public3/home/scg9946/xdxtools/inst/envs/xdxtools-snakemake.yaml /public3/home/scg9946/xdxtools-dist/envs/ && cp -v /public3/home/scg9946/xdxtools/inst/envs/xdxtools-extra.yaml /public3/home/scg9946/xdxtools-dist/envs/)",
+      "Bash(git remote set-url origin https://github.com/rainoffallingstar/gomats && git remote -v)",
+      "Bash(cd /public3/home/scg9946/xdxtools/xenofilter-go && git remote set-url origin https://github.com/rainoffallingstar/xenofilter-go && git remote -v)",
+      "Bash(git -C /public3/home/scg9946/xdxtools ls-files --others --exclude-standard | grep -E \"\\(target/|\\\\.exe|\\\\.dll|\\\\.so\\)\" | head -20)"
     ]
   }
 }

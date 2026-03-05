@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -78,7 +79,7 @@ func NewState(outputDir, jobID string) *State {
 }
 
 // Initialize initializes the state with workflow configuration
-func (s *State) Initialize(jobID string, mode, species1, species2 string, samples []string, engineType, partition string) error {
+func (s *State) Initialize(jobID string, mode, species1, species2 string, stepCount int, samples []string, engineType, partition string) error {
 	s.data.JobID = jobID
 	s.data.StartTime = time.Now()
 	s.data.LastUpdate = time.Now()
@@ -102,16 +103,13 @@ func (s *State) Initialize(jobID string, mode, species1, species2 string, sample
 	}
 
 	// Initialize step states
-	stepNames := map[int]string{
-		1: "quality_control",
-		2: "alignment",
-		3: "methylation_calling",
+	if stepCount <= 0 {
+		stepCount = 3
 	}
-
-	for step := 1; step <= 3; step++ {
+	for step := 1; step <= stepCount; step++ {
 		s.data.Steps = append(s.data.Steps, StepState{
 			Step:   step,
-			Name:   stepNames[step],
+			Name:   defaultStepName(step),
 			Status: "pending",
 		})
 	}
@@ -135,6 +133,8 @@ func (s *State) Load() error {
 		return fmt.Errorf("incompatible state file version: %s (expected %s)",
 			s.data.Version, StateFileVersion)
 	}
+
+	s.normalizeLegacySteps()
 
 	return nil
 }
@@ -240,4 +240,53 @@ func (s *State) GetData() *StateFile {
 // GetFilePath returns the state file path
 func (s *State) GetFilePath() string {
 	return s.filePath
+}
+
+func defaultStepName(step int) string {
+	switch step {
+	case 1:
+		return "quality_control"
+	case 2:
+		return "alignment"
+	case 3:
+		return "methylation_calling"
+	default:
+		return fmt.Sprintf("step_%d", step)
+	}
+}
+
+func expectedStepCount(mode string, species2 string) int {
+	modeUpper := strings.ToUpper(strings.TrimSpace(mode))
+	if modeUpper == "RNASEQ" && strings.TrimSpace(species2) == "" {
+		return 2
+	}
+	return 3
+}
+
+// normalizeLegacySteps keeps old state files resumable after step-count logic changes.
+func (s *State) normalizeLegacySteps() {
+	expected := expectedStepCount(s.data.Config.WorkflowMode, s.data.Config.Species2)
+	if expected <= 0 {
+		return
+	}
+
+	switch {
+	case len(s.data.Steps) > expected:
+		s.data.Steps = s.data.Steps[:expected]
+	case len(s.data.Steps) < expected:
+		for step := len(s.data.Steps) + 1; step <= expected; step++ {
+			s.data.Steps = append(s.data.Steps, StepState{
+				Step:   step,
+				Name:   defaultStepName(step),
+				Status: "pending",
+			})
+		}
+	}
+
+	for i := range s.data.Steps {
+		s.data.Steps[i].Step = i + 1
+		if strings.TrimSpace(s.data.Steps[i].Name) == "" {
+			s.data.Steps[i].Name = defaultStepName(i + 1)
+		}
+	}
 }

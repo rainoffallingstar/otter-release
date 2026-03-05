@@ -9,7 +9,7 @@
 #  Options:
 #    --install-dir PATH   Override binary installation directory
 #    --skip-envs          Skip conda environment creation
-#    --skip-hdf5          Skip HDF5 configuration for methrix
+#    --skip-hdf5          Skip HDF5 configuration for methrix-cli
 #    --non-interactive    Use all defaults without prompting
 #    --dry-run            Print all actions without executing
 #    --version VER        Specify release version (e.g. v0.3.0); default: latest
@@ -32,7 +32,7 @@ TOOLS=(
   "xenofilter:xenofilter"
   "paireads:paireads"
   "htseq2matrix:htseq2matrix"
-  "methrix:methrix"
+  "methrix-cli:methrix"
   "qctb:qctb"
   "fqc:fqc"
   "gomats:gomats"
@@ -252,6 +252,16 @@ for entry in "${TOOLS[@]}"; do
   fi
 done
 
+# Keep backward compatibility for legacy scripts that call `methrix`.
+if [ "$DRY_RUN" = false ]; then
+  if [ -f "${INSTALL_DIR}/methrix-cli" ] && [ ! -e "${INSTALL_DIR}/methrix" ]; then
+    ln -s "${INSTALL_DIR}/methrix-cli" "${INSTALL_DIR}/methrix"
+    log_info "Created compatibility symlink: methrix -> methrix-cli"
+  fi
+else
+  echo -e "  ${YELLOW}[DRY-RUN]${RESET} ln -s \"${INSTALL_DIR}/methrix-cli\" \"${INSTALL_DIR}/methrix\""
+fi
+
 echo ""
 
 # ── Step 4: Verify tools ──────────────────────────────────────────────────────
@@ -264,8 +274,8 @@ for entry in "${TOOLS[@]}"; do
   bin_name="${entry%%:*}"
   dest="${INSTALL_DIR}/${bin_name}"
 
-  if [ "$bin_name" = "methrix" ]; then
-    echo -e "  ${YELLOW}⚠${RESET}  methrix  (needs HDF5 config – will verify in Step 8)"
+  if [ "$bin_name" = "methrix-cli" ]; then
+    echo -e "  ${YELLOW}⚠${RESET}  methrix-cli  (needs HDF5 config – will verify in Step 8)"
     continue
   fi
 
@@ -308,7 +318,7 @@ if [ "$SKIP_ENVS" = false ]; then
     log_warn "inst/envs/ not found at $ENVS_DIR"
     log_warn "Clone the full repository to access environment files:"
     echo ""
-    echo "    git clone --recurse-submodules https://github.com/xdxtools/xdxtools-go.git"
+    echo "    git clone --recurse-submodules https://github.com/rainoffallingstar/xdxtools-go.git"
     echo "    bash xdxtools-go/scripts/install.sh"
     echo ""
     SKIP_ENVS=true
@@ -410,19 +420,19 @@ HEREDOC
       export HDF5_DIR="$HDF5_ENV_PATH"
       export LD_LIBRARY_PATH="${HDF5_DIR}/lib:${LD_LIBRARY_PATH:-}"
 
-      METHRIX_BIN="${INSTALL_DIR}/methrix"
+      METHRIX_BIN="${INSTALL_DIR}/methrix-cli"
       if [ -f "$METHRIX_BIN" ] && "$METHRIX_BIN" --version &>/dev/null; then
         ver=$("$METHRIX_BIN" --version 2>&1 | head -1)
-        log_success "methrix verified: $ver"
+        log_success "methrix-cli verified: $ver"
       else
-        log_warn "methrix could not be verified (may need to source $SHELL_CONFIG first)"
+        log_warn "methrix-cli could not be verified (may need to source $SHELL_CONFIG first)"
       fi
     else
       log_warn "xdxtools-core path not found, HDF5 variables not configured"
     fi
   else
     echo -e "  ${YELLOW}[DRY-RUN]${RESET} would append HDF5_DIR / LD_LIBRARY_PATH to $SHELL_CONFIG"
-    echo -e "  ${YELLOW}[DRY-RUN]${RESET} would verify: methrix --version"
+    echo -e "  ${YELLOW}[DRY-RUN]${RESET} would verify: methrix-cli --version"
   fi
   echo ""
 fi

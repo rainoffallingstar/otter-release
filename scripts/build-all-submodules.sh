@@ -1,123 +1,179 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Build all submodules and install to $HOME/.cargo/bin
 
-set -e
+set -euo pipefail
 
-CARGO_BIN="$HOME/.cargo/bin"
-mkdir -p "$CARGO_BIN"
+CARGO_BIN="${HOME}/.cargo/bin"
+STRICT_MODE="${STRICT_MODE:-1}" # 1: fail if required binaries missing, 0: warn only
 
-# Check for Go
-GO_CMD=""
-if command -v go &> /dev/null; then
-    GO_CMD="go"
-elif conda env list | grep -q "^go-build "; then
-    GO_CMD="conda run -n go-build go"
-else
-    echo "Error: Go not found. Please install Go first."
-    exit 1
+mkdir -p "${CARGO_BIN}"
+
+GO_ENV_NAME=""
+RUST_ENV_NAME=""
+GO_SOURCE=""
+RUST_SOURCE=""
+
+pick_best_go() {
+  local best_src=""
+  local best_ver="0.0.0"
+  local ver=""
+
+  if command -v go >/dev/null 2>&1; then
+    ver="$(go version | awk '{print $3}' | sed 's/^go//')"
+    best_src="system"
+    best_ver="${ver}"
+  fi
+
+  if command -v conda >/dev/null 2>&1 && conda env list 2>/dev/null | grep -q "^go-env "; then
+    ver="$(conda run -n go-env go version 2>/dev/null | awk '{print $3}' | sed 's/^go//')"
+    if [ -n "${ver}" ] && [ "$(printf '%s\n%s\n' "${best_ver}" "${ver}" | sort -V | tail -n1)" = "${ver}" ]; then
+      best_src="go-env"
+      best_ver="${ver}"
+    fi
+  fi
+
+  if command -v conda >/dev/null 2>&1 && conda env list 2>/dev/null | grep -q "^go-build "; then
+    ver="$(conda run -n go-build go version 2>/dev/null | awk '{print $3}' | sed 's/^go//')"
+    if [ -n "${ver}" ] && [ "$(printf '%s\n%s\n' "${best_ver}" "${ver}" | sort -V | tail -n1)" = "${ver}" ]; then
+      best_src="go-build"
+      best_ver="${ver}"
+    fi
+  fi
+
+  if [ -z "${best_src}" ]; then
+    return 1
+  fi
+
+  GO_SOURCE="${best_src} (${best_ver})"
+  case "${best_src}" in
+    system) GO_CMD=(go) ;;
+    go-env) GO_ENV_NAME="go-env"; GO_CMD=(conda run -n "${GO_ENV_NAME}" go) ;;
+    go-build) GO_ENV_NAME="go-build"; GO_CMD=(conda run -n "${GO_ENV_NAME}" go) ;;
+  esac
+}
+
+if ! pick_best_go; then
+  echo "Error: Go not found (PATH/go-env/go-build)."
+  exit 1
 fi
 
-# Check for Rust
-RUST_CMD=""
-if command -v cargo &> /dev/null; then
-    RUST_CMD=""
-elif conda env list | grep -q "^rust-build "; then
-    RUST_CMD="conda run -n rust-build"
+if command -v conda >/dev/null 2>&1 && conda env list 2>/dev/null | grep -q "^rust_build "; then
+  RUST_ENV_NAME="rust_build"
+  RUST_CMD=(conda run -n "${RUST_ENV_NAME}" cargo)
+  RUST_SOURCE="rust_build"
+elif command -v conda >/dev/null 2>&1 && conda env list 2>/dev/null | grep -q "^rust-build "; then
+  RUST_ENV_NAME="rust-build"
+  RUST_CMD=(conda run -n "${RUST_ENV_NAME}" cargo)
+  RUST_SOURCE="rust-build"
+elif command -v cargo >/dev/null 2>&1; then
+  RUST_CMD=(cargo)
+  RUST_SOURCE="system"
 else
-    echo "Warning: Rust not found in PATH, will try to use conda environment..."
+  echo "Error: Cargo not found (PATH/rust_build/rust-build)."
+  exit 1
 fi
 
 echo "======================================"
 echo "Building all xdxtools submodules"
 echo "======================================"
-echo "Go: $GO_CMD"
-echo "Rust: $RUST_CMD"
+echo "Go: ${GO_SOURCE}"
+echo "Rust: ${RUST_SOURCE}"
+echo "Strict mode: ${STRICT_MODE}"
 echo ""
 
-# Function to build Go projects
 build_go() {
-    local name=$1
-    local dir=$2
-    local binary=$3
-    local main_pkg=$4
+  local name="$1"
+  local dir="$2"
+  local binary="$3"
+  local main_pkg="$4"
+  local version_symbol="$5"
+  local version_value
+  local ldflags
 
-    echo "Building $name..."
-    cd "$dir"
+  echo "Building ${name}..."
+  version_value="$(git -C "${dir}" describe --tags --abbrev=7 --dirty 2>/dev/null || true)"
+  if [[ "${version_value}" =~ ^v?([0-9]+\.[0-9]+\.[0-9]+)(.*)$ ]]; then
+    version_value="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"
+  else
+    version_value="0.1.0-$(git -C "${dir}" rev-parse --short HEAD 2>/dev/null || echo dev)"
+  fi
+  ldflags="-X ${version_symbol}=${version_value}"
 
-    if [ -n "$GO_CMD" ]; then
-        echo "  Building $binary..."
-        $GO_CMD build -o "$CARGO_BIN/$binary" "$main_pkg"
-        echo "  ✓ Installed to $CARGO_BIN/$binary"
-    else
-        echo "  ✗ Go not found, skipping $name"
-    fi
-
-    cd ..
-    echo ""
+  (
+    cd "${dir}"
+    "${GO_CMD[@]}" build -ldflags "${ldflags}" -o "${CARGO_BIN}/${binary}" "${main_pkg}"
+  )
+  echo "  ✓ Installed to ${CARGO_BIN}/${binary} (version: ${version_value})"
+  echo ""
 }
 
-# Function to build Rust projects
 build_rust() {
-    local name=$1
-    local dir=$2
-    local binary=$3
+  local name="$1"
+  local dir="$2"
+  local binary="$3"
+  local source_binary="${4:-$3}"
 
-    echo "Building $name..."
-    cd "$dir"
-
-    if [ -n "$RUST_CMD" ]; then
-        echo "  Building $binary..."
-        $RUST_CMD cargo build --release
-        cp "target/release/$binary" "$CARGO_BIN/$binary"
-    elif command -v cargo &> /dev/null; then
-        echo "  Building $binary..."
-        cargo build --release
-        cp "target/release/$binary" "$CARGO_BIN/$binary"
-    else
-        echo "  ✗ Rust/Cargo not found, skipping $name"
-        cd ..
-        echo ""
-        return
-    fi
-
-    echo "  ✓ Installed to $CARGO_BIN/$binary"
-    cd ..
-    echo ""
+  echo "Building ${name}..."
+  (
+    cd "${dir}"
+    "${RUST_CMD[@]}" build --release
+    cp "target/release/${source_binary}" "${CARGO_BIN}/${binary}"
+  )
+  echo "  ✓ Installed to ${CARGO_BIN}/${binary}"
+  echo ""
 }
 
-# ============================================
-# Go Projects
-# ============================================
+# Go projects
+build_go "xenofilter-go" "xenofilter-go" "xenofilter" "./cmd/xenofilter" "github.com/rainoffallingstar/xenofilter-go/pkg/cli.Version"
+build_go "Paireads" "Paireads" "paireads" "./cmd/paireads" "main.Version"
+build_go "htseq2matrix-go" "htseq2matrix-go" "htseq2matrix" "./cmd/htseq2matrix" "main.Version"
+build_go "gomats" "gomats" "gomats" "./cmd/gomats" "github.com/rainoffallingstar/gomats/pkg/cli.Version"
 
-build_go "xenofilter-go" "xenofilter-go" "xenofilter" "./cmd/xenofilter"
-build_go "Paireads" "Paireads" "paireads" "./cmd/paireads"
-build_go "gomats" "gomats" "gomats" "./cmd/gomats"
-
-# ============================================
-# Rust Projects
-# ============================================
-
+# Rust projects
 build_rust "enva" "enva" "enva"
-build_rust "methrix-cli" "methrix-cli-local" "methrix-cli"
+build_rust "fastqc-rs" "fastqc-rs" "fqc"
+build_rust "methrix-cli" "methrix-cli-local" "methrix-cli" "methrix"
 build_rust "qctb" "qctb" "qctb"
-
-# ============================================
-# Verify installations
-# ============================================
 
 echo "======================================"
 echo "Verifying installations"
 echo "======================================"
 
-for binary in enva xenofilter paireads methrix-cli qctb gomats; do
-    if [ -x "$CARGO_BIN/$binary" ]; then
-        VERSION=$("$CARGO_BIN/$binary" --version 2>&1 | head -1 || echo "OK")
-        echo "✓ $binary - $VERSION"
-    else
-        echo "✗ $binary - NOT FOUND or NOT EXECUTABLE"
-    fi
+required_bins=(enva fqc xenofilter paireads htseq2matrix methrix-cli qctb gomats)
+missing_bins=()
+invalid_versions=()
+
+for binary in "${required_bins[@]}"; do
+  if [ ! -x "${CARGO_BIN}/${binary}" ]; then
+    echo "✗ ${binary} - NOT FOUND or NOT EXECUTABLE"
+    missing_bins+=("${binary}")
+    continue
+  fi
+
+  version_output="$("${CARGO_BIN}/${binary}" --version 2>&1 | head -1 || true)"
+  expected_re="^${binary} [0-9]+\\.[0-9]+\\.[0-9]+([.-][0-9A-Za-z.-]+)?$"
+  if printf '%s\n' "${version_output}" | grep -Eq "${expected_re}"; then
+    echo "✓ ${binary} - ${version_output}"
+  else
+    echo "✗ ${binary} - invalid version output: ${version_output}"
+    invalid_versions+=("${binary}")
+  fi
 done
+
+if [ "${#missing_bins[@]}" -gt 0 ] || [ "${#invalid_versions[@]}" -gt 0 ]; then
+  echo ""
+  if [ "${#missing_bins[@]}" -gt 0 ]; then
+    echo "Missing required binaries: ${missing_bins[*]}"
+  fi
+  if [ "${#invalid_versions[@]}" -gt 0 ]; then
+    echo "Invalid --version outputs: ${invalid_versions[*]}"
+  fi
+  if [ "${STRICT_MODE}" = "1" ]; then
+    echo "Strict mode enabled, exiting with failure."
+    exit 1
+  fi
+fi
 
 echo ""
 echo "Build complete!"
-echo "Binaries installed to: $CARGO_BIN"
+echo "Binaries installed to: ${CARGO_BIN}"

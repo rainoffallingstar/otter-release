@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/xdxtools/xdxtools-go/internal/logger"
@@ -122,5 +123,20 @@ func TestLocalEngine_WaitWithoutCommand(t *testing.T) {
 
 	if err == nil {
 		t.Error("Wait() should have returned an error when no command is running")
+	}
+}
+
+func TestBuildSampleSnakemakeCommandIncludesConfigfile(t *testing.T) {
+	cmd := buildSampleSnakemakeCommand("sampleA", "workflow.smk", "/tmp/config.yaml")
+	commandLine := strings.Join(cmd, " ")
+
+	if !strings.Contains(commandLine, "--snakefile workflow.smk") {
+		t.Fatalf("expected snakefile argument in command, got: %s", commandLine)
+	}
+	if !strings.Contains(commandLine, "--configfile /tmp/config.yaml") {
+		t.Fatalf("expected configfile argument in command, got: %s", commandLine)
+	}
+	if !strings.Contains(commandLine, "SIDs=[sampleA]") {
+		t.Fatalf("expected single-sample override in command, got: %s", commandLine)
 	}
 }
