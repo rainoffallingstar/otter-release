@@ -13,6 +13,9 @@ for binary in "${required_bins[@]}"; do
   if [ ! -x "${path}" ] && [ -x "${BIN_DIR}/${binary}-linux-amd64" ]; then
     path="${BIN_DIR}/${binary}-linux-amd64"
   fi
+  if [ ! -x "${path}" ] && [ -x "${BIN_DIR}/${binary}-linux-amd64-static" ]; then
+    path="${BIN_DIR}/${binary}-linux-amd64-static"
+  fi
   if [ ! -x "${path}" ]; then
     echo "✗ ${binary}: missing executable at ${path}"
     missing_bins+=("${binary}")

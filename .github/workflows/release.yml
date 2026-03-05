@@ -1,15 +1,18 @@
 name: Release Binaries
 
 on:
-  workflow_dispatch:
-  schedule:
-    - cron: '0 2 * * 1'   # 每周一 UTC 02:00 自动发布（可按需删除）
+  push:
+    branches: [ main ]
 
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  build:
+  build-and-release:
     runs-on: ubuntu-latest
 
     steps:
@@ -20,29 +23,21 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      # ── 生成日期 Tag ─────────────────────────────────────────────────────────
-
-      - name: Generate date-based tag
+      - name: Generate UTC date-based tag
         id: tag
         run: |
-          BASE="v$(date -u +%Y.%m.%d)"
-          TAG="$BASE"
-          N=1
-          while git tag --list | grep -qx "$TAG"; do
-            N=$((N + 1))
-            TAG="${BASE}-${N}"
-          done
+          TAG="v$(date -u +%Y.%m.%d)"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "Generated tag: $TAG"
 
-      - name: Create and push tag
+      - name: Create or update date tag
         run: |
-          git config user.name  "github-actions[bot]"
+          git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "${{ steps.tag.outputs.tag }}"
-          git push origin "${{ steps.tag.outputs.tag }}"
-
-      # ── Go 工具链 ────────────────────────────────────────────────────────────
+          TAG="${{ steps.tag.outputs.tag }}"
+          # Reuse one date tag per UTC day: move it to latest commit on repeated builds.
+          git tag -f "${TAG}"
+          git push origin "refs/tags/${TAG}" --force
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -53,168 +48,114 @@ jobs:
       - name: Verify toolchain consistency
         run: bash scripts/verify_toolchain_consistency.sh
 
-      # ── Rust 工具链 ──────────────────────────────────────────────────────────
-
       - name: Set up Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install system dependencies (HDF5 for methrix-cli)
+      - name: Add musl target
+        run: rustup target add x86_64-unknown-linux-musl
+
+      - name: Install system dependencies (musl + HDF5)
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y libhdf5-dev pkg-config
+          sudo apt-get install -y musl-tools pkg-config libhdf5-dev
 
       - name: Create dist directory
         run: mkdir -p dist
 
-      # ── Go binaries (fully static, CGO_ENABLED=0) ──────────────────────────
-
-      - name: Build xdxtools (main project)
+      - name: Build xdxtools static
+        env:
+          VERSION: ${{ steps.tag.outputs.tag }}
+          COMMIT: ${{ github.sha }}
         run: |
-          CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o dist/xdxtools-linux-amd64 .
-          echo "  ✓ xdxtools-linux-amd64"
+          VER="${VERSION#v}"
+          LDFLAGS="-s -w -X github.com/xdxtools/xdxtools-go/cmd.buildVersion=${VER} -X github.com/xdxtools/xdxtools-go/cmd.buildCommit=${COMMIT:0:7}"
+          CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags="$LDFLAGS" -o dist/xdxtools-linux-amd64-static .
+          echo "✓ xdxtools-linux-amd64-static"
 
-      - name: Build Go submodule binaries
+      - name: Build Go submodules static
+        env:
+          VERSION: ${{ steps.tag.outputs.tag }}
         run: |
-          VERSION="${{ steps.tag.outputs.tag }}"
-          VERSION="${VERSION#v}"
-          declare -A GO_MODS=(
-            ["xenofilter-go"]="xenofilter"
-            ["Paireads"]="paireads"
-            ["htseq2matrix-go"]="htseq2matrix"
-            ["gomats"]="gomats"
-          )
-          for dir in "${!GO_MODS[@]}"; do
-            bin="${GO_MODS[$dir]}"
-            ldflags=""
-            case "$dir" in
-              xenofilter-go)
-                ldflags="-X github.com/rainoffallingstar/xenofilter-go/pkg/cli.Version=${VERSION}"
-                ;;
-              Paireads)
-                ldflags="-X main.Version=${VERSION}"
-                ;;
-              htseq2matrix-go)
-                ldflags="-X main.Version=${VERSION}"
-                ;;
-              gomats)
-                ldflags="-X github.com/rainoffallingstar/gomats/pkg/cli.Version=${VERSION}"
-                ;;
-            esac
-            if [ -d "$dir" ] && [ -f "$dir/go.mod" ]; then
-              echo "Building $bin from $dir ..."
-              (cd "$dir" && CGO_ENABLED=0 go build -trimpath \
-                  -ldflags="-s -w ${ldflags}" -o "../dist/${bin}-linux-amd64" .)
-              echo "  ✓ ${bin}-linux-amd64"
-            else
-              echo "  ⚠ $dir not found or missing go.mod, skipping $bin"
+          VER="${VERSION#v}"
+          build_go_submodule() {
+            local dir="$1" out="$2" pkg="$3" sym="$4"
+            local ld="-s -w"
+            if [ -n "$sym" ]; then
+              ld="$ld -X $sym=$VER"
             fi
-          done
+            echo "Building $dir -> $out"
+            (cd "$dir" && CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags="$ld" -o "../dist/$out" "$pkg")
+            echo "✓ $out"
+          }
 
-      # ── Rust binaries ────────────────────────────────────────────────────────
+          build_go_submodule xenofilter-go xenofilter-linux-amd64-static ./cmd/xenofilter github.com/rainoffallingstar/xenofilter-go/pkg/cli.Version
+          build_go_submodule Paireads paireads-linux-amd64-static ./cmd/paireads main.Version
+          build_go_submodule htseq2matrix-go htseq2matrix-linux-amd64-static ./cmd/htseq2matrix main.Version
+          build_go_submodule gomats gomats-linux-amd64-static ./cmd/gomats github.com/rainoffallingstar/gomats/pkg/cli.Version
 
-      - name: Build enva (Rust)
+      - name: Build Rust static binaries (enva/qctb/fqc)
         run: |
-          if [ -d enva ] && [ -f enva/Cargo.toml ]; then
-            (cd enva && cargo build --release 2>&1)
-            BIN=$(find enva/target/release -maxdepth 1 -type f -executable \
-                  ! -name "*.d" ! -name "*.rlib" ! -name "*.rmeta" | head -1)
-            if [ -n "$BIN" ]; then
-              cp "$BIN" dist/enva-linux-amd64
-              echo "  ✓ enva-linux-amd64"
-            else
-              echo "  ⚠ enva binary not found in release dir"
-            fi
+          (cd enva && cargo build --release --target x86_64-unknown-linux-musl)
+          cp enva/target/x86_64-unknown-linux-musl/release/enva dist/enva-linux-amd64-static
+          echo "✓ enva-linux-amd64-static"
+
+          (cd qctb && cargo build --release --target x86_64-unknown-linux-musl)
+          cp qctb/target/x86_64-unknown-linux-musl/release/qctb dist/qctb-linux-amd64-static
+          echo "✓ qctb-linux-amd64-static"
+
+          (cd fastqc-rs && cargo build --release --target x86_64-unknown-linux-musl)
+          cp fastqc-rs/target/x86_64-unknown-linux-musl/release/fqc dist/fqc-linux-amd64-static
+          echo "✓ fqc-linux-amd64-static"
+
+      - name: Build methrix-cli (dynamic HDF5)
+        run: |
+          export HDF5_DIR=/usr
+          export HDF5_INCLUDE_DIR=/usr/include/hdf5/serial
+          export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH
+          (cd methrix-cli-local && cargo build --release)
+          if [ -f methrix-cli-local/target/release/methrix-cli ]; then
+            cp methrix-cli-local/target/release/methrix-cli dist/methrix-cli-linux-amd64
+          elif [ -f methrix-cli-local/target/release/methrix ]; then
+            cp methrix-cli-local/target/release/methrix dist/methrix-cli-linux-amd64
           else
-            echo "  ⚠ enva submodule not found, skipping"
+            echo "methrix-cli binary not found" >&2
+            exit 1
           fi
+          cp dist/methrix-cli-linux-amd64 dist/methrix-linux-amd64
+          echo "✓ methrix-cli-linux-amd64 (dynamic)"
 
-      - name: Build qctb (Rust)
-        run: |
-          if [ -d qctb ] && [ -f qctb/Cargo.toml ]; then
-            (cd qctb && cargo build --release 2>&1)
-            BIN=$(find qctb/target/release -maxdepth 1 -type f -executable \
-                  ! -name "*.d" ! -name "*.rlib" ! -name "*.rmeta" | head -1)
-            if [ -n "$BIN" ]; then
-              cp "$BIN" dist/qctb-linux-amd64
-              echo "  ✓ qctb-linux-amd64"
-            else
-              echo "  ⚠ qctb binary not found"
-            fi
-          else
-            echo "  ⚠ qctb submodule not found, skipping"
-          fi
-
-      - name: Build methrix-cli (Rust, dynamic HDF5)
-        run: |
-          if [ -d methrix-cli-local ] && [ -f methrix-cli-local/Cargo.toml ]; then
-            export HDF5_DIR=/usr
-            export HDF5_INCLUDE_DIR=/usr/include/hdf5/serial
-            export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH
-            (cd methrix-cli-local && cargo build --release 2>&1)
-            for name in methrix-cli methrix; do
-              if [ -f "methrix-cli-local/target/release/$name" ]; then
-                cp "methrix-cli-local/target/release/$name" dist/methrix-cli-linux-amd64
-                cp "methrix-cli-local/target/release/$name" dist/methrix-linux-amd64
-                echo "  ✓ methrix-cli-linux-amd64 (compat: methrix-linux-amd64)"
-                break
-              fi
-            done
-            if [ ! -f dist/methrix-cli-linux-amd64 ]; then
-              echo "  ⚠ methrix binary not found in release dir"
-            fi
-          else
-            echo "  ⚠ methrix-cli-local submodule not found, skipping"
-          fi
-
-      - name: Build fqc / fastqc-rs (Rust)
-        run: |
-          if [ -d fastqc-rs ] && [ -f fastqc-rs/Cargo.toml ]; then
-            (cd fastqc-rs && cargo build --release 2>&1)
-            if [ -f fastqc-rs/target/release/fqc ]; then
-              cp fastqc-rs/target/release/fqc dist/fqc-linux-amd64
-              echo "  ✓ fqc-linux-amd64"
-            else
-              BIN=$(find fastqc-rs/target/release -maxdepth 1 -type f -executable \
-                    ! -name "*.d" ! -name "*.rlib" ! -name "*.rmeta" | head -1)
-              if [ -n "$BIN" ]; then
-                cp "$BIN" dist/fqc-linux-amd64
-                echo "  ✓ fqc-linux-amd64 (from $(basename $BIN))"
-              else
-                echo "  ⚠ fqc binary not found"
-              fi
-            fi
-          else
-            echo "  ⚠ fastqc-rs submodule not found, skipping"
-          fi
-
-      # ── Generate checksums ───────────────────────────────────────────────────
-
-      - name: Generate SHA256 checksums
-        run: |
-          cd dist
-          sha256sum * > checksums.txt
-          cat checksums.txt
-
-      # ── Verify all dist contents ─────────────────────────────────────────────
-
-      - name: List built artifacts
-        run: |
-          echo "=== Built artifacts ==="
-          ls -lh dist/
-          echo ""
-          echo "=== Build status ==="
-          for b in xdxtools enva xenofilter paireads htseq2matrix methrix-cli qctb fqc gomats; do
-            if [ -f "dist/${b}-linux-amd64" ]; then
-              echo "  ✓ ${b}-linux-amd64"
-            else
-              echo "  ✗ ${b}-linux-amd64  (missing)"
-            fi
-          done
+      - name: Verify required release artifacts (strict)
+        run: bash scripts/verify_release_artifacts.sh dist
 
       - name: Verify tool versions
         run: bash scripts/verify_versions.sh dist
 
-      # ── Publish GitHub Release ───────────────────────────────────────────────
+      - name: Generate metadata and checksums
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          cd dist
+          sha256sum * > checksums.txt
+          cat > manifest.json <<EOF
+          {
+            "tag": "${TAG}",
+            "commit": "${COMMIT}",
+            "generated_at_utc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "artifacts": [
+              {"name":"xdxtools-linux-amd64-static","linkage":"static"},
+              {"name":"enva-linux-amd64-static","linkage":"static"},
+              {"name":"xenofilter-linux-amd64-static","linkage":"static"},
+              {"name":"paireads-linux-amd64-static","linkage":"static"},
+              {"name":"htseq2matrix-linux-amd64-static","linkage":"static"},
+              {"name":"gomats-linux-amd64-static","linkage":"static"},
+              {"name":"qctb-linux-amd64-static","linkage":"static"},
+              {"name":"fqc-linux-amd64-static","linkage":"static"},
+              {"name":"methrix-cli-linux-amd64","linkage":"dynamic"},
+              {"name":"methrix-linux-amd64","linkage":"dynamic"}
+            ]
+          }
+          EOF
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -222,36 +163,24 @@ jobs:
           tag_name: ${{ steps.tag.outputs.tag }}
           files: dist/*
           generate_release_notes: true
-          fail_on_unmatched_files: false
+          fail_on_unmatched_files: true
+          overwrite_files: true
           body: |
+            ## Release Model
+
+            - Trigger: automatic on push to `main`
+            - Tag: UTC date-based (`vYYYY.MM.DD`, one tag reused within the same day)
+            - Policy: strict artifact completeness (missing required binaries => release fails)
+
+            ## Linkage
+
+            - Fully static: `xdxtools`, `enva`, `xenofilter`, `paireads`, `htseq2matrix`, `gomats`, `qctb`, `fqc`
+            - Dynamic (HDF5): `methrix-cli` (`methrix` compatibility copy included)
+
             ## Installation
 
-            ### Quick Install (recommended for end users)
             ```bash
             bash <(wget -qO- https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh)
             ```
-
-            ### Manual Installation
-            Download the binary for your platform from the assets below, then:
-            ```bash
-            chmod +x xdxtools-linux-amd64
-            mv xdxtools-linux-amd64 ~/.local/bin/xdxtools
-            ```
-
-            ### Included Tools
-            | Binary | Description |
-            |--------|-------------|
-            | `xdxtools` | Main workflow orchestrator |
-            | `enva` | Micromamba environment manager |
-            | `xenofilter` | Xenograft contamination removal |
-            | `paireads` | Paired-end reads processing |
-            | `htseq2matrix` | HTSeq counts → expression matrix |
-            | `methrix-cli` | Methylation analysis CLI (requires HDF5) |
-            | `qctb` | Quality control toolbox |
-            | `fqc` | FastQC replacement (Rust) |
-            | `gomats` | rMATS orchestrator for RNA splicing |
-
-            > **Note**: `methrix-cli` is dynamically linked to HDF5.
-            > Run `scripts/install.sh` to automatically configure HDF5 via conda.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
