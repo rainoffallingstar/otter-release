@@ -51,7 +51,7 @@ userspace/my_project/
 | 参数 | 说明 | 示例 |
 |------|------|------|
 | `<项目名>` | 项目名称（必填） | `my_rrbs_project` |
-| `--output-dir <路径>` | 指定输出根目录（默认 `userspace/`） | `--output-dir /data/projects` |
+| `--output <路径>` | 指定输出根目录（默认 `userspace/`） | `--output /data/projects` |
 
 ---
 
@@ -77,7 +77,7 @@ xdxtools create \
     --fastq ./fastq \
     --mode RRBS \
     --pdata samples.xlsx \
-    --species hg38
+    --species1 hg38
 ```
 
 **WGBS（全基因组甲基化测序）**：
@@ -87,7 +87,7 @@ xdxtools create \
     --fastq ./fastq \
     --mode WGBS \
     --pdata samples.xlsx \
-    --species hg38
+    --species1 hg38
 ```
 
 **RNA-seq（转录组测序）**：
@@ -97,7 +97,7 @@ xdxtools create \
     --fastq ./fastq \
     --mode RNASEQ \
     --pdata samples.xlsx \
-    --species hg38
+    --species1 hg38
 ```
 
 ### PDX 模式（双物种）额外说明
@@ -109,7 +109,7 @@ xdxtools create \
     --fastq ./fastq \
     --mode RRBS \
     --pdata samples.xlsx \
-    --species hg38 \
+    --species1 hg38 \
     --species2 mm10          # ← 添加第二物种（小鼠）
 ```
 
@@ -166,7 +166,7 @@ xdxtools run \
 |------|------|--------|
 | `--config <路径>` | 配置文件路径（必填） | 无 |
 | `--engine` | 执行引擎：`auto`/`slurm`/`local` | `auto` |
-| `--parallel-jobs <N>` | 并发任务数（1=串行，>1=并行） | `1` |
+| `--parallel-jobs <N>` | 并发任务数（1=串行，>1=并行） | `2` |
 | `--slurm-partition <名>` | SLURM 分区名称 | 无 |
 | `--dry-run` | 只测试配置，不实际运行 | 否 |
 | `--resume` / `-r` | 从上次中断处继续 | 否 |
@@ -225,12 +225,12 @@ xdxtools init rrbs_2024
 #    --fastq: 你的 FASTQ 文件目录
 #    --mode: 分析类型（RRBS/WGBS/RNASEQ）
 #    --pdata: 样本信息表
-#    --species: 参考基因组（hg38/hg19/mm10）
+#    --species1: 参考基因组（hg38/hg19/mm10）
 xdxtools create \
     --fastq ./fastq \
     --mode RRBS \
     --pdata samples.xlsx \
-    --species hg38
+    --species1 hg38
 
 # 4. 查看生成的 Job ID 和配置文件路径
 #    （记下终端输出中的 config.yaml 路径）

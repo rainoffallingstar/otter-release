@@ -45,7 +45,7 @@ xdxtools create \
     --fastq ./fastq \
     --mode RRBS \
     --pdata samples.xlsx \
-    --species hg38
+    --species1 hg38
 ```
 
 ### 分析步骤（共 3 步）
@@ -94,7 +94,7 @@ xdxtools create \
     --fastq ./fastq \
     --mode WGBS \
     --pdata samples.xlsx \
-    --species hg38
+    --species1 hg38
 ```
 
 > **注意**：WGBS 模式下，`inline_barcode_sequence` 列如果为空，不会添加任何前缀（与 RRBS 的处理略有不同）。
@@ -116,7 +116,7 @@ xdxtools create \
     --fastq ./fastq \
     --mode RNASEQ \
     --pdata samples.xlsx \
-    --species hg38
+    --species1 hg38
 ```
 
 ### 分析步骤（共 2 步）
@@ -168,7 +168,7 @@ xdxtools create \
     --fastq ./fastq \
     --mode RRBS \
     --pdata samples.xlsx \
-    --species hg38 \
+    --species1 hg38 \
     --species2 mm10
 
 # PDX + WGBS
@@ -176,7 +176,7 @@ xdxtools create \
     --fastq ./fastq \
     --mode WGBS \
     --pdata samples.xlsx \
-    --species hg38 \
+    --species1 hg38 \
     --species2 mm10
 
 # PDX + RNA-seq（人类肿瘤转录组）
@@ -184,7 +184,7 @@ xdxtools create \
     --fastq ./fastq \
     --mode RNASEQ \
     --pdata samples.xlsx \
-    --species hg38 \
+    --species1 hg38 \
     --species2 mm10
 ```
 
