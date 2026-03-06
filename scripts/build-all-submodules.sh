@@ -91,6 +91,10 @@ build_go() {
   local ldflags
 
   echo "Building ${name}..."
+  if [ "${dir}" = "htseq2matrix-go" ]; then
+    bash scripts/ensure_htseq2matrix_entrypoint.sh "${dir}"
+  fi
+
   version_value="$(git -C "${dir}" describe --tags --abbrev=7 --dirty 2>/dev/null || true)"
   if [[ "${version_value}" =~ ^v?([0-9]+\.[0-9]+\.[0-9]+)(.*)$ ]]; then
     version_value="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"

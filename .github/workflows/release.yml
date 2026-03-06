@@ -77,6 +77,8 @@ jobs:
           VERSION: ${{ steps.tag.outputs.tag }}
         run: |
           VER="${VERSION#v}"
+          bash scripts/ensure_htseq2matrix_entrypoint.sh htseq2matrix-go
+
           build_go_submodule() {
             local dir="$1" out="$2" pkg="$3" sym="$4"
             local ld="-s -w"
