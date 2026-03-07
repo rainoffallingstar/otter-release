@@ -25,17 +25,17 @@ DEFAULT_INSTALL_DIR="$HOME/.local/bin"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENVS_DIR="$SCRIPT_DIR/../inst/envs"
 
-# All 9 tools: binary_name:release_asset_stem
+# All 9 tools: binary_name:release_asset_stem:linkage(static|dynamic)
 TOOLS=(
-  "xdxtools:xdxtools"
-  "enva:enva"
-  "xenofilter:xenofilter"
-  "paireads:paireads"
-  "htseq2matrix:htseq2matrix"
-  "methrix-cli:methrix"
-  "qctb:qctb"
-  "fqc:fqc"
-  "gomats:gomats"
+  "xdxtools:xdxtools:static"
+  "enva:enva:static"
+  "xenofilter:xenofilter:static"
+  "paireads:paireads:static"
+  "htseq2matrix:htseq2matrix:static"
+  "methrix-cli:methrix:dynamic"
+  "qctb:qctb:static"
+  "fqc:fqc:static"
+  "gomats:gomats:static"
 )
 
 # Conda environment yaml files
@@ -227,9 +227,11 @@ run "mkdir -p \"$INSTALL_DIR\""
 BASE_URL="https://github.com/${RELEASES_REPO}/releases/download/${XDXTOOLS_VERSION}"
 
 for entry in "${TOOLS[@]}"; do
-  bin_name="${entry%%:*}"
-  asset_stem="${entry##*:}"
+  IFS=':' read -r bin_name asset_stem linkage <<< "$entry"
   asset="${asset_stem}-linux-${ARCH}"
+  if [ "${linkage}" = "static" ]; then
+    asset="${asset}-static"
+  fi
   dest="${INSTALL_DIR}/${bin_name}"
 
   if [ -f "$dest" ] && [ "$DRY_RUN" = false ]; then
