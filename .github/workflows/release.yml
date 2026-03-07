@@ -111,9 +111,16 @@ jobs:
 
       - name: Build methrix-cli (dynamic HDF5)
         run: |
-          export HDF5_DIR=/usr
           export HDF5_INCLUDE_DIR=/usr/include/hdf5/serial
-          export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH
+          export HDF5_LIB_DIR=/usr/lib/x86_64-linux-gnu/hdf5/serial
+          export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/hdf5/serial/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH
+
+          # Validate Ubuntu HDF5 layout before compiling (fail fast with clear logs).
+          test -f /usr/include/hdf5/serial/hdf5.h
+          test -f /usr/lib/x86_64-linux-gnu/hdf5/serial/libhdf5.so
+          pkg-config --modversion hdf5 || pkg-config --modversion hdf5-serial
+          pkg-config --cflags --libs hdf5 || pkg-config --cflags --libs hdf5-serial
+
           (cd methrix-cli-local && cargo build --release)
           if [ -f methrix-cli-local/target/release/methrix-cli ]; then
             cp methrix-cli-local/target/release/methrix-cli dist/methrix-cli-linux-amd64
