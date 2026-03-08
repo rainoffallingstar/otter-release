@@ -106,7 +106,6 @@ xdxtools run --config userspace/my_project/config/config.yaml --engine slurm
 | `run` | Execute Snakemake workflow |
 | `status` | Display workflow status and progress |
 | `config` | Validate configuration files |
-| `tui` | Interactive terminal UI |
 
 ### Key Run Flags
 
@@ -119,7 +118,7 @@ xdxtools run --config userspace/my_project/config/config.yaml --engine slurm
 ## Architecture
 
 ### CLI Layer (cmd/)
-Cobra-based commands: `init`, `create`, `run`, `config`, `tui`
+Cobra-based commands: `init`, `create`, `run`, `config`, `status`
 
 ### Core Modules (internal/)
 

@@ -55,6 +55,8 @@ func (l *Loader) LoadConfig() (*XDXToolsConfig, error) {
 
 	// Merge flat reference fields into nested structure
 	l.mergeReferenceFields(config)
+	// Merge flat compatibility fields into nested structure
+	l.mergeFlatCompatFields(config)
 
 	// Validate configuration
 	if err := ValidateConfig(config); err != nil {
@@ -121,6 +123,17 @@ func (l *Loader) mergeReferenceFields(config *XDXToolsConfig) {
 	if len(config.Reference.GenomeFasta) > 0 && len(config.Reference.Files.Fasta) == 0 {
 		config.Reference.Files.Fasta = config.Reference.GenomeFasta
 		logger.Debugf("Merged genome_fasta into files.fasta")
+	}
+}
+
+// mergeFlatCompatFields merges flat top-level fields into nested structure for compatibility.
+func (l *Loader) mergeFlatCompatFields(config *XDXToolsConfig) {
+	// mode -> workflow.mode (used by Go runtime config validation and execution)
+	if config.Workflow.Mode == "" {
+		if mode := l.viper.GetString("mode"); mode != "" {
+			config.Workflow.Mode = mode
+			logger.Debugf("Merged top-level mode into workflow.mode")
+		}
 	}
 }
 

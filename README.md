@@ -72,7 +72,6 @@ xdxtools run --config userspace/my_project/config/config.yaml
 | `run`    | Execute Snakemake workflow |
 | `status` | Show workflow progress |
 | `config` | Validate configuration file |
-| `tui`    | Interactive terminal UI |
 
 ### Key `run` flags
 

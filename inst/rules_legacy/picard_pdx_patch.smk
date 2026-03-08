@@ -10,7 +10,7 @@ rule picard_pdx_patch:
     fasta = lambda wildcards:config["reference"]["files"]["fasta"][config["workflow"]["species"]["name"].index(wildcards.species)]
   threads:4
   run:
-        if config["workflow"]["mode"] == "RNASEQ":
+        if config["mode"] == "RNASEQ":
             shell(
                 """
                 enva run picard -- picard SetNmMdAndUqTags \

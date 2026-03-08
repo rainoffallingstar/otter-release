@@ -85,26 +85,26 @@ func generateReferencePaths(mode, species1, species2, genome1Fasta, genome1Index
 }
 
 var (
-	createFastqDir     string
-	createPdataFile   string
-	createMode        string
-	createSpecies1     string
-	createSpecies2    string
-	createOutputDir   string
-	createJobID       string
-	createSuffix1     string
-	createSuffix2     string
-	createCondaEnv    string
+	createFastqDir  string
+	createPdataFile string
+	createMode      string
+	createSpecies1  string
+	createSpecies2  string
+	createOutputDir string
+	createJobID     string
+	createSuffix1   string
+	createSuffix2   string
+	createCondaEnv  string
 
 	// Reference genome files
-	createGenome1Fasta  string
+	createGenome1Fasta string
 	createGenome1Index string
 	createGenome2Fasta string
 	createGenome2Index string
-	createGTF1        string
-	createGTF2        string
-	createStarIndex1  string
-	createStarIndex2  string
+	createGTF1         string
+	createGTF2         string
+	createStarIndex1   string
+	createStarIndex2   string
 )
 
 // createCmd represents the create command
@@ -615,11 +615,6 @@ func generateProjectConfig(configPath, mode, species1, species2,
 	methrixh5 := filepath.Join(projectDir, "workflow", "mCall", "methrixh5")
 	gcbias := filepath.Join(projectDir, "workflow", "QC", "GCbias")
 
-	// Reference data paths
-	genomeFile := index // genomeFile uses the same paths as genome_index
-	cgGRGz := fmt.Sprintf("inst/%s/%s_CpG_sites.gz", strings.ToLower(species1), strings.ToLower(species1))
-	cgi := fmt.Sprintf("inst/%s/%s_cpgIsland.bed", strings.ToLower(species1), strings.ToLower(species1))
-
 	// Prepare sample configs
 	sampleConfigs := make([]config.SampleConfig, len(samples))
 	for i, sample := range samples {
@@ -681,10 +676,7 @@ func generateProjectConfig(configPath, mode, species1, species2,
 		Reference: config.ReferenceConfig{
 			Genome: strings.ToLower(species1),
 			Files: config.ReferenceFiles{
-				Fasta:    fasta,
-				Genome:   genomeFile,
-				CGI:      cgi,
-				CpGSites: cgGRGz,
+				Fasta: fasta,
 			},
 			Indices: config.ReferenceIndices{
 				Genome: index,
@@ -761,7 +753,6 @@ func generateProjectConfig(configPath, mode, species1, species2,
 	nestedConfig := map[string]interface{}{
 		// Workflow section
 		"workflow": map[string]interface{}{
-			"mode":  cfg.Workflow.Mode,
 			"jobid": cfg.Workflow.JobID,
 			"species": map[string]interface{}{
 				"graft": cfg.Workflow.Species.Graft,
@@ -811,10 +802,7 @@ func generateProjectConfig(configPath, mode, species1, species2,
 		"reference": map[string]interface{}{
 			"genome": cfg.Reference.Genome,
 			"files": map[string]interface{}{
-				"fasta":     cfg.Reference.Files.Fasta,
-				"genome":    cfg.Reference.Files.Genome,
-				"cgi":       cfg.Reference.Files.CGI,
-				"cpg_sites": cfg.Reference.Files.CpGSites,
+				"fasta": cfg.Reference.Files.Fasta,
 			},
 			"indices": map[string]interface{}{
 				"genome": cfg.Reference.Indices.Genome,
@@ -874,8 +862,8 @@ func generateProjectConfig(configPath, mode, species1, species2,
 
 		// Engine section
 		"engine": map[string]interface{}{
-			"type":       "auto",
-			"conda_env":  createCondaEnv,
+			"type":      "auto",
+			"conda_env": createCondaEnv,
 		},
 
 		// Add flat fields for backward compatibility with old Snakefiles
@@ -884,7 +872,6 @@ func generateProjectConfig(configPath, mode, species1, species2,
 		"mode":    cfg.Workflow.Mode,
 		"jobid":   cfg.Workflow.JobID,
 		"species": cfg.Workflow.Species.Name,
-		"error":   cfg.Workflow.Adapters.ErrorRate,
 		"workers": cfg.Parallel.Workers,
 	}
 

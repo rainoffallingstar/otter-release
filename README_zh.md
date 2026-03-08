@@ -72,7 +72,6 @@ xdxtools run --config userspace/my_project/config/config.yaml
 | `run`    | 执行 Snakemake 工作流 |
 | `status` | 显示工作流进度 |
 | `config` | 验证配置文件 |
-| `tui`    | 交互式终端界面 |
 
 ### `run` 常用参数
 

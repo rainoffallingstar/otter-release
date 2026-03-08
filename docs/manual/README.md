@@ -85,7 +85,6 @@
 | 在 SLURM 上运行 | `xdxtools run --config userspace/xxx/config/config.yaml --engine slurm` |
 | 查看运行进度 | `xdxtools status` |
 | 验证配置文件 | `xdxtools config validate --config config.yaml` |
-| 打开交互界面 | `xdxtools tui` |
 
 ---
 

@@ -75,7 +75,6 @@
 | run | cmd/run.go | 执行 Snakemake 工作流 |
 | config | cmd/config.go | 验证配置文件 |
 | status | cmd/status.go | 显示工作流状态 |
-| tui | cmd/tui.go | 交互式终端 UI |
 
 ## 4. Git Submodules (8 个)
 

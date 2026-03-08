@@ -7,7 +7,6 @@
 | **语言** | Go | 1.21+ | 单二进制、并发性能、开发效率 |
 | **CLI 框架** | Cobra | v1.7 | 成熟的 CLI 库、命令嵌套 |
 | **配置管理** | Viper | 1.19 | 多格式支持、环境变量 |
-| **TUI 框架** | Bubble Tea | latest | 现代化 TUI、交互性强 |
 | **日志库** | Logrus | 1.9 | 结构化日志、插件丰富 |
 
 ## 目录结构
@@ -21,7 +20,6 @@ xdxtools/
 │   ├── run.go                    # run 子命令
 │   ├── config.go                 # config 子命令
 │   ├── status.go                 # status 子命令
-│   └── tui.go                    # tui 子命令入口
 │
 ├── internal/                     # 内部包
 │   ├── config/                   # 配置管理
@@ -65,9 +63,6 @@ xdxtools/
 │   ├── script/                   # 脚本执行
 │   │   └── executor.go           # 脚本执行器
 │   │
-│   └── tui/                      # TUI 界面
-│       └── tui.go                # Bubble Tea 界面实现
-│
 ├── inst/                         # 嵌入资源文件 (embed 源目录)
 │   ├── snakefiles/               # Snakemake 主工作流文件
 │   │   ├── BeaverBS_step*.snakemake

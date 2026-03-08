@@ -9,9 +9,9 @@ rule xenofilteR:
     filter_root = config["directories"]["bsmap"]["main"],
     host = config["workflow"]["species"]["host"],
     graft = config["workflow"]["species"]["graft"],
-    MM_threshold = (4 if config["workflow"]["mode"] == "RNASEQ" else 6),
+    MM_threshold = (4 if config["mode"] == "RNASEQ" else 6),
     Unmapped_penalty = 8,
-    mode = config["workflow"]["mode"]
+    mode = config["mode"]
   threads:4
   shell:
     """
