@@ -870,7 +870,6 @@ func generateProjectConfig(configPath, mode, species1, species2,
 		// These are not used by rootless_rules but kept for compatibility
 		"SIDs":    samples,
 		"mode":    cfg.Workflow.Mode,
-		"jobid":   cfg.Workflow.JobID,
 		"species": cfg.Workflow.Species.Name,
 		"workers": cfg.Parallel.Workers,
 	}
