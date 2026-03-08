@@ -56,4 +56,4 @@
 
 3. 子仓状态快照
 - 命令：`git submodule status`
-- 结果：8 个子仓（`Paireads/enva/fastqc-rs/gomats/htseq2matrix-go/methrix-cli-local/qctb/xenofilter-go`）指针正常。
+- 结果：8 个子仓（`Paireads/enva/fastqc-rs/gomats/htseq2matrix-go/methrix-cli/qctb/xenofilter-go`）指针正常。

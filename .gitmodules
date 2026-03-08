@@ -11,7 +11,7 @@
 	path = htseq2matrix-go
 	url = https://github.com/rainoffallingstar/htseq2matrix-go
 [submodule "methrix-cli"]
-	path = methrix-cli-local
+	path = methrix-cli
 	url = https://github.com/rainoffallingstar/methrix-cli
 [submodule "qctb"]
 	path = qctb

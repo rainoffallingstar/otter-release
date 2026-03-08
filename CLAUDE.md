@@ -35,7 +35,7 @@ This project uses 8 git submodules:
 | **xenofilter-go** | xenofilter-go/ | master | Xenofilter filter for contamination removal | `xenofilter` |
 | **Paireads** | Paireads/ | master | Paired-end reads processing and analysis | `paireads` |
 | **htseq2matrix-go** | htseq2matrix-go/ | master | Convert HTSeq counts to expression matrix | `htseq2matrix` |
-| **methrix-cli** | methrix-cli-local/ | main | Methylation analysis and visualization CLI | `methrix-cli` |
+| **methrix-cli** | methrix-cli/ | main | Methylation analysis and visualization CLI | `methrix-cli` |
 | **qctb** | qctb/ | main | Quality control toolbox for bioinformatics | `qctb` |
 | **fastqc-rs** | fastqc-rs/ | master | Rust-based FastQC replacement, outputs fastqc_data.txt with Seqkit Statistics | `fqc` |
 | **gomats** | gomats/ | master | Go rMATS orchestrator for RNA splicing analysis | `gomats` |

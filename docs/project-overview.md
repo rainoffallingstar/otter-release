@@ -15,7 +15,7 @@ xdxtools 是一个面向生信分析的工作流管理 CLI，围绕 Snakemake �
 | xenofilter-go | `xenofilter-go/` | Go | devel | `xenofilter` | ✅ 已编译 | PDX 宿主读段过滤 |
 | Paireads | `Paireads/` | Go | devel | `paireads` | ✅ 已编译 | PDX 配对读段验证 |
 | htseq2matrix-go | `htseq2matrix-go/` | Go | devel | `htseq2matrix` | ✅ 已编译 | RNA-seq 表达矩阵生成 |
-| methrix-cli | `methrix-cli-local/` | Rust | 0.1.0 | `methrix-cli` | ✅ 已编译 | 甲基化 HDF5 对象生成 |
+| methrix-cli | `methrix-cli/` | Rust | 0.1.0 | `methrix-cli` | ✅ 已编译 | 甲基化 HDF5 对象生成 |
 | qctb | `qctb/` | Rust | 0.1.0 | `qctb` | ✅ 已编译 | QC 汇总报告（Excel）|
 | gomats | `gomats/` | Go | devel | `gomats` | ✅ 已编译 | rMATS 可变剪接分析 |
 

@@ -134,7 +134,7 @@ conda run -n rust_build cargo build --release
 cp target/release/enva $HOME/.cargo/bin/
 
 # methrix-cli (需要 HDF5 环境变量)
-cd ../methrix-cli-local
+cd ../methrix-cli
 conda run -n rust_build cargo build --release
 cp target/release/methrix $HOME/.cargo/bin/methrix-cli
 

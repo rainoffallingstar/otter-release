@@ -136,7 +136,7 @@ build_go "gomats" "gomats" "gomats" "./cmd/gomats" "github.com/rainoffallingstar
 # Rust projects
 build_rust "enva" "enva" "enva"
 build_rust "fastqc-rs" "fastqc-rs" "fqc"
-build_rust "methrix-cli" "methrix-cli-local" "methrix-cli" "methrix"
+build_rust "methrix-cli" "methrix-cli" "methrix-cli" "methrix"
 build_rust "qctb" "qctb" "qctb"
 
 echo "======================================"
