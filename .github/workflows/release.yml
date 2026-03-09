@@ -121,11 +121,11 @@ jobs:
           pkg-config --modversion hdf5 || pkg-config --modversion hdf5-serial
           pkg-config --cflags --libs hdf5 || pkg-config --cflags --libs hdf5-serial
 
-          (cd methrix-cli-local && cargo build --release)
-          if [ -f methrix-cli-local/target/release/methrix-cli ]; then
-            cp methrix-cli-local/target/release/methrix-cli dist/methrix-cli-linux-amd64
-          elif [ -f methrix-cli-local/target/release/methrix ]; then
-            cp methrix-cli-local/target/release/methrix dist/methrix-cli-linux-amd64
+          (cd methrix-cli && cargo build --release)
+          if [ -f methrix-cli/target/release/methrix-cli ]; then
+            cp methrix-cli/target/release/methrix-cli dist/methrix-cli-linux-amd64
+          elif [ -f methrix-cli/target/release/methrix ]; then
+            cp methrix-cli/target/release/methrix dist/methrix-cli-linux-amd64
           else
             echo "methrix-cli binary not found" >&2
             exit 1
