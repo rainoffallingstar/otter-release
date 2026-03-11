@@ -20,6 +20,11 @@ jobs:
           submodules: recursive
           token: ${{ secrets.SUBMODULES_PAT }}
 
+      - name: Install samtools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y samtools
+
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
@@ -35,6 +40,21 @@ jobs:
           go test -v ./...
           go vet ./...
           go build -o /tmp/xdxtools .
+
+      - name: Run submodule tests (bamdriver-go)
+        run: |
+          cd bamdriver-go
+          go test -v ./...
+
+      - name: Run submodule tests (Paireads)
+        run: |
+          cd Paireads
+          go test -v ./...
+
+      - name: Run submodule tests (xenofilter-go)
+        run: |
+          cd xenofilter-go
+          go test -v ./...
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4
