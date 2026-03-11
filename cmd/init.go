@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	initMode   = "RRBS"  // Default mode, can be changed by editing config later
+	initMode   = "RRBS" // Default mode, can be changed by editing config later
 	legacyFlag bool     // Use legacy rules instead of new rules
 )
 
@@ -101,6 +101,23 @@ func runInit(cmd *cobra.Command, args []string) error {
 	if err := os.WriteFile(snakefilePath, []byte("# Main snakefile entry point\n"), 0644); err != nil {
 		logger.Warnf("Failed to create snakefile: %v", err)
 	}
+
+	// Step 3.5: Stamp workflow assets manifest (includes deprecated R/ assets).
+	logger.Info("Stamping workflow assets manifest...")
+	manifest, err := assets.StampWorkflowAssets(projectDir, buildVersion, buildCommit, buildDate)
+	if err != nil {
+		return fmt.Errorf("failed to stamp assets manifest: %w", err)
+	}
+	deprecatedCount := 0
+	for _, e := range manifest.Entries {
+		if e.Deprecated {
+			deprecatedCount++
+		}
+	}
+	if deprecatedCount > 0 {
+		logger.Warnf("Deprecated assets detected: %d files under R/ (still verified for integrity)", deprecatedCount)
+	}
+	logger.Infof("Assets manifest written: %s (%d files)", assets.ManifestPath(projectDir), len(manifest.Entries))
 
 	// Step 4: Create README.md
 	readmeContent := fmt.Sprintf(`# %s

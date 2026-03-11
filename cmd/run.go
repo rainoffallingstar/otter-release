@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/xdxtools/xdxtools-go/internal/assets"
 	"github.com/xdxtools/xdxtools-go/internal/config"
 	"github.com/xdxtools/xdxtools-go/internal/engine"
 	"github.com/xdxtools/xdxtools-go/internal/input"
@@ -61,6 +62,11 @@ var (
 
 	// Resume option
 	resumeFlag bool
+
+	// Asset integrity options
+	runProjectDir string
+	verifyAssets  bool
+	strictAssets  bool
 )
 
 // runCmd represents the run command
@@ -86,6 +92,9 @@ func init() {
 	runCmd.Flags().StringVar(&runCondaEnv, "conda-env", "", "Conda environment for Snakemake")
 	runCmd.Flags().BoolVar(&copyFastq, "copy-fastq", false, "Copy FASTQ files to project data directory (default for testing)")
 	runCmd.Flags().BoolVar(&moveFastq, "move-fastq", false, "Move FASTQ files to project data directory")
+	runCmd.Flags().StringVar(&runProjectDir, "project-dir", "", "Project directory (defaults to directory containing --config)")
+	runCmd.Flags().BoolVar(&verifyAssets, "verify-assets", true, "Verify workflow assets manifest before running (if present)")
+	runCmd.Flags().BoolVar(&strictAssets, "strict-assets", false, "Fail fast if workflow assets differ from the manifest")
 
 	// SLURM global settings
 	runCmd.Flags().StringVar(&slurmPartition, "slurm-partition", "", "Default SLURM partition (overrides config)")
@@ -130,11 +139,54 @@ func init() {
 }
 
 func runRun(cmd *cobra.Command, args []string) error {
+	projectDir := runProjectDir
+	if projectDir == "" {
+		projectDir = filepath.Dir(runConfigFile)
+		if projectDir == "" {
+			projectDir = "."
+		}
+	}
+	projectDir = filepath.Clean(projectDir)
+
 	// Load configuration
 	loader := config.NewLoader(runConfigFile)
 	cfg, err := loader.LoadConfig()
 	if err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+
+	if verifyAssets {
+		m, err := assets.LoadManifest(projectDir)
+		if err != nil {
+			if os.IsNotExist(err) {
+				logger.Warnf("Assets manifest not found: %s (run `xdxtools assets stamp --project %s` to generate)", assets.ManifestPath(projectDir), projectDir)
+			} else {
+				logger.Warnf("Failed to load assets manifest: %v", err)
+			}
+		} else {
+			deprecated := 0
+			for _, e := range m.Entries {
+				if e.Deprecated {
+					deprecated++
+				}
+			}
+			if deprecated > 0 {
+				logger.Warnf("Deprecated assets present: %d files under R/ (still verified for integrity)", deprecated)
+			}
+
+			diff, err := assets.VerifyWorkflowAssets(projectDir, m)
+			if err != nil {
+				logger.Warnf("Assets manifest verification failed: %v", err)
+			} else if !diff.IsClean() {
+				msg := fmt.Sprintf("Assets differ from manifest (missing=%d extra=%d modified=%d)", len(diff.Missing), len(diff.Extra), len(diff.Modified))
+				if strictAssets {
+					return fmt.Errorf("%s", msg)
+				}
+				logger.Warn(msg)
+			} else {
+				logger.Infof("Assets verified against manifest: %s", assets.ManifestPath(projectDir))
+			}
+		}
 	}
 
 	// Override engine if specified
