@@ -22,3 +22,6 @@
 [submodule "gomats"]
 	path = gomats
 	url = https://github.com/rainoffallingstar/gomats
+[submodule "bamdriver-go"]
+	path = bamdriver-go
+	url = https://github.com/rainoffallingstar/bamdriver-go.git
