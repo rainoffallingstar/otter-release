@@ -147,8 +147,8 @@ This is an xdxtools project initialized with beaverflow structure.
 3. Download reference genomes:
    - Visit: https://huggingface.co/datasets/Genomiclab/xdxtools-genomes/tree/main
    - Download and extract genomes to inst/ directory
-4. Create config file: xdxtools create --fastq data --mode %s --output config/config.yaml
-5. Run workflow: xdxtools run --config config/config.yaml
+4. Create config file: xdxtools create --fastq data --mode %s --output %s/userspace --jobid demo_run
+5. Run workflow: xdxtools run --config %s/userspace/demo_run/config/config.yaml
 
 ## Snakemake Workflows
 
@@ -158,7 +158,7 @@ Available workflows:
 - BeaverRNA_step1/2.snakemake    - RNA-seq analysis
 - BeaverRNASEQPDX_step1/2/3.snakemake - PDX RNA-seq analysis
 
-`, projectName, initMode, initMode)
+`, projectName, initMode, initMode, projectName, projectName)
 
 	readmePath := filepath.Join(projectDir, "README.md")
 	if err := os.WriteFile(readmePath, []byte(readmeContent), 0644); err != nil {
@@ -179,8 +179,8 @@ Available workflows:
 	logger.Info("3. Download reference genomes:")
 	logger.Info("   Visit: https://huggingface.co/datasets/Genomiclab/xdxtools-genomes/tree/main")
 	logger.Info("   Download and extract genomes to inst/ directory")
-	logger.Infof("4. Create config: xdxtools create --fastq data --output %s/config/config.yaml", projectName)
-	logger.Infof("5. Run workflow: xdxtools run --config %s/config/config.yaml", projectName)
+	logger.Infof("4. Create config: xdxtools create --fastq data --output %s/userspace --jobid demo_run", projectName)
+	logger.Infof("5. Run workflow: xdxtools run --config %s/userspace/demo_run/config/config.yaml", projectName)
 
 	return nil
 }

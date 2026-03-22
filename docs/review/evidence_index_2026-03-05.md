@@ -41,6 +41,12 @@
 - `.github/workflows/go.yml`
 - `.github/workflows/release.yml`
 
+5. 发布回归证据门禁
+- `scripts/capture_release_evidence.sh`
+- `scripts/verify_release_evidence.sh`
+- `docs/review/release_evidence_latest.md`
+- `docs/review/release_evidence_latest.env`
+
 ## C. 可执行验证结果（2026-03-05）
 
 1. 聚焦测试

@@ -2,7 +2,7 @@ name: Release Binaries
 
 on:
   push:
-    branches: [ main ]
+    tags: [ 'v*.*.*' ]
 
 permissions:
   contents: write
@@ -23,22 +23,6 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.SUBMODULES_PAT }}
 
-      - name: Generate UTC date-based tag
-        id: tag
-        run: |
-          TAG="v$(date -u +%Y.%m.%d)"
-          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-          echo "Generated tag: $TAG"
-
-      - name: Create or update date tag
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          TAG="${{ steps.tag.outputs.tag }}"
-          # Reuse one date tag per UTC day: move it to latest commit on repeated builds.
-          git tag -f "${TAG}"
-          git push origin "refs/tags/${TAG}" --force
-
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
@@ -47,6 +31,9 @@ jobs:
 
       - name: Verify toolchain consistency
         run: bash scripts/verify_toolchain_consistency.sh
+
+      - name: Verify release evidence
+        run: bash scripts/verify_release_evidence.sh
 
       - name: Set up Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -64,7 +51,7 @@ jobs:
 
       - name: Build xdxtools static
         env:
-          VERSION: ${{ steps.tag.outputs.tag }}
+          VERSION: ${{ github.ref_name }}
           COMMIT: ${{ github.sha }}
         run: |
           VER="${VERSION#v}"
@@ -74,7 +61,7 @@ jobs:
 
       - name: Build Go submodules static
         env:
-          VERSION: ${{ steps.tag.outputs.tag }}
+          VERSION: ${{ github.ref_name }}
         run: |
           VER="${VERSION#v}"
           bash scripts/ensure_htseq2matrix_entrypoint.sh htseq2matrix-go
@@ -141,7 +128,7 @@ jobs:
 
       - name: Generate metadata and checksums
         env:
-          TAG: ${{ steps.tag.outputs.tag }}
+          TAG: ${{ github.ref_name }}
           COMMIT: ${{ github.sha }}
         run: |
           cd dist
@@ -169,7 +156,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.tag.outputs.tag }}
+          tag_name: ${{ github.ref_name }}
           files: dist/*
           generate_release_notes: true
           fail_on_unmatched_files: true
@@ -177,8 +164,8 @@ jobs:
           body: |
             ## Release Model
 
-            - Trigger: automatic on push to `main`
-            - Tag: UTC date-based (`vYYYY.MM.DD`, one tag reused within the same day)
+            - Trigger: push of a semver tag (`vX.Y.Z`)
+            - Tag: immutable Git tag provided by the release author
             - Policy: strict artifact completeness (missing required binaries => release fails)
 
             ## Linkage

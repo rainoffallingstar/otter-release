@@ -137,7 +137,7 @@ func init() {
 	createCmd.Flags().StringVarP(&createMode, "mode", "m", "RRBS", "Workflow mode (RRBS/WGBS/RNASEQ)")
 	createCmd.Flags().StringVar(&createSpecies1, "species1", "human", "Primary species")
 	createCmd.Flags().StringVar(&createSpecies2, "species2", "", "Secondary species (enables PDX mode)")
-	createCmd.Flags().StringVarP(&createOutputDir, "output", "o", "userspace", "Output directory for projects")
+	createCmd.Flags().StringVarP(&createOutputDir, "output", "o", "userspace", "Output directory for generated projects")
 	createCmd.Flags().StringVar(&createJobID, "jobid", "", "Custom job ID (default: auto-generated)")
 	createCmd.Flags().StringVar(&createSuffix1, "suffix1", "_R1.fastq.gz", "R1 file suffix")
 	createCmd.Flags().StringVar(&createSuffix2, "suffix2", "", "R2 file suffix (auto-derived if empty)")
@@ -156,8 +156,27 @@ func init() {
 	createCmd.MarkFlagRequired("fastq")
 }
 
+func validateCreateOutputDir(outputDir string) error {
+	trimmed := strings.TrimSpace(outputDir)
+	if trimmed == "" {
+		return fmt.Errorf("--output must be a directory")
+	}
+
+	cleaned := filepath.Clean(trimmed)
+	switch strings.ToLower(filepath.Ext(cleaned)) {
+	case ".yaml", ".yml", ".json", ".toml":
+		return fmt.Errorf("--output must be a directory, got file-like path %q; use a directory such as my_project/userspace", outputDir)
+	}
+
+	return nil
+}
+
 func runCreate(cmd *cobra.Command, args []string) error {
 	logger.Info("Creating analysis project...")
+
+	if err := validateCreateOutputDir(createOutputDir); err != nil {
+		return err
+	}
 
 	// 1. Validate FASTQ directory exists
 	if _, err := os.Stat(createFastqDir); os.IsNotExist(err) {

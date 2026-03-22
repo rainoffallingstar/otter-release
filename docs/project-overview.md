@@ -34,7 +34,7 @@ xdxtools 是一个面向生信分析的工作流管理 CLI，围绕 Snakemake �
 
 | 命令 | 说明 |
 |------|------|
-| `init` | 初始化项目目录结构，复制 Snakemake 工作流和 R 脚本到 `userspace/{jobid}/` |
+| `init` | 初始化项目根目录，复制 Snakemake 工作流和脚本资产，并创建 `userspace/` 工作区 |
 | `create` | 扫描 FASTQ、解析 pdata（Excel/CSV）、生成 `config.yaml` |
 | `run` | 执行 Snakemake 工作流，支持三种执行引擎 |
 | `status` | 显示工作流运行状态与进度 |

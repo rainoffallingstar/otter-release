@@ -32,18 +32,20 @@
 xdxtools init my_project
 ```
 
-这条命令会在当前目录下创建 `userspace/my_project/` 目录，并复制分析所需的所有流程文件。
+这条命令会在当前目录下创建 `my_project/` 项目目录，并复制分析所需的流程资产。
 
 ### 生成的目录结构
 
-```
-userspace/my_project/
-├── Snakefile                   ← 主工作流文件
-├── config/                     ← 配置文件目录（第二步会生成 config.yaml）
-├── rules/                      ← Snakemake 规则文件
-├── Rscripts/                   ← R 分析脚本
+```text
+my_project/
+├── config/                     ← 项目级配置目录
+├── data/                       ← 输入数据目录
 ├── envs/                       ← conda 环境定义文件
-└── logs/                       ← 日志目录
+├── inst/                       ← 参考资源目录
+├── R/                          ← R/Python 脚本
+├── rules/                      ← Snakemake 规则文件
+├── userspace/                  ← 每次 create 生成一个 job 子目录
+└── *.snakemake                 ← 主工作流文件
 ```
 
 ### 常用参数
@@ -51,22 +53,22 @@ userspace/my_project/
 | 参数 | 说明 | 示例 |
 |------|------|------|
 | `<项目名>` | 项目名称（必填） | `my_rrbs_project` |
-| `--output <路径>` | 指定输出根目录（默认 `userspace/`） | `--output /data/projects` |
+| `--legacy` | 使用旧版 rules 目录布局 | `xdxtools init my_project --legacy` |
 
 ---
 
 ## 🔍 Step 2：创建分析配置
 
 ```bash
-xdxtools create --fastq /path/to/fastq --mode RRBS --pdata samples.xlsx
+xdxtools create --fastq /path/to/fastq --mode RRBS --pdata samples.xlsx --output my_project/userspace --jobid demo_rrbs
 ```
 
 这条命令会：
 1. 扫描 `--fastq` 目录下的所有 FASTQ 文件
 2. 读取 `--pdata` 样本信息表，匹配样本
 3. 自动生成适配器序列
-4. 生成唯一的 **Job ID**（一个 40 位十六进制字符串）
-5. 在 `userspace/<jobid>/config/config.yaml` 生成配置文件
+4. 使用 `--jobid` 指定 Job ID；未指定时会自动生成唯一 ID
+5. 在 `my_project/userspace/<jobid>/config/config.yaml` 生成配置文件
 
 ### 三种分析模式的命令示例
 
@@ -77,6 +79,8 @@ xdxtools create \
     --fastq ./fastq \
     --mode RRBS \
     --pdata samples.xlsx \
+    --output rrbs_2024/userspace \
+    --jobid demo_rrbs \
     --species1 hg38
 ```
 
@@ -87,6 +91,8 @@ xdxtools create \
     --fastq ./fastq \
     --mode WGBS \
     --pdata samples.xlsx \
+    --output rrbs_2024/userspace \
+    --jobid demo_rrbs \
     --species1 hg38
 ```
 
@@ -97,6 +103,8 @@ xdxtools create \
     --fastq ./fastq \
     --mode RNASEQ \
     --pdata samples.xlsx \
+    --output rrbs_2024/userspace \
+    --jobid demo_rrbs \
     --species1 hg38
 ```
 
@@ -120,12 +128,12 @@ xdxtools create \
 ```
 ✅ Found 8 samples
 ✅ Adapters generated
-📄 Config saved to: userspace/a3f8e1c2.../config/config.yaml
-🆔 Job ID: a3f8e1c2d4b6f8a0e2c4d6f8a0b2c4d6e8f0a2b4
+📄 Config saved to: my_project/userspace/demo_rrbs/config/config.yaml
+🆔 Job ID: demo_rrbs
 ```
 
-- **Job ID**：每次 `create` 都会生成一个唯一的 ID，用于追踪这次分析
-- **config.yaml**：包含所有分析参数的配置文件，路径格式为 `userspace/<jobid>/config/config.yaml`
+- **Job ID**：默认会自动生成唯一 ID；如使用 `--jobid`，则采用你指定的值（例如 `demo_rrbs`）
+- **config.yaml**：包含所有分析参数的配置文件，路径格式为 `my_project/userspace/<jobid>/config/config.yaml`
 
 记下这个路径，下一步 `run` 命令需要用到。
 
@@ -134,16 +142,16 @@ xdxtools create \
 ## ▶️ Step 3：运行分析
 
 ```bash
-xdxtools run --config userspace/a3f8e1c2.../config/config.yaml
+xdxtools run --config my_project/userspace/demo_rrbs/config/config.yaml
 ```
 
-> 将 `a3f8e1c2...` 替换为你实际的 Job ID。
+> 如果你没有显式设置 `--jobid demo_rrbs`，请将这里替换为实际输出的 Job ID。
 
 ### 本地运行（适合少量样本或测试）
 
 ```bash
 xdxtools run \
-    --config userspace/<jobid>/config/config.yaml \
+    --config my_project/userspace/<jobid>/config/config.yaml \
     --engine local \
     --parallel-jobs 4
 ```
@@ -152,7 +160,7 @@ xdxtools run \
 
 ```bash
 xdxtools run \
-    --config userspace/<jobid>/config/config.yaml \
+    --config my_project/userspace/<jobid>/config/config.yaml \
     --engine slurm \
     --slurm-partition your_partition \
     --parallel-jobs 10
@@ -176,7 +184,7 @@ xdxtools run \
 ```bash
 # 先用 --dry-run 验证配置，不会真正提交任务
 xdxtools run \
-    --config userspace/<jobid>/config/config.yaml \
+    --config my_project/userspace/<jobid>/config/config.yaml \
     --dry-run
 ```
 
@@ -185,23 +193,28 @@ xdxtools run \
 ## 📡 Step 4：查看运行进度
 
 ```bash
-xdxtools status
+xdxtools status my_project/userspace/<jobid>
 ```
 
 输出示例：
 
-```
-┌─────────────────────────────────────────────────┐
-│ Job ID: a3f8e1c2...                             │
-│ Mode: RRBS | Engine: SLURM                      │
-│ Status: RUNNING                                 │
-├──────┬──────────────────┬────────┬──────────────┤
-│ Step │ Description      │ Status │ Progress     │
-├──────┼──────────────────┼────────┼──────────────┤
-│  1   │ Trimming & Align │ DONE   │ 8/8 samples  │
-│  2   │ Methylation Call │ RUN    │ 3/8 samples  │
-│  3   │ Report & QC      │ WAIT   │ -            │
-└──────┴──────────────────┴────────┴──────────────┘
+```text
+Workflow Status
+================
+Job ID:      demo_rrbs
+Status:      Running
+
+Configuration:
+  Mode:      RRBS
+  Species:   hg38
+  Engine:    slurm
+
+Steps:
+  ✓ Step 1 (quality_control): completed
+  → Step 2 (alignment): running
+  ○ Step 3 (methylation_calling): pending
+
+Progress: 1 completed, 1 running, 1 pending
 ```
 
 ---
@@ -230,29 +243,30 @@ xdxtools create \
     --fastq ./fastq \
     --mode RRBS \
     --pdata samples.xlsx \
+    --output rrbs_2024/userspace \
+    --jobid demo_rrbs \
     --species1 hg38
 
-# 4. 查看生成的 Job ID 和配置文件路径
-#    （记下终端输出中的 config.yaml 路径）
-ls userspace/
+# 4. 确认配置文件已经生成
+ls rrbs_2024/userspace/demo_rrbs/config/
 
 # 5. 先做干跑测试（推荐）
 xdxtools run \
-    --config userspace/<your_jobid>/config/config.yaml \
+    --config rrbs_2024/userspace/demo_rrbs/config/config.yaml \
     --dry-run
 
 # 6. 正式运行（SLURM 集群）
 xdxtools run \
-    --config userspace/<your_jobid>/config/config.yaml \
+    --config rrbs_2024/userspace/demo_rrbs/config/config.yaml \
     --engine slurm \
     --slurm-partition normal \
     --parallel-jobs 8
 
 # 7. 查看进度
-xdxtools status
+xdxtools status rrbs_2024/userspace/demo_rrbs
 ```
 
-> **提示：** 将 `<your_jobid>` 替换为第 3 步中输出的实际 Job ID，将 `normal` 替换为你集群的分区名。
+> **提示：** 如果你没有显式设置 `--jobid demo_rrbs`，请将示例中的 `demo_rrbs` 替换为实际输出的 Job ID；`normal` 需要替换为你集群的分区名。
 
 ---
 

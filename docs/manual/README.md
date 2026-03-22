@@ -81,10 +81,10 @@
 |------|------|
 | 查看版本 | `xdxtools --version` |
 | 新建项目 | `xdxtools init my_project` |
-| 扫描 FASTQ 并生成配置 | `xdxtools create --fastq /data/fastq --mode RRBS --pdata samples.xlsx` |
-| 在 SLURM 上运行 | `xdxtools run --config userspace/xxx/config/config.yaml --engine slurm` |
-| 查看运行进度 | `xdxtools status` |
-| 验证配置文件 | `xdxtools config validate --config config.yaml` |
+| 扫描 FASTQ 并生成配置 | `xdxtools create --fastq /data/fastq --mode RRBS --pdata samples.xlsx --output my_project/userspace --jobid demo_rrbs` |
+| 在 SLURM 上运行 | `xdxtools run --config my_project/userspace/demo_rrbs/config/config.yaml --engine slurm` |
+| 查看运行进度 | `xdxtools status my_project/userspace/demo_rrbs` |
+| 验证配置文件 | `xdxtools config validate --config my_project/userspace/demo_rrbs/config/config.yaml` |
 
 ---
 

@@ -13,17 +13,27 @@
 #    --non-interactive    Use all defaults without prompting
 #    --dry-run            Print all actions without executing
 #    --version VER        Specify release version (e.g. v0.3.0); default: latest
+#    --releases-repo REPO  Override GitHub release repo (owner/name)
 #    --help               Show this help message
+#
+#  Environment:
+#    GITHUB_TOKEN / GH_TOKEN        Optional GitHub token for private release downloads
+#    GITHUB_RELEASES_REPO           Optional release repo override (owner/name)
+#
+#  Interactive behavior:
+#    If GitHub access fails and no token is configured, interactive mode can
+#    prompt for a hidden token input and retry once for the current session.
 # =============================================================================
 
 set -euo pipefail
 
 # ── Top-level configuration ───────────────────────────────────────────────────
-RELEASES_REPO="xdxtools/xdxtools-go"
+RELEASES_REPO="${GITHUB_RELEASES_REPO:-rainoffallingstar/xdxtools-go}"
 XDXTOOLS_VERSION="latest"
 DEFAULT_INSTALL_DIR="$HOME/.local/bin"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENVS_DIR="$SCRIPT_DIR/../inst/envs"
+GITHUB_AUTH_TOKEN="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
 
 # All 9 tools: binary_name:release_asset_stem:linkage(static|dynamic)
 TOOLS=(
@@ -52,6 +62,7 @@ SKIP_HDF5=false
 NON_INTERACTIVE=false
 DRY_RUN=false
 INSTALL_ENVS_CHOICE="all"   # all | core | snakemake | extra
+GITHUB_TOKEN_PROMPT_ATTEMPTED=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -61,8 +72,9 @@ while [[ $# -gt 0 ]]; do
     --non-interactive) NON_INTERACTIVE=true; shift ;;
     --dry-run)        DRY_RUN=true;     shift ;;
     --version)        XDXTOOLS_VERSION="$2"; shift 2 ;;
+    --releases-repo)  RELEASES_REPO="$2"; shift 2 ;;
     --help)
-      sed -n '2,15p' "$0"
+      sed -n '2,25p' "$0"
       exit 0
       ;;
     *)
@@ -81,6 +93,29 @@ log_info()    { echo -e "  ${BOLD}[INFO]${RESET}  $*"; }
 log_success() { echo -e "  ${GREEN}✓${RESET} $*"; }
 log_warn()    { echo -e "  ${YELLOW}⚠${RESET}  $*"; }
 log_error()   { echo -e "  ${RED}✗${RESET}  $*" >&2; }
+
+github_api_get() {
+  local url="$1"
+  if [ -n "$GITHUB_AUTH_TOKEN" ]; then
+    curl -sf       -H "Accept: application/vnd.github+json"       -H "Authorization: Bearer $GITHUB_AUTH_TOKEN"       -H "X-GitHub-Api-Version: 2022-11-28"       "$url"
+  else
+    curl -sf "$url"
+  fi
+}
+
+github_release_download() {
+  local url="$1" dest="$2"
+  if [ -n "$GITHUB_AUTH_TOKEN" ]; then
+    curl -fL --progress-bar       -H "Authorization: Bearer $GITHUB_AUTH_TOKEN"       "$url" -o "$dest"
+  else
+    curl -fL --progress-bar "$url" -o "$dest"
+  fi
+}
+
+resolve_latest_release_tag() {
+  github_api_get "https://api.github.com/repos/${RELEASES_REPO}/releases/latest" \
+    | grep '"tag_name"' | cut -d'"' -f4
+}
 
 run() {
   if [ "$DRY_RUN" = true ]; then
@@ -112,6 +147,42 @@ ask_yn() {
   [[ "$answer" =~ ^[Yy] ]] && return 0 || return 1
 }
 
+
+ask_secret() {
+  # ask_secret <prompt>
+  local prompt="$1"
+  if [ "$NON_INTERACTIVE" = true ]; then
+    echo ""
+    return
+  fi
+  local answer
+  read -rsp "  $prompt: " answer
+  echo >&2
+  echo "$answer"
+}
+
+maybe_prompt_github_token_on_failure() {
+  local reason="${1:-GitHub access failed.}"
+
+  if [ -n "$GITHUB_AUTH_TOKEN" ] || [ "$NON_INTERACTIVE" = true ] || [ "$GITHUB_TOKEN_PROMPT_ATTEMPTED" = true ]; then
+    return 1
+  fi
+
+  GITHUB_TOKEN_PROMPT_ATTEMPTED=true
+  log_warn "$reason"
+
+  if ask_yn "Enter a GitHub token now and retry once" "Y"; then
+    GITHUB_AUTH_TOKEN=$(ask_secret "GitHub token (input hidden, used only for this run)")
+    if [ -n "$GITHUB_AUTH_TOKEN" ]; then
+      log_success "GitHub token captured for this session"
+      return 0
+    fi
+    log_warn "Empty token entered; continuing without authenticated release access"
+  fi
+
+  return 1
+}
+
 divider() { echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; }
 
 # ── Step 0: Banner ────────────────────────────────────────────────────────────
@@ -132,6 +203,9 @@ if ! command -v curl &>/dev/null; then
   exit 1
 fi
 log_success "curl found"
+if [ -n "$GITHUB_AUTH_TOKEN" ]; then
+  log_success "GitHub token detected – authenticated release access enabled"
+fi
 
 # Architecture detection
 ARCH=$(uname -m)
@@ -179,7 +253,7 @@ if [ -z "$INSTALL_DIR" ]; then
   INSTALL_DIR=$(ask "Installation directory" "$DEFAULT_INSTALL_DIR")
 fi
 log_info "Binaries will be installed to: $INSTALL_DIR"
-
+log_info "GitHub releases repo: $RELEASES_REPO"
 SHELL_CONFIG=$(ask "Shell config file" "$DEFAULT_SHELL_CONFIG")
 log_info "Shell config: $SHELL_CONFIG"
 
@@ -212,13 +286,20 @@ echo -e "${BOLD}Step 3: Downloading binaries${RESET}"
 # Resolve "latest" tag via GitHub API
 if [ "$XDXTOOLS_VERSION" = "latest" ]; then
   log_info "Querying GitHub API for latest release..."
-  XDXTOOLS_VERSION=$(curl -sf \
-    "https://api.github.com/repos/${RELEASES_REPO}/releases/latest" \
-    | grep '"tag_name"' | cut -d'"' -f4)
-  if [ -z "$XDXTOOLS_VERSION" ]; then
-    log_error "Could not determine latest version. Use --version to specify."
+  latest_release_tag=""
+  if ! latest_release_tag=$(resolve_latest_release_tag 2>/dev/null); then
+    latest_release_tag=""
+  fi
+  if [ -z "$latest_release_tag" ] && maybe_prompt_github_token_on_failure "Latest release query failed. Private release repos usually require a GitHub token."; then
+    if ! latest_release_tag=$(resolve_latest_release_tag 2>/dev/null); then
+      latest_release_tag=""
+    fi
+  fi
+  if [ -z "$latest_release_tag" ]; then
+    log_error "Could not determine latest version. If the release repo is private, export GITHUB_TOKEN or GH_TOKEN and retry, or use --version to specify."
     exit 1
   fi
+  XDXTOOLS_VERSION="$latest_release_tag"
 fi
 log_info "Version: $XDXTOOLS_VERSION"
 
@@ -243,17 +324,27 @@ for entry in "${TOOLS[@]}"; do
   log_info "Downloading $bin_name ..."
 
   if [ "$DRY_RUN" = true ]; then
-    echo -e "  ${YELLOW}[DRY-RUN]${RESET} curl -fL --progress-bar \"$url\" -o \"$dest\""
+    if [ -n "$GITHUB_AUTH_TOKEN" ]; then
+      printf '  %b[DRY-RUN]%b curl -fL --progress-bar -H "Authorization: Bearer $GITHUB_TOKEN" "%s" -o "%s"\n' "$YELLOW" "$RESET" "$url" "$dest"
+    else
+      printf '  %b[DRY-RUN]%b curl -fL --progress-bar "%s" -o "%s"\n' "$YELLOW" "$RESET" "$url" "$dest"
+    fi
   else
-    if curl -fL --progress-bar "$url" -o "$dest" 2>&1; then
+    if github_release_download "$url" "$dest"; then
       chmod +x "$dest"
       log_success "$bin_name installed"
+    elif maybe_prompt_github_token_on_failure "Download failed for $bin_name. Private release assets usually require a GitHub token."; then
+      if github_release_download "$url" "$dest"; then
+        chmod +x "$dest"
+        log_success "$bin_name installed"
+      else
+        log_warn "$bin_name download failed (HTTP error – asset may not exist for this release, or authentication is required)"
+      fi
     else
-      log_warn "$bin_name download failed (HTTP error – asset may not exist for this release)"
+      log_warn "$bin_name download failed (HTTP error – asset may not exist for this release, or authentication is required)"
     fi
   fi
 done
-
 # Keep backward compatibility for legacy scripts that call `methrix`.
 if [ "$DRY_RUN" = false ]; then
   if [ -f "${INSTALL_DIR}/methrix-cli" ] && [ ! -e "${INSTALL_DIR}/methrix" ]; then
@@ -482,8 +573,8 @@ echo ""
 echo "快速开始："
 echo ""
 echo "    xdxtools init my_project"
-echo "    xdxtools create --fastq /data/fastq --mode RRBS --pdata samples.csv"
-echo "    xdxtools run --config userspace/my_project/config/config.yaml"
+echo "    xdxtools create --fastq /data/fastq --mode RRBS --pdata samples.csv --output my_project/userspace --jobid demo_rrbs"
+echo "    xdxtools run --config my_project/userspace/demo_rrbs/config/config.yaml"
 echo ""
 divider
 echo ""

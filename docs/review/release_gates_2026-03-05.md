@@ -17,8 +17,9 @@
 - [x] `scripts/install.sh` 的 `TOOLS` 覆盖同一命令集（含 `xdxtools`）
 
 ## Gate 4: 运行回归（待补证据）
-- [ ] RRBS `run --dry-run`（local）
-- [ ] RNASEQ `run --dry-run`（slurm）
+- [ ] RRBS `run --dry-run`（local），证据由 `scripts/capture_release_evidence.sh` 生成并提交
+- [ ] RNASEQ `run --dry-run`（slurm），证据由 `scripts/capture_release_evidence.sh` 生成并提交
+- [ ] `bash scripts/verify_release_evidence.sh` 通过
 
 ## 发布结论
-- 当前状态：**条件性可发布**（核心实现与门禁已到位，待补最小 dry-run 回归记录）。
+- 当前状态：**条件性可发布**（核心实现与门禁已到位，待补并提交最小 dry-run 回归记录）。

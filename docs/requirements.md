@@ -52,11 +52,9 @@
   - `init` - 项目初始化
   - `run` - 执行工作流
   - `config` - 配置管理
-  - `genome` - 基因组构建
-- **TUI 界面** - 交互式仪表盘
-  - 实时进度监控
-  - 日志流式显示
-  - 彩色状态输出
+- **终端输出** - 结构化日志与状态输出
+  - 实时进度与错误信息
+  - 适合 CLI/批处理环境
 
 ### 8. 结果处理
 - **结果聚合** - 自动打包结果
@@ -72,8 +70,8 @@
 
 ### 可用性
 - 跨平台支持 (Linux/Windows/macOS)
-- 单二进制部署
-- 零依赖安装
+- 主 CLI 可单二进制部署
+- 运行仍依赖 Snakemake 与 Conda/Enva 环境
 
 ### 可维护性
 - 模块化设计
@@ -88,7 +86,7 @@
 ## 约束与假设
 
 ### 技术约束
-- 基于 Go 1.21+
+- 基于 Go 1.24+
 - 使用 Snakemake 工作流引擎
 - 依赖 Conda 环境管理
 - 支持 Python 3.8+ 和 R 4.0+
@@ -107,26 +105,20 @@
 
 ### 用例 1: 项目初始化
 ```
-用户: xdxtools init my_project --mode RRBS --install-envs
-系统: 创建项目目录 → 提取 Snakemake 文件 → 安装 Conda 环境
+用户: xdxtools init my_project
+系统: 创建项目目录 → 提取 Snakemake 文件 → 生成资产清单
 ```
 
 ### 用例 2: 配置生成
 ```
-用户: xdxtools config create --mode WGBS --species human
-系统: 生成默认配置 → 启动 TUI 向导 → 保存配置文件
+用户: xdxtools create --fastq ./fastq --pdata samples.csv --mode WGBS --output my_project/userspace
+系统: 扫描 FASTQ/pdata → 生成默认配置 → 保存配置文件
 ```
 
 ### 用例 3: 工作流执行
 ```
 用户: xdxtools run --config config.yaml --engine slurm
-系统: 验证配置 → 启动 TUI → 执行 Snakemake → 实时监控
-```
-
-### 用例 4: 基因组构建
-```
-用户: xdxtools genome build hg19 --engine slurm
-系统: 检测引擎 → 构建索引 → 验证结果
+系统: 验证配置 → 执行 Snakemake → 输出日志与状态
 ```
 
 ## 验收标准
@@ -134,6 +126,5 @@
 - [ ] 支持所有 4 种工作流模式
 - [ ] 配置文件支持 3 种格式
 - [ ] 执行引擎支持 2 种环境（Slurm/Local）
-- [ ] TUI 界面响应流畅
 - [ ] 单二进制 < 20MB
 - [ ] 文档完整且示例丰富

@@ -112,7 +112,7 @@ xdxtools 支持三层资源覆盖：
 
 ```bash
 xdxtools run \
-  --config userspace/<jobid>/config/config.yaml \
+  --config my_project/userspace/<jobid>/config/config.yaml \
   --engine slurm \
   --slurm-partition normal \
   --slurm-cores 16 \
@@ -125,7 +125,7 @@ xdxtools run \
 
 ```bash
 xdxtools run \
-  --config userspace/<jobid>/config/config.yaml \
+  --config my_project/userspace/<jobid>/config/config.yaml \
   --engine slurm \
   --step1-cores 8 --step1-memory 32G --step1-partition normal \
   --step2-cores 24 --step2-memory 128G --step2-partition fat \
@@ -158,13 +158,13 @@ xdxtools run \
 
 ```bash
 # 仅压缩未压缩 FASTQ
-xdxtools run --config userspace/<jobid>/config/config.yaml --compress-fastq
+xdxtools run --config my_project/userspace/<jobid>/config/config.yaml --compress-fastq
 
 # 将 FASTQ 复制到项目目录（保留原始数据）
-xdxtools run --config userspace/<jobid>/config/config.yaml --copy-fastq
+xdxtools run --config my_project/userspace/<jobid>/config/config.yaml --copy-fastq
 
 # 将 FASTQ 移动到项目目录（原目录会变更）
-xdxtools run --config userspace/<jobid>/config/config.yaml --move-fastq
+xdxtools run --config my_project/userspace/<jobid>/config/config.yaml --move-fastq
 ```
 
 说明：
@@ -175,16 +175,16 @@ xdxtools run --config userspace/<jobid>/config/config.yaml --move-fastq
 
 ```bash
 # 提交前检查（不执行）
-xdxtools run --config userspace/<jobid>/config/config.yaml --dry-run
+xdxtools run --config my_project/userspace/<jobid>/config/config.yaml --dry-run
 
 # 从中断点恢复
-xdxtools run --config userspace/<jobid>/config/config.yaml --resume
+xdxtools run --config my_project/userspace/<jobid>/config/config.yaml --resume
 ```
 
 状态文件位置：
 
 ```
-userspace/<jobid>/.xdxtools_state.json
+my_project/userspace/<jobid>/.xdxtools_state.json
 ```
 
 ---
@@ -223,7 +223,7 @@ engine:
 在运行之前，可以先验证配置文件是否正确：
 
 ```bash
-xdxtools config validate --config userspace/<jobid>/config/config.yaml
+xdxtools config validate --config my_project/userspace/<jobid>/config/config.yaml
 ```
 
 ---

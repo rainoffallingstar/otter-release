@@ -145,7 +145,6 @@ graph TB
     CLI[CLI 命令层] --> Config[配置管理]
     CLI --> Input[输入处理]
     CLI --> Engine[执行引擎]
-    CLI --> TUI[TUI 界面]
 
     Config --> Workflow[工作流管理]
     Input --> FastQ[FASTQ 处理]

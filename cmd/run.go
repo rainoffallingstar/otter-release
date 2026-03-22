@@ -139,17 +139,13 @@ func init() {
 }
 
 func runRun(cmd *cobra.Command, args []string) error {
-	projectDir := runProjectDir
-	if projectDir == "" {
-		projectDir = filepath.Dir(runConfigFile)
-		if projectDir == "" {
-			projectDir = "."
-		}
+	configPath, projectDir, err := resolveRunPaths(runConfigFile, runProjectDir)
+	if err != nil {
+		return err
 	}
-	projectDir = filepath.Clean(projectDir)
 
 	// Load configuration
-	loader := config.NewLoader(runConfigFile)
+	loader := config.NewLoader(configPath)
 	cfg, err := loader.LoadConfig()
 	if err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
@@ -308,7 +304,7 @@ func runRun(cmd *cobra.Command, args []string) error {
 	}
 
 	// Validate resources before execution
-	if err := validateResources(eng.GetName().String(), cfg, stepResources, parallelJobs); err != nil {
+	if err := validateResources(eng.GetName().String(), cfg, stepResources, parallelJobs, dryRun); err != nil {
 		return fmt.Errorf("resource validation failed: %w", err)
 	}
 
@@ -361,6 +357,19 @@ func runRun(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	originalDir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current working directory: %w", err)
+	}
+	if err := os.Chdir(projectDir); err != nil {
+		return fmt.Errorf("failed to switch to project directory %s: %w", projectDir, err)
+	}
+	defer func() {
+		if chdirErr := os.Chdir(originalDir); chdirErr != nil {
+			logger.Warnf("Failed to restore working directory %s: %v", originalDir, chdirErr)
+		}
+	}()
+
 	// Execute workflow
 	if err := manager.ExecuteAll(); err != nil {
 		logger.Close() // Close log file before returning error
@@ -377,6 +386,59 @@ func runRun(cmd *cobra.Command, args []string) error {
 	logger.Close()
 
 	return nil
+}
+
+func resolveRunPaths(configPath, projectDirOverride string) (string, string, error) {
+	if strings.TrimSpace(configPath) == "" {
+		return "", "", fmt.Errorf("config file path is required")
+	}
+
+	absConfigPath, err := filepath.Abs(configPath)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to resolve config path %s: %w", configPath, err)
+	}
+
+	if strings.TrimSpace(projectDirOverride) != "" {
+		absProjectDir, err := filepath.Abs(projectDirOverride)
+		if err != nil {
+			return "", "", fmt.Errorf("failed to resolve project directory %s: %w", projectDirOverride, err)
+		}
+		return absConfigPath, filepath.Clean(absProjectDir), nil
+	}
+
+	return absConfigPath, discoverProjectDirFromConfig(absConfigPath), nil
+}
+
+func discoverProjectDirFromConfig(configPath string) string {
+	configDir := filepath.Dir(configPath)
+	if projectDir, ok := findAncestorWithManifest(configDir); ok {
+		return projectDir
+	}
+	return configDir
+}
+
+func findAncestorWithManifest(startDir string) (string, bool) {
+	current := filepath.Clean(startDir)
+	for {
+		if _, err := os.Stat(assets.ManifestPath(current)); err == nil {
+			return current, true
+		}
+
+		parent := filepath.Dir(current)
+		if parent == current {
+			return "", false
+		}
+		current = parent
+	}
+}
+
+func shouldRelaxLocalDryRunResourceValidation(step int, stepResources map[int]*config.StepResource, dryRun bool) bool {
+	if !dryRun {
+		return false
+	}
+
+	customRes, hasCustom := stepResources[step]
+	return !hasCustom || (customRes.Cores == 0 && customRes.Memory == "")
 }
 
 func shouldPreflightRNAsplicing(cfg *config.XDXToolsConfig) bool {
@@ -571,7 +633,7 @@ func compressFastqFiles(fastqDir string) error {
 }
 
 // validateResources 验证本地和SLURM资源
-func validateResources(engineType string, cfg *config.XDXToolsConfig, stepResources map[int]*config.StepResource, parallelJobs int) error {
+func validateResources(engineType string, cfg *config.XDXToolsConfig, stepResources map[int]*config.StepResource, parallelJobs int, dryRun bool) error {
 	logger.Info("Validating resources...")
 
 	// Get workflow mode and PDX status
@@ -607,6 +669,13 @@ func validateResources(engineType string, cfg *config.XDXToolsConfig, stepResour
 		case "local":
 			// Validate local resources
 			if err := engine.ValidateLocalResources(stepRes.Cores, stepRes.Memory); err != nil {
+				if shouldRelaxLocalDryRunResourceValidation(step, stepResources, dryRun) {
+					logger.Warnf(
+						"Step %d default local resources exceed this machine (%v); continuing because --dry-run only validates workflow structure. Override with --step%d-cores/--step%d-memory for a realistic local smoke test.",
+						step, err, step, step,
+					)
+					continue
+				}
 				return fmt.Errorf("step %d local resource validation failed: %w", step, err)
 			}
 

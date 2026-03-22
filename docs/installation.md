@@ -1,6 +1,6 @@
 # xdxtools Installation Guide
 
-This guide provides step-by-step instructions for building and installing xdxtools, including its dependencies: enva (environment manager) and rv (R package manager).
+This guide provides step-by-step instructions for building and installing xdxtools and its runtime helper `enva`.
 
 ## Table of Contents
 
@@ -21,29 +21,27 @@ xdxtools consists of two main components:
 
 | Component | Language | Purpose |
 |-----------|----------|---------|
-| **xdxtools** | Go 1.21+ | Main CLI for bioinformatics workflows |
+| **xdxtools** | Go 1.24+ | Main CLI for bioinformatics workflows |
 | **enva** | Rust 1.92+ | Lightweight micromamba environment manager |
 
 ### Git Submodules
 
 - **enva**: Environment manager for creating and managing conda environments
-- **rv**: R package manager for reproducible package installation
+- Other analysis helpers live as independent submodules and can be built separately with `./scripts/build-all-submodules.sh` when needed
 
 ## Prerequisites
 
 ### Build Dependencies
 
-1. **Go 1.21 or later**
+1. **Go 1.24 or later**
    ```bash
-   go version  # Should be go1.21+
+   go version  # Should be go1.24+
    ```
 
-2. **Rust 1.92 or later** (for enva and rv)
+2. **Rust 1.92 or later** (for `enva` and Rust-based submodules)
    ```bash
    rustc --version  # Should be 1.92+
    ```
-
-   **Note**: Rust 1.92+ is required for rv which uses Rust edition 2024.
 
 3. **Git** (for submodule management)
    ```bash
@@ -62,39 +60,53 @@ These will be installed automatically by enva:
 
 ### Automated Installation
 
-Use the provided setup script for automated installation:
+Use the release installer when you want to download pre-built binaries from GitHub Releases. Use `scripts/setup.sh` only when you want to build from source locally:
 
 ```bash
-# Clone with submodules
-git clone --recurse-submodules https://github.com/yourusername/xdxtools.git
-cd xdxtools
+# Run directly from GitHub
+bash <(wget -qO- https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh)
 
-# Run setup script
-bash scripts/setup.sh
+# Or clone first and run locally
+git clone --recurse-submodules https://github.com/rainoffallingstar/xdxtools-go.git
+cd xdxtools-go
+bash scripts/install.sh
 ```
 
-The setup script will:
-1. Build xdxtools, enva, and rv
-2. Install binaries to `~/.cargo/bin`
-3. Initialize runtime directory at `~/xdxtools-runtime`
-4. Create all conda environments
-5. Install R packages
+If the GitHub Releases repository or assets are private, export `GITHUB_TOKEN` (or `GH_TOKEN`) before running the installer. For a private fork, also set `GITHUB_RELEASES_REPO=<owner>/<repo>` or pass `--releases-repo <owner>/<repo>`. In interactive mode, if GitHub access fails and no token is configured, the installer can prompt for a hidden token input and retry once for the current session.
+
+The installer will:
+1. Download release binaries into your install directory
+2. Add the install directory to `PATH`
+3. Optionally create the required conda environments
+4. Print the next `xdxtools init/create/run` steps
 
 ### Options
 
 ```bash
-# Skip specific steps
-bash scripts/setup.sh --skip-build          # Skip building binaries
-bash scripts/setup.sh --skip-init           # Skip runtime directory init
-bash scripts/setup.sh --skip-envs           # Skip conda environment creation
-bash scripts/setup.sh --skip-r-packages     # Skip R package installation
+# Skip conda environment creation
+bash scripts/install.sh --skip-envs
+
+# Skip HDF5 setup for methrix-cli
+bash scripts/install.sh --skip-hdf5
+
+# Pin a specific release tag
+bash scripts/install.sh --version v0.3.0
+
+# Private GitHub Releases
+export GITHUB_TOKEN=<your_pat>
+export GITHUB_RELEASES_REPO=<owner>/<repo>
+
+# Or override per invocation
+bash scripts/install.sh --releases-repo <owner>/<repo> --dry-run
 
 # Dry run (show what would be done)
-bash scripts/setup.sh --dry-run
+bash scripts/install.sh --dry-run
 
 # Show help
-bash scripts/setup.sh --help
+bash scripts/install.sh --help
 ```
+
+If you want to build from source instead of downloading release binaries, use `scripts/setup.sh` or follow the manual build steps below.
 
 ## Detailed Installation
 
@@ -103,7 +115,7 @@ bash scripts/setup.sh --help
 #### 1.1 Build xdxtools
 
 ```bash
-cd /path/to/xdxtools
+cd /path/to/xdxtools-go
 
 # Option 1: Simple build
 go build -o xdxtools .
@@ -117,38 +129,10 @@ cp xdxtools ~/.cargo/bin/
 export PATH="$PATH:$HOME/.cargo/bin"
 ```
 
-#### 1.2 Initialize and Build rv Submodule
+#### 1.2 Build enva
 
 ```bash
-# Initialize submodule
-git submodule update --init --recursive rv
-
-# Build rv (requires Rust 1.92+)
-cd rv
-cargo build --release --features=cli
-
-# Verify build
-./target/release/rv --version
-
-# Install to PATH
-cp target/release/rv ~/.cargo/bin/
-```
-
-**Note**: If your system Rust version is < 1.92, use a conda environment with Rust 1.92+:
-
-```bash
-# Create conda environment with Rust 1.92
-conda create -n rustenv rust=1.92 -y
-conda activate rustenv
-
-# Build rv
-cargo build --release --features=cli
-```
-
-#### 1.3 Build enva
-
-```bash
-cd /path/to/xdxtools/enva
+cd /path/to/xdxtools-go/enva
 
 # Build
 cargo build --release
@@ -160,16 +144,15 @@ cargo build --release
 cp target/release/enva ~/.cargo/bin/
 ```
 
-#### 1.4 Verify Installation
+#### 1.3 Verify Installation
 
 ```bash
 # Check binaries are in PATH
-which xdxtools enva rv
+which xdxtools enva
 
 # Check versions
 xdxtools --version
 enva --version
-rv --version
 ```
 
 ### Step 2: Initialize Runtime Directory
@@ -184,19 +167,19 @@ xdxtools init .
 
 # Verify structure
 ls -la
-# Expected output:
-# config/  data/  envs/  R/  rules/  snakefiles/  workflows/
+# Expected output includes:
+# config/  data/  envs/  inst/  R/  rules/  userspace/
 ```
 
 **What gets created:**
 
-- `config/` - Configuration directory
-- `data/` - Gene database files (human/mouse genomes)
+- `config/` - Project-level configuration directory
+- `data/` - Input/reference data directory
 - `envs/` - Conda environment YAML files
-- `R/` - R scripts directory
+- `inst/` - Embedded workflow/runtime resources
+- `R/` - R/Python helper scripts
 - `rules/` - Snakemake rules
-- `snakefiles/` - Main workflow files
-- `workflows/` - Workflow configurations
+- `userspace/` - Per-run working directories created by `xdxtools create`
 
 ### Step 3: Create Conda Environments
 
@@ -234,7 +217,6 @@ enva validate --all
 # Detailed information
 enva list --detailed | grep xdxtools
 ```
-```
 
 **Note**: Step 4 (Install R Packages) is no longer required. The following tools have been replaced:
 - `gomats` replaces RNA_Splicing.R
@@ -248,14 +230,11 @@ enva list --detailed | grep xdxtools
 # Test xdxtools
 xdxtools --version
 xdxtools init --help
+xdxtools create --help
 
 # Test enva
 enva --version
 enva list
-
-# Test rv
-rv --version
-rv --help
 ```
 
 ### Test Runtime Directory
@@ -279,10 +258,11 @@ gomats --help
 cd ~/xdxtools-runtime
 
 # Create a test project (requires FASTQ files)
-xdxtools create --fastq /path/to/fastq --pdata samples.csv
+xdxtools init my_project
+xdxtools create --fastq /path/to/fastq --pdata samples.csv --output my_project/userspace --jobid demo_run
 
 # Verify config
-cat config/config.yaml
+cat my_project/userspace/demo_run/config/config.yaml
 ```
 
 ## Troubleshooting
@@ -322,20 +302,20 @@ enva create --core    # Will skip if exists
 **Solution**: Update Go modules:
 
 ```bash
-cd /path/to/xdxtools
+cd /path/to/xdxtools-go
 go mod tidy
 go mod download
 go build -o xdxtools .
 ```
 
-### Git Submodule Not Initialized
+### Git Submodules Not Initialized
 
-**Problem**: rv directory is empty
+**Problem**: one or more submodule directories are empty
 
-**Solution**: Initialize submodule:
+**Solution**: initialize all required submodules:
 
 ```bash
-git submodule update --init --recursive rv
+git submodule update --init --recursive
 ```
 
 ## Platform-Specific Notes
@@ -360,7 +340,7 @@ cargo build --release
 
 ### Windows
 
-xdxtools, enva, and rv support Windows via WSL (Windows Subsystem for Linux).
+xdxtools and enva support Windows via WSL (Windows Subsystem for Linux).
 
 **Recommended: Use WSL2**
 
@@ -382,12 +362,8 @@ Requires:
 
 If you don't want to build from source:
 
-1. **xdxtools**: Download from [GitHub Releases](https://github.com/yourusername/xdxtools/releases)
+1. **xdxtools**: Download from [GitHub Releases](https://github.com/rainoffallingstar/xdxtools-go/releases)
 2. **enva**: Download from [enva releases](https://github.com/rainoffallingstar/enva/releases/latest)
-3. **rv**: Use the install script:
-   ```bash
-   curl -sSL https://raw.githubusercontent.com/A2-ai/rv/main/scripts/install.sh | bash
-   ```
 
 ### Using Standard Conda (without enva)
 
@@ -427,15 +403,15 @@ After installation:
 2. **Create Your First Analysis**:
    ```bash
    cd ~/xdxtools-runtime
-   xdxtools create --fastq /path/to/fastq --mode RRBS --pdata samples.csv
+   xdxtools init my_project
+   xdxtools create --fastq /path/to/fastq --mode RRBS --pdata samples.csv --output my_project/userspace --jobid demo_run
    ```
 3. **Run a Workflow**:
    ```bash
-   xdxtools run --config config/config.yaml --engine slurm
+   xdxtools run --config my_project/userspace/demo_run/config/config.yaml --engine slurm
    ```
 
 ## Getting Help
 
 - **Documentation**: See README.md and docs/ directory
-- **Issues**: Report bugs on [GitHub Issues](https://github.com/yourusername/xdxtools/issues)
-- **Discussions**: Ask questions on [GitHub Discussions](https://github.com/yourusername/xdxtools/discussions)
+- **Issues**: Report bugs on [GitHub Issues](https://github.com/rainoffallingstar/xdxtools-go/issues)

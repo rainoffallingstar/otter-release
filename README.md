@@ -9,13 +9,12 @@ A bioinformatics workflow CLI for RRBS, WGBS, RNA-seq, and PDX analysis.
 - SLURM Job Array + local worker pool parallelization
 - Excel/CSV pdata with Chinese column name auto-mapping
 - Snakemake integration with embedded workflow files
-- TUI interface for interactive management
 - Conda environment auto-fallback (enva supported)
-- Single binary, no runtime dependencies
+- Single primary CLI binary; workflow runtime depends on Snakemake + conda/enva
 
 ## Requirements
 
-- Go 1.21+
+- Go 1.24+
 - Snakemake
 - conda / mamba / micromamba (or [enva](https://github.com/rainoffallingstar/enva))
 
@@ -27,7 +26,9 @@ A bioinformatics workflow CLI for RRBS, WGBS, RNA-seq, and PDX analysis.
 bash <(wget -qO- https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh)
 ```
 
-The script downloads pre-built binaries from GitHub Releases and sets up the required conda environments interactively.
+The script downloads pre-built binaries from GitHub Releases and sets up the required conda environments interactively. Use `scripts/setup.sh` only for source builds.
+
+If the release repo or assets are private, export `GITHUB_TOKEN` (or `GH_TOKEN`) first. For a private fork, also set `GITHUB_RELEASES_REPO=<owner>/<repo>`. In interactive mode, if GitHub access fails and no token is configured, the installer can prompt for a hidden token and retry once.
 
 Common options:
 
@@ -37,6 +38,10 @@ bash <(wget -qO- https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go
 
 # Specify a release version
 bash <(wget -qO- https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh) --version v0.3.0
+
+# Private release fork
+GITHUB_TOKEN=<your_pat> GITHUB_RELEASES_REPO=<owner>/<repo> \
+  bash <(wget -qO- https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh)
 
 # Skip conda environment creation
 bash <(wget -qO- https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh) --skip-envs
@@ -57,10 +62,10 @@ go build -o xdxtools
 xdxtools init my_project
 
 # 2. Scan FASTQ, validate samples, generate config
-xdxtools create --fastq /data/fastq --mode RRBS --pdata samples.csv
+xdxtools create --fastq /data/fastq --mode RRBS --pdata samples.csv --output my_project/userspace --jobid demo_rrbs
 
 # 3. Execute workflow
-xdxtools run --config userspace/my_project/config/config.yaml
+xdxtools run --config my_project/userspace/demo_rrbs/config/config.yaml
 ```
 
 ## Commands
@@ -78,7 +83,7 @@ xdxtools run --config userspace/my_project/config/config.yaml
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--engine` | `auto` | Execution engine: `slurm` / `local` / `auto` |
-| `--slurm-partition` | `cpu` | SLURM partition for all steps |
+| `--slurm-partition` | empty | Optional SLURM partition override |
 | `--parallel-jobs` | `2` | Max concurrent jobs |
 | `--dry-run` | `false` | Test configuration without executing |
 | `--resume` / `-r` | `false` | Resume from last completed step |

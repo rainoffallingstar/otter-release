@@ -46,7 +46,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --skip-build        Skip building binaries"
             echo "  --skip-init         Skip initializing runtime directory"
             echo "  --skip-envs         Skip creating conda environments"
-            echo "  --skip-r-packages   Skip installing R packages"
+            echo "  --skip-r-packages   Deprecated no-op (R packages are no longer installed)"
             echo "  --dry-run           Show what would be done without executing"
             echo "  --help              Show this help message"
             exit 0
@@ -79,37 +79,6 @@ if [ "$SKIP_BUILD" = false ]; then
         cp xdxtools "$INSTALL_DIR/"
         echo "✓ xdxtools installed to $INSTALL_DIR/"
 
-        # Check if rv submodule exists, if not initialize it
-        if [ ! -d "$PROJECT_ROOT/rv/.git" ] && [ -d "$PROJECT_ROOT/rv" ]; then
-            echo "Initializing rv submodule..."
-            git submodule update --init --recursive rv
-        fi
-
-        # Build rv if submodule is initialized
-        if [ -f "$PROJECT_ROOT/rv/Cargo.toml" ]; then
-            echo "Building rv..."
-            cd "$PROJECT_ROOT/rv"
-
-            # Check if we need to use a specific Rust version
-            if command -v conda &> /dev/null; then
-                # Try to use node environment if it exists and has Rust 1.92+
-                if conda env list | grep -q "^node "; then
-                    echo "Using node conda environment for Rust 1.92+"
-                    conda run -n node cargo build --release --features=cli
-                else
-                    cargo build --release --features=cli
-                fi
-            else
-                cargo build --release --features=cli
-            fi
-
-            cp target/release/rv "$INSTALL_DIR/"
-            echo "✓ rv installed to $INSTALL_DIR/"
-        else
-            echo "⚠ rv submodule not initialized, skipping rv build"
-            echo "  Run: git submodule update --init --recursive rv"
-        fi
-
         # Build enva
         if [ -f "$PROJECT_ROOT/enva/Cargo.toml" ]; then
             echo "Building enva..."
@@ -121,7 +90,6 @@ if [ "$SKIP_BUILD" = false ]; then
     else
         echo "[DRY RUN] Would build and install:"
         echo "  - xdxtools → $INSTALL_DIR/xdxtools"
-        echo "  - rv → $INSTALL_DIR/rv"
         echo "  - enva → $INSTALL_DIR/enva"
     fi
 
@@ -233,13 +201,6 @@ if [ -f "$INSTALL_DIR/enva" ]; then
     fi
 fi
 
-if [ -f "$INSTALL_DIR/rv" ]; then
-    if command -v rv &> /dev/null; then
-        echo "✓ rv is in PATH"
-    else
-        echo "⚠ Add to PATH: export PATH=\"\$PATH:$INSTALL_DIR\""
-    fi
-fi
 
 echo ""
 echo "Next steps:"
@@ -249,9 +210,9 @@ echo ""
 echo "  2. Verify installation:"
 echo "     xdxtools --version"
 echo "     enva --version"
-echo "     rv --version"
 echo ""
 echo "  3. Create a new analysis:"
 echo "     cd $RUNTIME_DIR"
-echo "     xdxtools create --fastq /path/to/fastq --pdata samples.csv"
+echo "     xdxtools create --fastq /path/to/fastq --pdata samples.csv --output ./userspace --jobid demo_run"
+echo "     xdxtools run --config ./userspace/demo_run/config/config.yaml --dry-run"
 echo ""

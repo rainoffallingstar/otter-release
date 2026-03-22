@@ -22,8 +22,10 @@ if git tag | grep -q "v${VERSION}"; then
 fi
 
 # 构建和测试
-echo "Building and testing..."
+echo "Running release checks..."
+bash scripts/verify_release_evidence.sh
 go test ./...
+go vet ./...
 ./scripts/build.sh $VERSION
 
 # 创建标签

@@ -259,39 +259,36 @@ xdxtools run \
 
 日志文件保存在以下位置：
 
-```
-userspace/<jobid>/
-└── logs/
-    ├── step1/
-    │   ├── sample1.log     ← 各样本的运行日志
-    │   ├── sample2.log
-    │   └── ...
-    ├── step2/
-    └── step3/
+```text
+my_project/userspace/<jobid>/
+└── log/
+    ├── *.out               ← SLURM 标准输出
+    ├── *.err               ← SLURM 标准错误
+    └── .xdxtools_state.json 的状态相关文件位于 job 根目录
 ```
 
 **查看最新日志**：
 
 ```bash
-# 查看某个样本的日志
-cat userspace/<jobid>/logs/step1/sample1.log
+# 查看 SLURM / workflow 输出
+ls my_project/userspace/<jobid>/log/
 
-# 实时监控日志（类似 tail -f）
-tail -f userspace/<jobid>/logs/step1/sample1.log
+# 实时监控某个输出日志
+tail -f my_project/userspace/<jobid>/log/<jobname>.out
 
 # 查找错误信息
-grep -i "error\|failed\|exception" userspace/<jobid>/logs/step1/*.log
+grep -i "error\\|failed\\|exception" my_project/userspace/<jobid>/log/*
 ```
 
 **SLURM 作业日志**：
 
 ```bash
 # 查看 SLURM 作业输出
-ls userspace/<jobid>/logs/slurm/
+ls my_project/userspace/<jobid>/log/
 
 # 查看指定作业的日志
-cat userspace/<jobid>/logs/slurm/slurm_<jobid>.out
-cat userspace/<jobid>/logs/slurm/slurm_<jobid>.err
+cat my_project/userspace/<jobid>/log/<jobname>.out
+cat my_project/userspace/<jobid>/log/<jobname>.err
 ```
 
 ---
@@ -302,7 +299,7 @@ cat userspace/<jobid>/logs/slurm/slurm_<jobid>.err
 
 ```bash
 xdxtools run \
-    --config userspace/<jobid>/config/config.yaml \
+    --config my_project/userspace/<jobid>/config/config.yaml \
     --engine slurm \
     --resume
 ```
@@ -320,8 +317,8 @@ xdxtools 会自动：
 
 ```bash
 # 手动编辑状态文件，将对应步骤的状态改为 PENDING
-# （注意：.xdxtools_state.json 在 userspace/<jobid>/ 目录下）
-vi userspace/<jobid>/.xdxtools_state.json
+# （注意：.xdxtools_state.json 在 my_project/userspace/<jobid>/ 目录下）
+vi my_project/userspace/<jobid>/.xdxtools_state.json
 ```
 
 ---
@@ -330,26 +327,25 @@ vi userspace/<jobid>/.xdxtools_state.json
 
 ### Q9：输出文件在哪里？
 
-所有输出文件都在 `userspace/<jobid>/` 目录下：
+所有输出文件都在 `my_project/userspace/<jobid>/` 目录下：
 
 ```bash
 # 查看你的 jobid
-ls userspace/
+ls my_project/userspace/
 
-# 查看该 job 的所有输出
-ls userspace/<jobid>/results/
+# 查看该 job 的主要目录
+ls my_project/userspace/<jobid>/
 ```
 
 **各分析模式的关键输出**：
 
 | 模式 | 关键输出 | 位置 |
 |------|---------|------|
-| RRBS/WGBS | 甲基化矩阵（HDF5） | `results/methrix/*.h5` |
-| RRBS/WGBS | QC 报告（Excel） | `results/qc_report.xlsx` |
-| RNA-seq | 基因表达矩阵 | `results/matrix_count.txt` |
-| RNA-seq | 归一化矩阵 | `results/matrix_norm.txt` |
-| RNA-seq | QC 报告 | `results/qc_report.xlsx` |
-| PDX | 物种过滤统计 | `results/xenofilter/stats.txt` |
+| RRBS/WGBS | 甲基化相关分析结果 | `analysis/` 与 `workflow/mCall/` |
+| RRBS/WGBS | QC 汇总 | `analysis/qc_summary/` 与 `log/` |
+| RNA-seq | 基因表达矩阵与 DEG | `analysis/counts/`、`analysis/DEG/` |
+| RNA-seq | 比对与计数中间文件 | `workflow/star/`、`workflow/htseq/` |
+| PDX | 物种过滤后的 BAM | `workflow/bsmap/Filtered_bams/` |
 
 ---
 
@@ -395,7 +391,7 @@ bash install.sh --version v1.x.x
 
 ```bash
 # 打包整个 job 目录
-tar -czf my_analysis.tar.gz userspace/<jobid>/
+tar -czf my_analysis.tar.gz my_project/userspace/<jobid>/
 
 # 传输到另一台服务器
 scp my_analysis.tar.gz user@server:/data/
@@ -414,8 +410,8 @@ scp my_analysis.tar.gz user@server:/data/
 
 ```bash
 # 清理中间 BAM 文件（确认分析完成后执行）
-rm -f userspace/<jobid>/results/alignment/*.bam
-rm -f userspace/<jobid>/results/alignment/*.bai
+rm -f my_project/userspace/<jobid>/workflow/bsmap/*.bam
+rm -f my_project/userspace/<jobid>/workflow/bsmap/*.bai
 ```
 
 ---

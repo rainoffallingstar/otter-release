@@ -56,17 +56,19 @@ xdxtools create \
 | Step 2 | 甲基化提取 | Bismark methylation extractor 提取甲基化信息 | CpG 覆盖文件（`.cov.gz`） |
 | Step 3 | 报告与 QC | methrix-cli 汇总，qctb 生成质控报告 | 甲基化矩阵、QC Excel 报告 |
 
-### 主要输出文件
+### 主要输出目录
 
-```
-userspace/<jobid>/
-├── results/
-│   ├── trimming/           ← Trim Galore 质控结果
-│   ├── alignment/          ← Bismark 比对 BAM 文件
-│   ├── methylation/        ← CpG 甲基化覆盖文件
-│   ├── methrix/            ← methrix-cli 处理结果（HDF5）
-│   └── qc_report.xlsx      ← 质控汇总报告（Excel）
-└── logs/                   ← 各步骤日志
+```text
+my_project/userspace/<jobid>/
+├── config/                 ← `config.yaml`
+├── data/                   ← 预处理后的输入数据
+├── workflow/
+│   ├── trim/               ← Trim Galore 结果
+│   ├── bsmap/              ← Bismark/BSMAP 比对与中间文件
+│   ├── mCall/              ← 甲基化调用结果
+│   └── QC/                 ← 流程级质控产物
+├── analysis/               ← 汇总矩阵、DMR、QC 摘要等分析结果
+└── log/                    ← 运行日志与 SLURM 输出
 ```
 
 ---
@@ -126,17 +128,18 @@ xdxtools create \
 | Step 1 | 比对与计数 | STAR 比对，HTSeq-count 计数 | BAM 文件、每样本计数文件 |
 | Step 2 | 矩阵与 QC | htseq2matrix 合并矩阵，qctb 生成报告 | 表达矩阵、QC Excel 报告 |
 
-### 主要输出文件
+### 主要输出目录
 
-```
-userspace/<jobid>/
-├── results/
-│   ├── alignment/          ← STAR 比对 BAM 文件
-│   ├── counts/             ← 每个样本的 HTSeq 计数文件
-│   ├── matrix_count.txt    ← 所有样本的原始计数矩阵
-│   ├── matrix_norm.txt     ← 归一化后的表达矩阵（TPM 或 RPKM）
-│   └── qc_report.xlsx      ← 质控汇总报告
-└── logs/
+```text
+my_project/userspace/<jobid>/
+├── config/
+├── workflow/
+│   ├── star/               ← STAR 比对结果
+│   └── htseq/              ← HTSeq 计数中间文件
+├── analysis/
+│   ├── counts/             ← 计数矩阵及衍生文件
+│   └── DEG/                ← 差异分析结果
+└── log/
 ```
 
 **矩阵格式说明**：
@@ -219,17 +222,17 @@ PDX RRBS 流程：   Step1（双基因组比对）
 
 **paireads** 的工作原理：xenofilter 过滤后，配对 reads 可能被打散（一条保留，一条丢失），paireads 负责恢复完整的 read pair。
 
-### 主要输出文件（PDX 特有）
+### 主要输出目录（PDX 特有）
 
-```
-userspace/<jobid>/
-├── results/
-│   ├── alignment_human/    ← 人类基因组比对结果
-│   ├── alignment_mouse/    ← 小鼠基因组比对结果
-│   ├── xenofilter/         ← 物种过滤统计报告
-│   │   └── filter_stats.txt    ← 人源/鼠源 reads 比例
-│   ├── paireads/           ← 恢复配对后的 BAM 文件
-│   └── ...（后续与普通模式相同）
+```text
+my_project/userspace/<jobid>/
+├── workflow/
+│   ├── bsmap/<species1>/   ← 人源比对结果
+│   ├── bsmap/<species2>/   ← 鼠源比对结果
+│   ├── bsmap/Filtered_bams/← xenofilter / paireads 后的 BAM
+│   └── ...                 ← 后续步骤与普通模式一致
+├── analysis/
+└── log/
 ```
 
 **filter_stats.txt 示例**：

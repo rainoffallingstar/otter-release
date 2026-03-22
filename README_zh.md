@@ -9,13 +9,12 @@
 - SLURM Job Array + 本地工作池并行化
 - Excel/CSV pdata，支持中文列名自动映射
 - Snakemake 集成，内嵌工作流文件
-- TUI 交互式管理界面
 - Conda 环境自动回退（支持 [enva](https://github.com/rainoffallingstar/enva)）
-- 单二进制文件，无运行时依赖
+- 主 CLI 为单二进制；工作流运行仍依赖 Snakemake 与 conda/enva
 
 ## 系统要求
 
-- Go 1.21+
+- Go 1.24+
 - Snakemake
 - conda / mamba / micromamba（或 [enva](https://github.com/rainoffallingstar/enva)）
 
@@ -27,7 +26,9 @@
 bash <(wget -qO- https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh)
 ```
 
-脚本将从 GitHub Releases 下载预编译二进制文件，并以交互方式完成 conda 环境配置。
+脚本将从 GitHub Releases 下载预编译二进制文件，并以交互方式完成 conda 环境配置。`scripts/setup.sh` 仅用于本地源码构建。
+
+如果 release 仓库或 release 资产是私有的，请先导出 `GITHUB_TOKEN`（或 `GH_TOKEN`）；如果是私有 fork，还需要设置 `GITHUB_RELEASES_REPO=<owner>/<repo>`。在交互模式下，如果 GitHub 访问失败且当前没有配置 token，安装器可以在终端里提示你做隐藏输入，并自动重试一次。
 
 常用选项：
 
@@ -37,6 +38,10 @@ bash <(wget -qO- https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go
 
 # 指定发布版本
 bash <(wget -qO- https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh) --version v0.3.0
+
+# 私有 release fork
+GITHUB_TOKEN=<your_pat> GITHUB_RELEASES_REPO=<owner>/<repo> \
+  bash <(wget -qO- https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh)
 
 # 跳过 conda 环境创建
 bash <(wget -qO- https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh) --skip-envs
@@ -57,10 +62,10 @@ go build -o xdxtools
 xdxtools init my_project
 
 # 2. 扫描 FASTQ，验证样本，生成配置文件
-xdxtools create --fastq /data/fastq --mode RRBS --pdata samples.csv
+xdxtools create --fastq /data/fastq --mode RRBS --pdata samples.csv --output my_project/userspace --jobid demo_rrbs
 
 # 3. 执行工作流
-xdxtools run --config userspace/my_project/config/config.yaml
+xdxtools run --config my_project/userspace/demo_rrbs/config/config.yaml
 ```
 
 ## 命令速查
@@ -78,7 +83,7 @@ xdxtools run --config userspace/my_project/config/config.yaml
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
 | `--engine` | `auto` | 执行引擎：`slurm` / `local` / `auto` |
-| `--slurm-partition` | `cpu` | 所有步骤使用的 SLURM 分区 |
+| `--slurm-partition` | empty | 可选的 SLURM 分区覆盖 |
 | `--parallel-jobs` | `2` | 最大并发作业数 |
 | `--dry-run` | `false` | 试运行（不实际执行） |
 | `--resume` / `-r` | `false` | 从上次完成的步骤恢复 |
