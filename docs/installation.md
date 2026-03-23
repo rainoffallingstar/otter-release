@@ -116,6 +116,31 @@ bash scripts/install.sh --help
 
 If you want to build from source instead of downloading release binaries, use `scripts/setup.sh` or follow the manual build steps below.
 
+## Release Tag Model
+
+`xdxtools` supports two release-tag patterns:
+
+- Immutable release tags: `vX.Y.Z` or `vYYYY.MM.DD.N`
+- Movable daily aliases: `daily-YYYYMMDD`
+
+Recommended usage:
+
+- Use `vYYYY.MM.DD.N` for each archived build you need to reproduce later.
+- Use `daily-YYYYMMDD` as the same-day shared tag that can be updated to the latest build for that date.
+
+Examples:
+
+```bash
+# Immutable date-based release
+bash scripts/release.sh 2026.03.23.1
+
+# Later the same day: new immutable build + update daily alias
+bash scripts/release.sh 2026.03.23.2
+
+# Immutable date-based release without moving the daily alias
+bash scripts/release.sh 2026.03.23.3 --no-daily-alias
+```
+
 ## Detailed Installation
 
 ### Step 1: Build and Install Binaries
