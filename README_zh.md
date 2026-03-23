@@ -23,28 +23,34 @@
 ### 快速安装（交互式）
 
 ```bash
-bash <(wget -qO- https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh)
 ```
 
 脚本将从 GitHub Releases 下载预编译二进制文件，并以交互方式完成 conda 环境配置。`scripts/setup.sh` 仅用于本地源码构建。
 
-如果 release 仓库或 release 资产是私有的，请先导出 `GITHUB_TOKEN`（或 `GH_TOKEN`）；如果是私有 fork，还需要设置 `GITHUB_RELEASES_REPO=<owner>/<repo>`。在交互模式下，如果 GitHub 访问失败且当前没有配置 token，安装器可以在终端里提示你做隐藏输入，并自动重试一次。
+如果仓库本身是私有的，匿名访问 `raw.githubusercontent.com` 会返回 `404`，而 `wget -qO-` 会把这个错误静默吞掉。此时应改用带认证头的启动命令。如果 release 仓库或 release 资产是私有的，请先导出 `GITHUB_TOKEN`（或 `GH_TOKEN`）；如果是私有 fork，还需要设置 `GITHUB_RELEASES_REPO=<owner>/<repo>`。在交互模式下，如果 GitHub 访问失败且当前没有配置 token，安装器可以在终端里提示你做隐藏输入，并自动重试一次。
 
 常用选项：
 
 ```bash
 # 非交互模式，全部使用默认值
-bash <(wget -qO- https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh) --non-interactive
+bash <(curl -fsSL https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh) --non-interactive
 
 # 指定发布版本
-bash <(wget -qO- https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh) --version v0.3.0
+bash <(curl -fsSL https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh) --version v0.3.0
+
+# 私有仓库启动
+GITHUB_TOKEN="${GITHUB_PAT}" \
+  bash <(curl -fsSL -H "Authorization: Bearer ${GITHUB_PAT}" \
+  https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh)
 
 # 私有 release fork
 GITHUB_TOKEN=<your_pat> GITHUB_RELEASES_REPO=<owner>/<repo> \
-  bash <(wget -qO- https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh)
+  bash <(curl -fsSL -H "Authorization: Bearer <your_pat>" \
+  https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh)
 
 # 跳过 conda 环境创建
-bash <(wget -qO- https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh) --skip-envs
+bash <(curl -fsSL https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh) --skip-envs
 ```
 
 ### 从源码构建

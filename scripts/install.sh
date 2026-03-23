@@ -61,6 +61,7 @@ SKIP_ENVS=false
 SKIP_HDF5=false
 NON_INTERACTIVE=false
 DRY_RUN=false
+SHOW_HELP=false
 INSTALL_ENVS_CHOICE="all"   # all | core | snakemake | extra
 GITHUB_TOKEN_PROMPT_ATTEMPTED=false
 
@@ -73,10 +74,7 @@ while [[ $# -gt 0 ]]; do
     --dry-run)        DRY_RUN=true;     shift ;;
     --version)        XDXTOOLS_VERSION="$2"; shift 2 ;;
     --releases-repo)  RELEASES_REPO="$2"; shift 2 ;;
-    --help)
-      sed -n '2,25p' "$0"
-      exit 0
-      ;;
+    --help)           SHOW_HELP=true; shift ;;
     *)
       echo "Unknown option: $1"
       echo "Use --help for usage information."
@@ -93,6 +91,41 @@ log_info()    { echo -e "  ${BOLD}[INFO]${RESET}  $*"; }
 log_success() { echo -e "  ${GREEN}✓${RESET} $*"; }
 log_warn()    { echo -e "  ${YELLOW}⚠${RESET}  $*"; }
 log_error()   { echo -e "  ${RED}✗${RESET}  $*" >&2; }
+
+
+print_help() {
+  cat <<'EOF'
+# =============================================================================
+#  xdxtools Installer
+#  Downloads pre-built binaries from GitHub Releases and sets up conda envs.
+#
+#  Usage:
+#    bash install.sh [OPTIONS]
+#
+#  Options:
+#    --install-dir PATH   Override binary installation directory
+#    --skip-envs          Skip conda environment creation
+#    --skip-hdf5          Skip HDF5 configuration for methrix-cli
+#    --non-interactive    Use all defaults without prompting
+#    --dry-run            Print all actions without executing
+#    --version VER        Specify release version (e.g. v0.3.0); default: latest
+#    --releases-repo REPO  Override GitHub release repo (owner/name)
+#    --help               Show this help message
+#
+#  Environment:
+#    GITHUB_TOKEN / GH_TOKEN        Optional GitHub token for private release downloads
+#    GITHUB_RELEASES_REPO           Optional release repo override (owner/name)
+#
+#  Interactive behavior:
+#    If GitHub access fails and no token is configured, interactive mode can
+#    prompt for a hidden token input and retry once for the current session.
+EOF
+}
+
+if [ "$SHOW_HELP" = true ]; then
+  print_help
+  exit 0
+fi
 
 github_api_get() {
   local url="$1"

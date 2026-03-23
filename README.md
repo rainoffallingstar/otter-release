@@ -23,28 +23,34 @@ A bioinformatics workflow CLI for RRBS, WGBS, RNA-seq, and PDX analysis.
 ### Quick install (interactive)
 
 ```bash
-bash <(wget -qO- https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh)
 ```
 
 The script downloads pre-built binaries from GitHub Releases and sets up the required conda environments interactively. Use `scripts/setup.sh` only for source builds.
 
-If the release repo or assets are private, export `GITHUB_TOKEN` (or `GH_TOKEN`) first. For a private fork, also set `GITHUB_RELEASES_REPO=<owner>/<repo>`. In interactive mode, if GitHub access fails and no token is configured, the installer can prompt for a hidden token and retry once.
+If the repository itself is private, anonymous `raw.githubusercontent.com` downloads return `404`, and `wget -qO-` hides that failure. Use an authenticated bootstrap command instead. If the release repo or assets are private, export `GITHUB_TOKEN` (or `GH_TOKEN`) first. For a private fork, also set `GITHUB_RELEASES_REPO=<owner>/<repo>`. In interactive mode, if GitHub access fails and no token is configured, the installer can prompt for a hidden token and retry once.
 
 Common options:
 
 ```bash
 # Non-interactive, use all defaults
-bash <(wget -qO- https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh) --non-interactive
+bash <(curl -fsSL https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh) --non-interactive
 
 # Specify a release version
-bash <(wget -qO- https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh) --version v0.3.0
+bash <(curl -fsSL https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh) --version v0.3.0
+
+# Private repository bootstrap
+GITHUB_TOKEN="${GITHUB_PAT}" \
+  bash <(curl -fsSL -H "Authorization: Bearer ${GITHUB_PAT}" \
+  https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh)
 
 # Private release fork
 GITHUB_TOKEN=<your_pat> GITHUB_RELEASES_REPO=<owner>/<repo> \
-  bash <(wget -qO- https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh)
+  bash <(curl -fsSL -H "Authorization: Bearer <your_pat>" \
+  https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh)
 
 # Skip conda environment creation
-bash <(wget -qO- https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh) --skip-envs
+bash <(curl -fsSL https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh) --skip-envs
 ```
 
 ### Build from source
