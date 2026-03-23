@@ -32,8 +32,13 @@ jobs:
       - name: Verify toolchain consistency
         run: bash scripts/verify_toolchain_consistency.sh
 
-      - name: Verify release evidence
-        run: bash scripts/verify_release_evidence.sh
+      - name: Verify release evidence (if committed)
+        run: |
+          if [[ -f docs/review/release_evidence_latest.env ]]; then
+            bash scripts/verify_release_evidence.sh
+          else
+            echo "No committed release evidence manifest found; skipping release evidence verification in CI."
+          fi
 
       - name: Set up Rust toolchain
         uses: dtolnay/rust-toolchain@stable

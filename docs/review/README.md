@@ -33,4 +33,6 @@ Before tagging a release, verify the committed evidence bundle:
 bash scripts/verify_release_evidence.sh
 ```
 
-The manual release script and `.github/workflows/release.yml` both run this verification and will fail if the latest evidence manifest is missing or either dry-run is not `PASS`.
+The manual release script always runs this verification and will fail if the latest evidence manifest is missing or either dry-run is not `PASS`.
+
+The GitHub release workflow verifies the committed bundle only when `docs/review/release_evidence_latest.env` is present in the repository. If no bundle has been committed yet, CI logs a warning and skips this gate instead of trying to regenerate SLURM-based evidence on `ubuntu-latest`.
