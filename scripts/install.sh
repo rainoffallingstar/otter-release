@@ -14,17 +14,20 @@
 #    --dry-run            Print all actions without executing
 #    --version VER        Specify release version (e.g. v0.3.0); default: latest
 #    --releases-repo REPO  Override GitHub release repo (owner/name)
+#    --github-proxy URL   Optional GitHub proxy prefix (for public GitHub URLs)
 #    --lang LANG          Interface language: en or zh
 #    --help               Show this help message
 #
 #  Environment:
 #    GITHUB_TOKEN / GH_TOKEN / GITHUB_PAT        Optional GitHub token for private release downloads
 #    GITHUB_RELEASES_REPO           Optional release repo override (owner/name)
+#    GITHUB_PROXY_PREFIX / XDXTOOLS_GITHUB_PROXY  Optional GitHub proxy prefix
 #    XDXTOOLS_INSTALL_LANG          Optional interface language override (en|zh)
 #
 #  Interactive behavior:
-#    If GitHub access fails and no token is configured, interactive mode can
-#    prompt for a hidden token input and retry once for the current session.
+#    Interactive mode can ask for an optional GitHub proxy prefix. If GitHub
+#    access fails and no token is configured, it can also prompt for a hidden
+#    token input and retry once for the current session.
 # =============================================================================
 
 set -euo pipefail
@@ -39,6 +42,7 @@ ACTIVE_ENVS_DIR="$ENVS_DIR"
 TMP_ENVS_DIR=""
 HDF5_SKIP_REASON=""
 GITHUB_AUTH_TOKEN="${GITHUB_TOKEN:-${GH_TOKEN:-${GITHUB_PAT:-}}}"
+GITHUB_PROXY_PREFIX="${GITHUB_PROXY_PREFIX:-${XDXTOOLS_GITHUB_PROXY:-}}"
 INSTALLER_LANG="${XDXTOOLS_INSTALL_LANG:-}"
 RELEASE_METADATA=""
 RELEASE_METADATA_TAG=""
@@ -82,6 +86,7 @@ while [[ $# -gt 0 ]]; do
     --dry-run)        DRY_RUN=true;     shift ;;
     --version)        XDXTOOLS_VERSION="$2"; shift 2 ;;
     --releases-repo)  RELEASES_REPO="$2"; shift 2 ;;
+    --github-proxy)   GITHUB_PROXY_PREFIX="$2"; shift 2 ;;
     --lang)           INSTALLER_LANG="$2"; shift 2 ;;
     --help)           SHOW_HELP=true; shift ;;
     *)
@@ -202,17 +207,19 @@ print_help() {
 #    --dry-run            仅打印操作，不实际执行
 #    --version VER        指定发布版本（例如 v0.3.0），默认 latest
 #    --releases-repo REPO 指定 GitHub release 仓库（owner/name）
+#    --github-proxy URL   可选 GitHub 代理前缀（用于公开 GitHub 链接）
 #    --lang LANG          界面语言：en 或 zh
 #    --help               显示本帮助信息
 #
 #  环境变量:
 #    GITHUB_TOKEN / GH_TOKEN / GITHUB_PAT        私有 release 下载使用的 GitHub token
 #    GITHUB_RELEASES_REPO           release 仓库覆盖（owner/name）
+#    GITHUB_PROXY_PREFIX / XDXTOOLS_GITHUB_PROXY  GitHub 代理前缀覆盖
 #    XDXTOOLS_INSTALL_LANG          界面语言覆盖（en|zh）
 #
 #  交互行为:
-#    交互模式下会先选择语言；如果 GitHub 访问失败且未配置 token，
-#    安装器可以提示输入隐藏 token，并自动重试一次。
+#    交互模式下会先选择语言，再输入可选的 GitHub 代理前缀；如果 GitHub
+#    访问失败且未配置 token，安装器可以提示输入隐藏 token，并自动重试一次。
 # =============================================================================
 EOF
   else
@@ -232,17 +239,20 @@ EOF
 #    --dry-run            Print all actions without executing
 #    --version VER        Specify release version (e.g. v0.3.0); default: latest
 #    --releases-repo REPO Override GitHub release repo (owner/name)
+#    --github-proxy URL   Optional GitHub proxy prefix (for public GitHub URLs)
 #    --lang LANG          Interface language: en or zh
 #    --help               Show this help message
 #
 #  Environment:
 #    GITHUB_TOKEN / GH_TOKEN / GITHUB_PAT        Optional GitHub token for private release downloads
 #    GITHUB_RELEASES_REPO           Optional release repo override (owner/name)
+#    GITHUB_PROXY_PREFIX / XDXTOOLS_GITHUB_PROXY  Optional GitHub proxy prefix
 #    XDXTOOLS_INSTALL_LANG          Optional interface language override (en|zh)
 #
 #  Interactive behavior:
-#    Interactive mode asks for language first. If GitHub access fails and no token
-#    is configured, the installer can prompt for a hidden token input and retry once.
+#    Interactive mode asks for language first, then an optional GitHub proxy prefix.
+#    If GitHub access fails and no token is configured, the installer can prompt for
+#    a hidden token input and retry once.
 # =============================================================================
 EOF
   fi
@@ -320,28 +330,27 @@ print_completion_summary() {
   echo ""
 }
 
-initialize_language
-
-if [ "$SHOW_HELP" = true ]; then
-  print_help
-  exit 0
-fi
-
 github_api_get() {
-  local url="$1"
+  local url="$1" final_url="$1"
+  if [ -z "$GITHUB_AUTH_TOKEN" ]; then
+    final_url="$(apply_github_proxy "$url")"
+  fi
   if [ -n "$GITHUB_AUTH_TOKEN" ]; then
     curl --retry 3 --retry-all-errors --connect-timeout 15 -sf       -H "Accept: application/vnd.github+json"       -H "Authorization: Bearer $GITHUB_AUTH_TOKEN"       -H "X-GitHub-Api-Version: 2022-11-28"       "$url"
   else
-    curl --retry 3 --retry-all-errors --connect-timeout 15 -sf "$url"
+    curl --retry 3 --retry-all-errors --connect-timeout 15 -sf "$final_url"
   fi
 }
 
 github_release_download() {
-  local url="$1" dest="$2"
+  local url="$1" dest="$2" final_url="$1"
+  if [[ "$url" != https://api.github.com/repos/*/releases/assets/* ]]; then
+    final_url="$(apply_github_proxy "$url")"
+  fi
   if [ -n "$GITHUB_AUTH_TOKEN" ] && [[ "$url" == https://api.github.com/repos/*/releases/assets/* ]]; then
     curl --retry 3 --retry-all-errors --connect-timeout 15 -fL --progress-bar       -H "Accept: application/octet-stream"       -H "Authorization: Bearer $GITHUB_AUTH_TOKEN"       -H "X-GitHub-Api-Version: 2022-11-28"       "$url" -o "$dest"
   else
-    curl --retry 3 --retry-all-errors --connect-timeout 15 -fL --progress-bar "$url" -o "$dest"
+    curl --retry 3 --retry-all-errors --connect-timeout 15 -fL --progress-bar "$final_url" -o "$dest"
   fi
 }
 
@@ -384,15 +393,14 @@ resolve_release_asset_api_url() {
 
 github_repo_file_get() {
   local repo="$1" path="$2" ref="${3:-main}"
-  local url="https://api.github.com/repos/${repo}/contents/${path}?ref=${ref}"
+  local url="https://api.github.com/repos/${repo}/contents/${path}?ref=${ref}" final_url="$url"
+  if [ -z "$GITHUB_AUTH_TOKEN" ]; then
+    final_url="$(apply_github_proxy "$url")"
+  fi
   if [ -n "$GITHUB_AUTH_TOKEN" ]; then
-    curl --retry 3 --retry-all-errors --connect-timeout 15 -fsSL \
-      -H "Accept: application/vnd.github.raw" \
-      -H "Authorization: Bearer $GITHUB_AUTH_TOKEN" \
-      -H "X-GitHub-Api-Version: 2022-11-28" \
-      "$url"
+    curl --retry 3 --retry-all-errors --connect-timeout 15 -fsSL       -H "Accept: application/vnd.github.raw"       -H "Authorization: Bearer $GITHUB_AUTH_TOKEN"       -H "X-GitHub-Api-Version: 2022-11-28"       "$url"
   else
-    curl --retry 3 --retry-all-errors --connect-timeout 15 -fsSL -H "Accept: application/vnd.github.raw" "$url"
+    curl --retry 3 --retry-all-errors --connect-timeout 15 -fsSL -H "Accept: application/vnd.github.raw" "$final_url"
   fi
 }
 
@@ -457,6 +465,64 @@ ask_yn() {
 }
 
 
+ask_optional() {
+  local prompt="$1" default="${2:-}" answer
+  if [ "$NON_INTERACTIVE" = true ]; then
+    echo "$default"
+    return
+  fi
+  if [ -n "$default" ]; then
+    read -rp "  $prompt [$default]: " answer
+    echo "${answer:-$default}"
+  else
+    read -rp "  $prompt: " answer
+    echo "$answer"
+  fi
+}
+
+trim_whitespace() {
+  local value="$1"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  printf "%s" "$value"
+}
+
+normalize_github_proxy_prefix() {
+  local value
+  value="$(trim_whitespace "${1:-}")"
+  if [ -z "$value" ]; then
+    printf "%s" ""
+    return 0
+  fi
+  case "$value" in
+    http://*|https://*) ;;
+    *) return 1 ;;
+  esac
+  case "$value" in
+    */) ;;
+    *) value="${value}/" ;;
+  esac
+  printf "%s" "$value"
+}
+
+apply_github_proxy() {
+  local url="$1"
+  if [ -z "$GITHUB_PROXY_PREFIX" ]; then
+    printf "%s\n" "$url"
+  else
+    printf "%s%s\n" "$GITHUB_PROXY_PREFIX" "$url"
+  fi
+}
+
+initialize_github_proxy_prefix() {
+  local normalized
+  if ! normalized="$(normalize_github_proxy_prefix "$GITHUB_PROXY_PREFIX")"; then
+    log_error "$(txt "Invalid GitHub proxy prefix. Use a full http(s) URL such as https://gh-proxy.org/" "无效的 GitHub 代理前缀。请使用完整的 http(s) URL，例如 https://gh-proxy.org/")"
+    exit 1
+  fi
+  GITHUB_PROXY_PREFIX="$normalized"
+}
+
 ask_secret() {
   # ask_secret <prompt>
   local prompt="$1"
@@ -493,6 +559,14 @@ maybe_prompt_github_token_on_failure() {
 }
 
 divider() { echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; }
+
+initialize_language
+initialize_github_proxy_prefix
+
+if [ "$SHOW_HELP" = true ]; then
+  print_help
+  exit 0
+fi
 
 # ── Step 0: Banner ────────────────────────────────────────────────────────────
 echo ""
@@ -564,6 +638,14 @@ if [ -z "$INSTALL_DIR" ]; then
 fi
 log_info "$(txt "Binaries will be installed to: $INSTALL_DIR" "二进制文件将安装到: $INSTALL_DIR")"
 log_info "$(txt "GitHub releases repo: $RELEASES_REPO" "GitHub release 仓库: $RELEASES_REPO")"
+if [ "$NON_INTERACTIVE" = false ] && [ -z "$GITHUB_PROXY_PREFIX" ]; then
+  GITHUB_PROXY_PREFIX=$(ask_optional "$(txt "GitHub proxy prefix (optional, e.g. https://gh-proxy.org/)" "GitHub 代理前缀（可选，例如 https://gh-proxy.org/）")")
+  initialize_github_proxy_prefix
+fi
+log_info "$(txt "GitHub proxy prefix: ${GITHUB_PROXY_PREFIX:-<none>}" "GitHub 代理前缀: ${GITHUB_PROXY_PREFIX:-<空>}")"
+if [ -n "$GITHUB_PROXY_PREFIX" ] && [ -n "$GITHUB_AUTH_TOKEN" ]; then
+  log_info "$(txt "Authenticated GitHub API downloads stay direct to avoid leaking your token to the proxy" "带认证的 GitHub API 下载将保持直连，以避免将 token 暴露给代理")"
+fi
 SHELL_CONFIG=$(ask "$(txt "Shell config file" "Shell 配置文件")" "$DEFAULT_SHELL_CONFIG")
 log_info "$(txt "Shell config: $SHELL_CONFIG" "Shell 配置文件: $SHELL_CONFIG")"
 
@@ -626,10 +708,6 @@ for entry in "${TOOLS[@]}"; do
   fi
   dest="${INSTALL_DIR}/${bin_name}"
 
-  if [ -f "$dest" ] && [ "$DRY_RUN" = false ] && [ "${linkage}" != "static" ]; then
-    log_info "$(txt "[Installed] $bin_name – skipping (dynamic binary retained)" "[已安装] $bin_name – 跳过（保留动态链接版本）")"
-    continue
-  fi
 
   url="${BASE_URL}/${asset}"
   if [ -n "$GITHUB_AUTH_TOKEN" ]; then
@@ -638,17 +716,17 @@ for entry in "${TOOLS[@]}"; do
       url="$asset_api_url"
     fi
   fi
-  if [ -f "$dest" ] && [ "${linkage}" = "static" ]; then
-    log_info "$(txt "Updating $bin_name (overwriting existing static binary) ..." "正在更新 $bin_name（覆盖已有静态二进制）...")"
+  if [ -f "$dest" ]; then
+    log_info "$(txt "Updating $bin_name (overwriting existing binary) ..." "正在更新 $bin_name（覆盖已有二进制）...")"
   else
     log_info "$(txt "Downloading $bin_name ..." "正在下载 $bin_name ...")"
   fi
 
   if [ "$DRY_RUN" = true ]; then
-    if [ -n "$GITHUB_AUTH_TOKEN" ]; then
-      printf '  %b[DRY-RUN]%b curl -fL --progress-bar -H "Authorization: Bearer $GITHUB_TOKEN" "%s" -o "%s"\n' "$YELLOW" "$RESET" "$url" "$dest"
+    if [ -n "$GITHUB_AUTH_TOKEN" ] && [[ "$url" == https://api.github.com/repos/*/releases/assets/* ]]; then
+      printf '  %b[DRY-RUN]%b curl -fL --progress-bar -H "Accept: application/octet-stream" -H "Authorization: Bearer $GITHUB_TOKEN" "%s" -o "%s"\n' "$YELLOW" "$RESET" "$url" "$dest"
     else
-      printf '  %b[DRY-RUN]%b curl -fL --progress-bar "%s" -o "%s"\n' "$YELLOW" "$RESET" "$url" "$dest"
+      printf '  %b[DRY-RUN]%b curl -fL --progress-bar "%s" -o "%s"\n' "$YELLOW" "$RESET" "$(apply_github_proxy "$url")" "$dest"
     fi
   else
     if github_release_download "$url" "$dest"; then
