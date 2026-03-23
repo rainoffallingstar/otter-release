@@ -523,6 +523,60 @@ initialize_github_proxy_prefix() {
   GITHUB_PROXY_PREFIX="$normalized"
 }
 
+resolve_enva_path() {
+  if [ "$DRY_RUN" = true ] && [ -n "${INSTALL_DIR:-}" ]; then
+    printf '%s
+' "${INSTALL_DIR}/enva"
+    return 0
+  fi
+  if [ -x "${INSTALL_DIR}/enva" ]; then
+    printf '%s
+' "${INSTALL_DIR}/enva"
+    return 0
+  fi
+  if command -v enva >/dev/null 2>&1; then
+    command -v enva
+    return 0
+  fi
+  if [ -x "${SCRIPT_DIR}/../enva/target/release/enva" ]; then
+    printf '%s\n' "${SCRIPT_DIR}/../enva/target/release/enva"
+    return 0
+  fi
+  return 1
+}
+
+run_conda_cache_clean() {
+  if [ "$DRY_RUN" = true ]; then
+    case "$PM" in
+      micromamba)
+        echo -e "  ${YELLOW}[DRY-RUN]${RESET} micromamba clean --all --yes"
+        ;;
+      mamba|conda)
+        echo -e "  ${YELLOW}[DRY-RUN]${RESET} $PM clean --all -y"
+        ;;
+    esac
+    return 0
+  fi
+
+  log_info "$(txt "Cleaning conda package caches before environment creation ..." "正在创建环境前清理 conda 包缓存 ...")"
+  case "$PM" in
+    micromamba)
+      if micromamba clean --all --yes; then
+        log_success "$(txt "Conda caches cleaned" "conda 缓存清理完成")"
+      else
+        log_warn "$(txt "Conda cache cleanup failed; continuing with environment creation" "conda 缓存清理失败；将继续创建环境")"
+      fi
+      ;;
+    mamba|conda)
+      if "$PM" clean --all -y; then
+        log_success "$(txt "Conda caches cleaned" "conda 缓存清理完成")"
+      else
+        log_warn "$(txt "Conda cache cleanup failed; continuing with environment creation" "conda 缓存清理失败；将继续创建环境")"
+      fi
+      ;;
+  esac
+}
+
 ask_secret() {
   # ask_secret <prompt>
   local prompt="$1"
@@ -819,7 +873,15 @@ if [ "$SKIP_ENVS" = false ]; then
 fi
 
 if [ "$SKIP_ENVS" = false ]; then
-  # Map choice → env files to install
+  enva_bin=""
+  if enva_bin="$(resolve_enva_path 2>/dev/null)"; then
+    log_info "$(txt "Using enva for conda environment creation: $enva_bin" "将使用 enva 创建 conda 环境：$enva_bin")"
+    log_info "$(txt "enva will replace existing environments and clean caches before the first creation" "enva 将覆盖已存在环境，并在首次创建前清理缓存")"
+  else
+    log_warn "$(txt "enva not found; falling back to $PM env create" "未找到 enva；将回退到 $PM env create")"
+    run_conda_cache_clean
+  fi
+
   declare -A ENV_SELECT
   case "$INSTALL_ENVS_CHOICE" in
     all)
@@ -837,6 +899,8 @@ if [ "$SKIP_ENVS" = false ]; then
       ;;
   esac
 
+  enva_clean_cache_pending=true
+
   for yaml_file in "${ENV_FILES[@]}"; do
     [ -z "${ENV_SELECT[$yaml_file]+x}" ] && continue
     env_name="${yaml_file%.yaml}"
@@ -847,16 +911,42 @@ if [ "$SKIP_ENVS" = false ]; then
       continue
     fi
 
-    if [ "$DRY_RUN" = false ]; then
-      if $PM env list 2>/dev/null | grep -qE "^${env_name}([[:space:]]|$)"; then
-        log_info "$(txt "[Skip] $env_name already exists" "[跳过] $env_name 已存在")"
-      else
-        log_info "$(txt "Creating environment: $env_name ..." "正在创建环境：$env_name ...")"
-        $PM env create -f "$yaml_path"
-        log_success "$(txt "$env_name created" "$env_name 创建完成")"
+    if [ -n "$enva_bin" ]; then
+      log_info "$(txt "Creating environment via enva: $env_name ..." "正在通过 enva 创建环境：$env_name ...")"
+      enva_args=(create --yaml "$yaml_path" --name "$env_name" --force)
+      if [ "$enva_clean_cache_pending" = true ]; then
+        enva_args+=(--clean-cache)
       fi
+
+      if [ "$DRY_RUN" = false ]; then
+        if "$enva_bin" "${enva_args[@]}"; then
+          log_success "$(txt "$env_name created" "$env_name 创建完成")"
+        else
+          log_error "$(txt "Failed to create $env_name via enva" "通过 enva 创建 $env_name 失败")"
+          exit 1
+        fi
+      else
+        printf '  %b[DRY-RUN]%b %q --dry-run' "$YELLOW" "$RESET" "$enva_bin"
+        for arg in "${enva_args[@]}"; do
+          printf ' %q' "$arg"
+        done
+        printf '\n'
+      fi
+
+      enva_clean_cache_pending=false
     else
-      echo -e "  ${YELLOW}[DRY-RUN]${RESET} $PM env create -f \"$yaml_path\""
+      if [ "$DRY_RUN" = false ]; then
+        if $PM env list 2>/dev/null | grep -qE "^${env_name}([[:space:]]|$)"; then
+          log_info "$(txt "Replacing existing environment: $env_name ..." "正在覆盖已有环境：$env_name ...")"
+          $PM env remove -n "$env_name" -y
+        fi
+        log_info "$(txt "Creating environment: $env_name ..." "正在创建环境：$env_name ...")"
+        $PM env create -f "$yaml_path" -y
+        log_success "$(txt "$env_name created" "$env_name 创建完成")"
+      else
+        echo -e "  ${YELLOW}[DRY-RUN]${RESET} $PM env remove -n \"$env_name\" -y  # $(txt "if the environment already exists" "如果环境已存在")"
+        echo -e "  ${YELLOW}[DRY-RUN]${RESET} $PM env create -f \"$yaml_path\" -y"
+      fi
     fi
   done
 fi
