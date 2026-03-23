@@ -14,11 +14,13 @@
 #    --dry-run            Print all actions without executing
 #    --version VER        Specify release version (e.g. v0.3.0); default: latest
 #    --releases-repo REPO  Override GitHub release repo (owner/name)
+#    --lang LANG          Interface language: en or zh
 #    --help               Show this help message
 #
 #  Environment:
-#    GITHUB_TOKEN / GH_TOKEN        Optional GitHub token for private release downloads
+#    GITHUB_TOKEN / GH_TOKEN / GITHUB_PAT        Optional GitHub token for private release downloads
 #    GITHUB_RELEASES_REPO           Optional release repo override (owner/name)
+#    XDXTOOLS_INSTALL_LANG          Optional interface language override (en|zh)
 #
 #  Interactive behavior:
 #    If GitHub access fails and no token is configured, interactive mode can
@@ -30,10 +32,14 @@ set -euo pipefail
 # ── Top-level configuration ───────────────────────────────────────────────────
 RELEASES_REPO="${GITHUB_RELEASES_REPO:-rainoffallingstar/xdxtools-go}"
 XDXTOOLS_VERSION="latest"
-DEFAULT_INSTALL_DIR="$HOME/.local/bin"
+DEFAULT_INSTALL_DIR="$HOME/.cargo/bin"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENVS_DIR="$SCRIPT_DIR/../inst/envs"
-GITHUB_AUTH_TOKEN="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
+ACTIVE_ENVS_DIR="$ENVS_DIR"
+TMP_ENVS_DIR=""
+HDF5_SKIP_REASON=""
+GITHUB_AUTH_TOKEN="${GITHUB_TOKEN:-${GH_TOKEN:-${GITHUB_PAT:-}}}"
+INSTALLER_LANG="${XDXTOOLS_INSTALL_LANG:-}"
 
 # All 9 tools: binary_name:release_asset_stem:linkage(static|dynamic)
 TOOLS=(
@@ -74,6 +80,7 @@ while [[ $# -gt 0 ]]; do
     --dry-run)        DRY_RUN=true;     shift ;;
     --version)        XDXTOOLS_VERSION="$2"; shift 2 ;;
     --releases-repo)  RELEASES_REPO="$2"; shift 2 ;;
+    --lang)           INSTALLER_LANG="$2"; shift 2 ;;
     --help)           SHOW_HELP=true; shift ;;
     *)
       echo "Unknown option: $1"
@@ -92,9 +99,122 @@ log_success() { echo -e "  ${GREEN}✓${RESET} $*"; }
 log_warn()    { echo -e "  ${YELLOW}⚠${RESET}  $*"; }
 log_error()   { echo -e "  ${RED}✗${RESET}  $*" >&2; }
 
+detect_default_language() {
+  case "${LANG:-}" in
+    zh*|ZH*) echo "zh" ;;
+    *)       echo "en" ;;
+  esac
+}
+
+normalize_language() {
+  case "${1:-}" in
+    zh|ZH|zh-cn|zh_CN|zh-TW|zh_TW|cn|CN|中文) echo "zh" ;;
+    en|EN|en-us|en_US|english|English) echo "en" ;;
+    "") echo "" ;;
+    *) return 1 ;;
+  esac
+}
+
+prompt_for_language_selection() {
+  local default_lang default_choice choice
+  default_lang="$(detect_default_language)"
+
+  if [ "$NON_INTERACTIVE" = true ]; then
+    INSTALLER_LANG="$default_lang"
+    return 0
+  fi
+
+  echo "Language / 语言"
+  echo "  1) English"
+  echo "  2) 中文"
+
+  if [ "$default_lang" = "zh" ]; then
+    default_choice="2"
+  else
+    default_choice="1"
+  fi
+
+  read -rp "  Choice [$default_choice]: " choice
+  choice="${choice:-$default_choice}"
+
+  case "$choice" in
+    1|en|EN|english|English) INSTALLER_LANG="en" ;;
+    2|zh|ZH|cn|CN|中文)       INSTALLER_LANG="zh" ;;
+    *)                       INSTALLER_LANG="$default_lang" ;;
+  esac
+
+  echo ""
+}
+
+initialize_language() {
+  local normalized
+
+  if [ -n "$INSTALLER_LANG" ]; then
+    if ! normalized="$(normalize_language "$INSTALLER_LANG")"; then
+      echo "Invalid language: $INSTALLER_LANG. Use --lang en or --lang zh." >&2
+      exit 1
+    fi
+    INSTALLER_LANG="$normalized"
+  elif [ "$SHOW_HELP" = true ] || [ "$NON_INTERACTIVE" = true ]; then
+    INSTALLER_LANG="$(detect_default_language)"
+  else
+    prompt_for_language_selection
+  fi
+}
+
+txt() {
+  if [ "$INSTALLER_LANG" = "zh" ]; then
+    printf '%s' "$2"
+  else
+    printf '%s' "$1"
+  fi
+}
+
+hdf5_skip_reason_text() {
+  case "$1" in
+    conda_package_manager_unavailable) printf '%s' "$(txt "conda package manager not available" "未找到 conda 包管理器")" ;;
+    conda_environment_installation_skipped) printf '%s' "$(txt "conda environment installation skipped" "已跳过 conda 环境安装")" ;;
+    conda_environments_not_set_up) printf '%s' "$(txt "conda environments not set up" "conda 环境未就绪")" ;;
+    hdf5_configuration_disabled) printf '%s' "$(txt "HDF5 configuration disabled" "HDF5 配置已禁用")" ;;
+    xdxtools_core_environment_not_found) printf '%s' "$(txt "xdxtools-core environment not found" "未找到 xdxtools-core 环境")" ;;
+    conda_environment_yamls_unavailable) printf '%s' "$(txt "conda environment YAMLs unavailable" "无法获取 conda 环境 YAML 文件")" ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
 
 print_help() {
-  cat <<'EOF'
+  if [ "$INSTALLER_LANG" = "zh" ]; then
+    cat <<'EOF'
+# =============================================================================
+#  xdxtools 安装脚本
+#  从 GitHub Releases 下载预编译二进制文件，并配置 conda 环境。
+#
+#  用法:
+#    bash install.sh [选项]
+#
+#  选项:
+#    --install-dir PATH   指定二进制安装目录
+#    --skip-envs          跳过 conda 环境创建
+#    --skip-hdf5          跳过 methrix-cli 的 HDF5 配置
+#    --non-interactive    不提示交互，全部使用默认值
+#    --dry-run            仅打印操作，不实际执行
+#    --version VER        指定发布版本（例如 v0.3.0），默认 latest
+#    --releases-repo REPO 指定 GitHub release 仓库（owner/name）
+#    --lang LANG          界面语言：en 或 zh
+#    --help               显示本帮助信息
+#
+#  环境变量:
+#    GITHUB_TOKEN / GH_TOKEN / GITHUB_PAT        私有 release 下载使用的 GitHub token
+#    GITHUB_RELEASES_REPO           release 仓库覆盖（owner/name）
+#    XDXTOOLS_INSTALL_LANG          界面语言覆盖（en|zh）
+#
+#  交互行为:
+#    交互模式下会先选择语言；如果 GitHub 访问失败且未配置 token，
+#    安装器可以提示输入隐藏 token，并自动重试一次。
+# =============================================================================
+EOF
+  else
+    cat <<'EOF'
 # =============================================================================
 #  xdxtools Installer
 #  Downloads pre-built binaries from GitHub Releases and sets up conda envs.
@@ -109,18 +229,96 @@ print_help() {
 #    --non-interactive    Use all defaults without prompting
 #    --dry-run            Print all actions without executing
 #    --version VER        Specify release version (e.g. v0.3.0); default: latest
-#    --releases-repo REPO  Override GitHub release repo (owner/name)
+#    --releases-repo REPO Override GitHub release repo (owner/name)
+#    --lang LANG          Interface language: en or zh
 #    --help               Show this help message
 #
 #  Environment:
-#    GITHUB_TOKEN / GH_TOKEN        Optional GitHub token for private release downloads
+#    GITHUB_TOKEN / GH_TOKEN / GITHUB_PAT        Optional GitHub token for private release downloads
 #    GITHUB_RELEASES_REPO           Optional release repo override (owner/name)
+#    XDXTOOLS_INSTALL_LANG          Optional interface language override (en|zh)
 #
 #  Interactive behavior:
-#    If GitHub access fails and no token is configured, interactive mode can
-#    prompt for a hidden token input and retry once for the current session.
+#    Interactive mode asks for language first. If GitHub access fails and no token
+#    is configured, the installer can prompt for a hidden token input and retry once.
+# =============================================================================
 EOF
+  fi
 }
+
+print_reference_genome_instructions() {
+  if [ "$INSTALLER_LANG" = "zh" ]; then
+    cat <<'EOF'
+
+参考基因组托管于 HuggingFace：
+  https://huggingface.co/datasets/Genomiclab/xdxtools-genomes
+
+步骤：
+
+  1. 安装 huggingface-cli
+       pip install huggingface_hub
+
+  2. 下载全部基因组到项目目录
+       cd <your-project>
+       huggingface-cli download Genomiclab/xdxtools-genomes \
+         --local-dir ./inst/ --repo-type dataset
+
+  3. 仅下载人类基因组（RRBS/WGBS 分析）
+       huggingface-cli download Genomiclab/xdxtools-genomes \
+         --include "pdx/homo_sapiens/*" \
+         --local-dir ./inst/ --repo-type dataset
+
+  或直接访问浏览器下载后解压至项目 inst/ 目录
+
+EOF
+  else
+    cat <<'EOF'
+
+Reference genomes are hosted on HuggingFace:
+  https://huggingface.co/datasets/Genomiclab/xdxtools-genomes
+
+Steps:
+
+  1. Install huggingface-cli
+       pip install huggingface_hub
+
+  2. Download all genomes into your project directory
+       cd <your-project>
+       huggingface-cli download Genomiclab/xdxtools-genomes \
+         --local-dir ./inst/ --repo-type dataset
+
+  3. Download only the human genome set (RRBS/WGBS)
+       huggingface-cli download Genomiclab/xdxtools-genomes \
+         --include "pdx/homo_sapiens/*" \
+         --local-dir ./inst/ --repo-type dataset
+
+  Or download from the browser and extract into your project's inst/ directory.
+
+EOF
+  fi
+}
+
+print_completion_summary() {
+  echo ""
+  divider
+  echo -e "${GREEN}${BOLD}$(txt "Installation complete!" "安装完成！")${RESET}"
+  divider
+  echo ""
+  echo "$(txt "Please open a new shell, or run:" "请重新打开终端，或执行：")"
+  echo ""
+  echo "    source ${SHELL_CONFIG}"
+  echo ""
+  echo "$(txt "Quick start:" "快速开始：")"
+  echo ""
+  echo "    xdxtools init my_project"
+  echo "    xdxtools create --fastq /data/fastq --mode RRBS --pdata samples.csv --output my_project/userspace --jobid demo_rrbs"
+  echo "    xdxtools run --config my_project/userspace/demo_rrbs/config/config.yaml"
+  echo ""
+  divider
+  echo ""
+}
+
+initialize_language
 
 if [ "$SHOW_HELP" = true ]; then
   print_help
@@ -130,18 +328,18 @@ fi
 github_api_get() {
   local url="$1"
   if [ -n "$GITHUB_AUTH_TOKEN" ]; then
-    curl -sf       -H "Accept: application/vnd.github+json"       -H "Authorization: Bearer $GITHUB_AUTH_TOKEN"       -H "X-GitHub-Api-Version: 2022-11-28"       "$url"
+    curl --retry 3 --retry-all-errors --connect-timeout 15 -sf       -H "Accept: application/vnd.github+json"       -H "Authorization: Bearer $GITHUB_AUTH_TOKEN"       -H "X-GitHub-Api-Version: 2022-11-28"       "$url"
   else
-    curl -sf "$url"
+    curl --retry 3 --retry-all-errors --connect-timeout 15 -sf "$url"
   fi
 }
 
 github_release_download() {
   local url="$1" dest="$2"
   if [ -n "$GITHUB_AUTH_TOKEN" ]; then
-    curl -fL --progress-bar       -H "Authorization: Bearer $GITHUB_AUTH_TOKEN"       "$url" -o "$dest"
+    curl --retry 3 --retry-all-errors --connect-timeout 15 -fL --progress-bar       -H "Authorization: Bearer $GITHUB_AUTH_TOKEN"       "$url" -o "$dest"
   else
-    curl -fL --progress-bar "$url" -o "$dest"
+    curl --retry 3 --retry-all-errors --connect-timeout 15 -fL --progress-bar "$url" -o "$dest"
   fi
 }
 
@@ -149,6 +347,50 @@ resolve_latest_release_tag() {
   github_api_get "https://api.github.com/repos/${RELEASES_REPO}/releases/latest" \
     | grep '"tag_name"' | cut -d'"' -f4
 }
+
+github_repo_file_get() {
+  local repo="$1" path="$2" ref="${3:-main}"
+  local url="https://api.github.com/repos/${repo}/contents/${path}?ref=${ref}"
+  if [ -n "$GITHUB_AUTH_TOKEN" ]; then
+    curl --retry 3 --retry-all-errors --connect-timeout 15 -fsSL \
+      -H "Accept: application/vnd.github.raw" \
+      -H "Authorization: Bearer $GITHUB_AUTH_TOKEN" \
+      -H "X-GitHub-Api-Version: 2022-11-28" \
+      "$url"
+  else
+    curl --retry 3 --retry-all-errors --connect-timeout 15 -fsSL -H "Accept: application/vnd.github.raw" "$url"
+  fi
+}
+
+prepare_env_files() {
+  local yaml_file remote_path
+
+  ACTIVE_ENVS_DIR="$ENVS_DIR"
+  if [ -d "$ACTIVE_ENVS_DIR" ]; then
+    return 0
+  fi
+
+  TMP_ENVS_DIR=$(mktemp -d)
+  for yaml_file in "${ENV_FILES[@]}"; do
+    remote_path="inst/envs/${yaml_file}"
+    if ! github_repo_file_get "$RELEASES_REPO" "$remote_path" > "${TMP_ENVS_DIR}/${yaml_file}"; then
+      rm -rf "$TMP_ENVS_DIR"
+      TMP_ENVS_DIR=""
+      return 1
+    fi
+  done
+
+  ACTIVE_ENVS_DIR="$TMP_ENVS_DIR"
+  return 0
+}
+
+cleanup_installer_tmpdirs() {
+  if [ -n "$TMP_ENVS_DIR" ] && [ -d "$TMP_ENVS_DIR" ]; then
+    rm -rf "$TMP_ENVS_DIR"
+  fi
+}
+
+trap cleanup_installer_tmpdirs EXIT
 
 run() {
   if [ "$DRY_RUN" = true ]; then
@@ -195,7 +437,7 @@ ask_secret() {
 }
 
 maybe_prompt_github_token_on_failure() {
-  local reason="${1:-GitHub access failed.}"
+  local reason="${1:-$(txt "GitHub access failed." "GitHub 访问失败。")}"
 
   if [ -n "$GITHUB_AUTH_TOKEN" ] || [ "$NON_INTERACTIVE" = true ] || [ "$GITHUB_TOKEN_PROMPT_ATTEMPTED" = true ]; then
     return 1
@@ -204,13 +446,13 @@ maybe_prompt_github_token_on_failure() {
   GITHUB_TOKEN_PROMPT_ATTEMPTED=true
   log_warn "$reason"
 
-  if ask_yn "Enter a GitHub token now and retry once" "Y"; then
-    GITHUB_AUTH_TOKEN=$(ask_secret "GitHub token (input hidden, used only for this run)")
+  if ask_yn "$(txt "Enter a GitHub token now and retry once" "现在输入 GitHub token 并重试一次")" "Y"; then
+    GITHUB_AUTH_TOKEN=$(ask_secret "$(txt "GitHub token (input hidden, used only for this run)" "GitHub token（隐藏输入，仅用于本次安装）")")
     if [ -n "$GITHUB_AUTH_TOKEN" ]; then
-      log_success "GitHub token captured for this session"
+      log_success "$(txt "GitHub token captured for this session" "已读取本次会话使用的 GitHub token")"
       return 0
     fi
-    log_warn "Empty token entered; continuing without authenticated release access"
+    log_warn "$(txt "Empty token entered; continuing without authenticated release access" "未输入 token，将继续以未认证方式访问 release")"
   fi
 
   return 1
@@ -221,23 +463,23 @@ divider() { echo "━━━━━━━━━━━━━━━━━━━━�
 # ── Step 0: Banner ────────────────────────────────────────────────────────────
 echo ""
 echo -e "${BOLD}╔══════════════════════════════════════════╗${RESET}"
-echo -e "${BOLD}║        xdxtools Installer                ║${RESET}"
-echo -e "${BOLD}║  Bioinformatics Workflow Manager         ║${RESET}"
+echo -e "${BOLD}║        $(printf "%-26s" "$(txt "xdxtools Installer" "xdxtools 安装器")")║${RESET}"
+echo -e "${BOLD}║  $(printf "%-38s" "$(txt "Bioinformatics Workflow Manager" "生物信息工作流管理器")")║${RESET}"
 echo -e "${BOLD}╚══════════════════════════════════════════╝${RESET}"
 echo ""
-[ "$DRY_RUN" = true ] && echo -e "${YELLOW}  DRY-RUN MODE – no changes will be made${RESET}\n"
+[ "$DRY_RUN" = true ] && echo -e "${YELLOW}  $(txt "DRY-RUN MODE – no changes will be made" "DRY-RUN 模式：不会执行任何实际修改")${RESET}\n"
 
 # ── Step 1: System dependency check ──────────────────────────────────────────
-echo -e "${BOLD}Step 1: Checking system dependencies${RESET}"
+echo -e "${BOLD}$(txt "Step 1: Checking system dependencies" "Step 1: 检查系统依赖")${RESET}"
 
 # Required: curl
 if ! command -v curl &>/dev/null; then
-  log_error "curl is required but not found. Please install curl and re-run."
+  log_error "$(txt "curl is required but not found. Please install curl and re-run." "未找到 curl，请先安装 curl 后重试。")"
   exit 1
 fi
-log_success "curl found"
+log_success "$(txt "curl found" "已找到 curl")"
 if [ -n "$GITHUB_AUTH_TOKEN" ]; then
-  log_success "GitHub token detected – authenticated release access enabled"
+  log_success "$(txt "GitHub token detected – authenticated release access enabled" "已检测到 GitHub token，启用认证下载")"
 fi
 
 # Architecture detection
@@ -246,11 +488,11 @@ case "$ARCH" in
   x86_64)  ARCH="amd64" ;;
   aarch64) ARCH="arm64" ;;
   *)
-    log_error "Unsupported architecture: $ARCH"
+    log_error "$(txt "Unsupported architecture: $ARCH" "不支持的架构: $ARCH")"
     exit 1
     ;;
 esac
-log_success "Architecture: $ARCH"
+log_success "$(txt "Architecture: $ARCH" "系统架构: $ARCH")"
 
 # Shell detection
 DETECTED_SHELL="$(basename "${SHELL:-bash}")"
@@ -259,7 +501,7 @@ case "$DETECTED_SHELL" in
   bash) DEFAULT_SHELL_CONFIG="$HOME/.bashrc" ;;
   *)    DEFAULT_SHELL_CONFIG="$HOME/.profile" ;;
 esac
-log_success "Shell: $DETECTED_SHELL → $DEFAULT_SHELL_CONFIG"
+log_success "$(txt "Shell: $DETECTED_SHELL → $DEFAULT_SHELL_CONFIG" "Shell: $DETECTED_SHELL → $DEFAULT_SHELL_CONFIG")"
 
 # conda / mamba / micromamba detection
 PM=""
@@ -268,33 +510,34 @@ for pm in mamba micromamba conda; do
   if command -v "$pm" &>/dev/null; then
     PM="$pm"
     HAS_CONDA=true
-    log_success "Package manager: $pm"
+    log_success "$(txt "Package manager: $pm" "包管理器: $pm")"
     break
   fi
 done
 if [ "$HAS_CONDA" = false ]; then
-  log_warn "No conda/mamba/micromamba found – conda environment steps will be skipped"
+  log_warn "$(txt "No conda/mamba/micromamba found – conda environment steps will be skipped" "未找到 conda/mamba/micromamba，将跳过 conda 环境步骤")"
+  HDF5_SKIP_REASON="conda_package_manager_unavailable"
   SKIP_ENVS=true
 fi
 
 echo ""
 
 # ── Step 2: Interactive configuration ────────────────────────────────────────
-echo -e "${BOLD}Step 2: Configuration${RESET}"
+echo -e "${BOLD}$(txt "Step 2: Configuration" "Step 2: 配置")${RESET}"
 
 if [ -z "$INSTALL_DIR" ]; then
-  INSTALL_DIR=$(ask "Installation directory" "$DEFAULT_INSTALL_DIR")
+  INSTALL_DIR=$(ask "$(txt "Installation directory" "安装目录")" "$DEFAULT_INSTALL_DIR")
 fi
-log_info "Binaries will be installed to: $INSTALL_DIR"
-log_info "GitHub releases repo: $RELEASES_REPO"
-SHELL_CONFIG=$(ask "Shell config file" "$DEFAULT_SHELL_CONFIG")
-log_info "Shell config: $SHELL_CONFIG"
+log_info "$(txt "Binaries will be installed to: $INSTALL_DIR" "二进制文件将安装到: $INSTALL_DIR")"
+log_info "$(txt "GitHub releases repo: $RELEASES_REPO" "GitHub release 仓库: $RELEASES_REPO")"
+SHELL_CONFIG=$(ask "$(txt "Shell config file" "Shell 配置文件")" "$DEFAULT_SHELL_CONFIG")
+log_info "$(txt "Shell config: $SHELL_CONFIG" "Shell 配置文件: $SHELL_CONFIG")"
 
 if [ "$SKIP_ENVS" = false ]; then
-  if ask_yn "Install conda environments?" "Y"; then
-    echo -e "  Which environments? [a]ll / [c]ore / [s]nakemake / [e]xtra"
+  if ask_yn "$(txt "Install conda environments?" "安装 conda 环境？")" "Y"; then
+    echo -e "  $(txt "Which environments? [a]ll / [c]ore / [s]nakemake / [e]xtra" "安装哪些环境？[a]全部 / [c]核心 / [s]Snakemake / [e]扩展")"
     if [ "$NON_INTERACTIVE" = false ]; then
-      read -rp "  Choice [a]: " env_choice
+      read -rp "  $(txt "Choice [a]: " "选择 [a]: ")" env_choice
     else
       env_choice="a"
     fi
@@ -304,37 +547,38 @@ if [ "$SKIP_ENVS" = false ]; then
       e|extra)      INSTALL_ENVS_CHOICE="extra"       ;;
       *)            INSTALL_ENVS_CHOICE="all"         ;;
     esac
-    log_info "Environments to install: $INSTALL_ENVS_CHOICE"
+    log_info "$(txt "Environments to install: $INSTALL_ENVS_CHOICE" "将安装的环境: $INSTALL_ENVS_CHOICE")"
   else
     SKIP_ENVS=true
-    log_info "Skipping conda environments"
+    HDF5_SKIP_REASON="conda_environment_installation_skipped"
+    log_info "$(txt "Skipping conda environments" "跳过 conda 环境安装")"
   fi
 fi
 
 echo ""
 
 # ── Step 3: Resolve version and download binaries ────────────────────────────
-echo -e "${BOLD}Step 3: Downloading binaries${RESET}"
+echo -e "${BOLD}$(txt "Step 3: Downloading binaries" "Step 3: 下载二进制文件")${RESET}"
 
 # Resolve "latest" tag via GitHub API
 if [ "$XDXTOOLS_VERSION" = "latest" ]; then
-  log_info "Querying GitHub API for latest release..."
+  log_info "$(txt "Querying GitHub API for latest release..." "正在查询 GitHub API 获取最新版本...")"
   latest_release_tag=""
   if ! latest_release_tag=$(resolve_latest_release_tag 2>/dev/null); then
     latest_release_tag=""
   fi
-  if [ -z "$latest_release_tag" ] && maybe_prompt_github_token_on_failure "Latest release query failed. Private release repos usually require a GitHub token."; then
+  if [ -z "$latest_release_tag" ] && maybe_prompt_github_token_on_failure "$(txt "Latest release query failed. Private release repos usually require a GitHub token." "查询最新 release 失败。私有 release 仓库通常需要 GitHub token。")"; then
     if ! latest_release_tag=$(resolve_latest_release_tag 2>/dev/null); then
       latest_release_tag=""
     fi
   fi
   if [ -z "$latest_release_tag" ]; then
-    log_error "Could not determine latest version. If the release repo is private, export GITHUB_TOKEN or GH_TOKEN and retry, or use --version to specify."
+    log_error "$(txt "Could not determine latest version. If the release repo is private, export GITHUB_TOKEN, GH_TOKEN, or GITHUB_PAT and retry, or use --version to specify." "无法确定最新版本。如果 release 仓库是私有的，请导出 GITHUB_TOKEN、GH_TOKEN 或 GITHUB_PAT 后重试，或使用 --version 指定版本。")"
     exit 1
   fi
   XDXTOOLS_VERSION="$latest_release_tag"
 fi
-log_info "Version: $XDXTOOLS_VERSION"
+log_info "$(txt "Version: $XDXTOOLS_VERSION" "版本: $XDXTOOLS_VERSION")"
 
 run "mkdir -p \"$INSTALL_DIR\""
 
@@ -348,13 +592,17 @@ for entry in "${TOOLS[@]}"; do
   fi
   dest="${INSTALL_DIR}/${bin_name}"
 
-  if [ -f "$dest" ] && [ "$DRY_RUN" = false ]; then
-    log_info "[已安装] $bin_name – skipping (use --install-dir to reinstall)"
+  if [ -f "$dest" ] && [ "$DRY_RUN" = false ] && [ "${linkage}" != "static" ]; then
+    log_info "$(txt "[Installed] $bin_name – skipping (dynamic binary retained)" "[已安装] $bin_name – 跳过（保留动态链接版本）")"
     continue
   fi
 
   url="${BASE_URL}/${asset}"
-  log_info "Downloading $bin_name ..."
+  if [ -f "$dest" ] && [ "${linkage}" = "static" ]; then
+    log_info "$(txt "Updating $bin_name (overwriting existing static binary) ..." "正在更新 $bin_name（覆盖已有静态二进制）...")"
+  else
+    log_info "$(txt "Downloading $bin_name ..." "正在下载 $bin_name ...")"
+  fi
 
   if [ "$DRY_RUN" = true ]; then
     if [ -n "$GITHUB_AUTH_TOKEN" ]; then
@@ -365,16 +613,16 @@ for entry in "${TOOLS[@]}"; do
   else
     if github_release_download "$url" "$dest"; then
       chmod +x "$dest"
-      log_success "$bin_name installed"
-    elif maybe_prompt_github_token_on_failure "Download failed for $bin_name. Private release assets usually require a GitHub token."; then
+      log_success "$(txt "$bin_name installed" "$bin_name 安装完成")"
+    elif maybe_prompt_github_token_on_failure "$(txt "Download failed for $bin_name. Private release assets usually require a GitHub token." "$bin_name 下载失败。私有 release 资产通常需要 GitHub token。")"; then
       if github_release_download "$url" "$dest"; then
         chmod +x "$dest"
-        log_success "$bin_name installed"
+        log_success "$(txt "$bin_name installed" "$bin_name 安装完成")"
       else
-        log_warn "$bin_name download failed (HTTP error – asset may not exist for this release, or authentication is required)"
+        log_warn "$(txt "$bin_name download failed (HTTP error – asset may not exist for this release, or authentication is required)" "$bin_name 下载失败（HTTP 错误：该版本可能不存在该资产，或需要认证）")"
       fi
     else
-      log_warn "$bin_name download failed (HTTP error – asset may not exist for this release, or authentication is required)"
+      log_warn "$(txt "$bin_name download failed (HTTP error – asset may not exist for this release, or authentication is required)" "$bin_name 下载失败（HTTP 错误：该版本可能不存在该资产，或需要认证）")"
     fi
   fi
 done
@@ -382,7 +630,7 @@ done
 if [ "$DRY_RUN" = false ]; then
   if [ -f "${INSTALL_DIR}/methrix-cli" ] && [ ! -e "${INSTALL_DIR}/methrix" ]; then
     ln -s "${INSTALL_DIR}/methrix-cli" "${INSTALL_DIR}/methrix"
-    log_info "Created compatibility symlink: methrix -> methrix-cli"
+    log_info "$(txt "Created compatibility symlink: methrix -> methrix-cli" "已创建兼容性软链接：methrix -> methrix-cli")"
   fi
 else
   echo -e "  ${YELLOW}[DRY-RUN]${RESET} ln -s \"${INSTALL_DIR}/methrix-cli\" \"${INSTALL_DIR}/methrix\""
@@ -391,7 +639,7 @@ fi
 echo ""
 
 # ── Step 4: Verify tools ──────────────────────────────────────────────────────
-echo -e "${BOLD}Step 4: Verifying installed tools${RESET}"
+echo -e "${BOLD}$(txt "Step 4: Verifying installed tools" "Step 4: 验证已安装工具")${RESET}"
 
 # Temporarily add INSTALL_DIR to PATH for verification
 export PATH="${INSTALL_DIR}:${PATH}"
@@ -401,12 +649,12 @@ for entry in "${TOOLS[@]}"; do
   dest="${INSTALL_DIR}/${bin_name}"
 
   if [ "$bin_name" = "methrix-cli" ]; then
-    echo -e "  ${YELLOW}⚠${RESET}  methrix-cli  (needs HDF5 config – will verify in Step 8)"
+    echo -e "  ${YELLOW}⚠${RESET}  $(txt "methrix-cli  (needs HDF5 config – will verify in Step 8)" "methrix-cli  （需要 HDF5 配置，将在 Step 8 验证）")"
     continue
   fi
 
   if [ "$DRY_RUN" = true ]; then
-    echo -e "  ${YELLOW}[DRY-RUN]${RESET} would verify: $bin_name --version"
+    echo -e "  ${YELLOW}[DRY-RUN]${RESET} $(txt "would verify: $bin_name --version" "将验证：$bin_name --version")"
     continue
   fi
 
@@ -414,39 +662,39 @@ for entry in "${TOOLS[@]}"; do
     ver=$("$dest" --version 2>&1 | head -1 || echo "(version unknown)")
     log_success "$bin_name  $ver"
   else
-    log_warn "$bin_name  not found at $dest"
+    log_warn "$(txt "$bin_name not found at $dest" "$bin_name 未在 $dest 找到")"
   fi
 done
 
 echo ""
 
 # ── Step 5: Configure PATH ────────────────────────────────────────────────────
-echo -e "${BOLD}Step 5: Configuring PATH${RESET}"
+echo -e "${BOLD}$(txt "Step 5: Configuring PATH" "Step 5: 配置 PATH")${RESET}"
 
 if [[ ":$PATH:" != *":${INSTALL_DIR}:"* ]]; then
-  log_info "Adding $INSTALL_DIR to PATH in $SHELL_CONFIG"
+  log_info "$(txt "Adding $INSTALL_DIR to PATH in $SHELL_CONFIG" "正在将 $INSTALL_DIR 添加到 $SHELL_CONFIG 的 PATH")"
   run "echo '' >> \"$SHELL_CONFIG\""
   run "echo '# xdxtools: binary install directory' >> \"$SHELL_CONFIG\""
   run "echo 'export PATH=\"${INSTALL_DIR}:\$PATH\"' >> \"$SHELL_CONFIG\""
-  log_success "PATH updated in $SHELL_CONFIG"
+  log_success "$(txt "PATH updated in $SHELL_CONFIG" "已更新 $SHELL_CONFIG 中的 PATH")"
 else
-  log_success "$INSTALL_DIR is already in PATH"
+  log_success "$(txt "$INSTALL_DIR is already in PATH" "$INSTALL_DIR 已存在于 PATH 中")"
 fi
 
 echo ""
 
 # ── Step 6: Create conda environments ────────────────────────────────────────
 if [ "$SKIP_ENVS" = false ]; then
-  echo -e "${BOLD}Step 6: Creating conda environments${RESET}"
+  echo -e "${BOLD}$(txt "Step 6: Creating conda environments" "Step 6: 创建 conda 环境")${RESET}"
 
-  # Check that inst/envs/ is accessible
-  if [ ! -d "$ENVS_DIR" ]; then
-    log_warn "inst/envs/ not found at $ENVS_DIR"
-    log_warn "Clone the full repository to access environment files:"
-    echo ""
-    echo "    git clone --recurse-submodules https://github.com/rainoffallingstar/xdxtools-go.git"
-    echo "    bash xdxtools-go/scripts/install.sh"
-    echo ""
+  if prepare_env_files; then
+    if [ "$ACTIVE_ENVS_DIR" != "$ENVS_DIR" ]; then
+      log_info "$(txt "Local inst/envs not found; using environment YAMLs downloaded from ${RELEASES_REPO}" "未找到本地 inst/envs；将使用从 ${RELEASES_REPO} 下载的环境 YAML")"
+    fi
+  else
+    log_warn "$(txt "Could not access inst/envs locally or download environment YAMLs from ${RELEASES_REPO}" "无法访问本地 inst/envs，也无法从 ${RELEASES_REPO} 下载环境 YAML")"
+    log_warn "$(txt "Skipping conda environment setup" "跳过 conda 环境安装")"
+    HDF5_SKIP_REASON="conda_environment_yamls_unavailable"
     SKIP_ENVS=true
     SKIP_HDF5=true
   fi
@@ -474,20 +722,20 @@ if [ "$SKIP_ENVS" = false ]; then
   for yaml_file in "${ENV_FILES[@]}"; do
     [ -z "${ENV_SELECT[$yaml_file]+x}" ] && continue
     env_name="${yaml_file%.yaml}"
-    yaml_path="${ENVS_DIR}/${yaml_file}"
+    yaml_path="${ACTIVE_ENVS_DIR}/${yaml_file}"
 
     if [ ! -f "$yaml_path" ]; then
-      log_warn "$yaml_file not found, skipping $env_name"
+      log_warn "$(txt "$yaml_file not found, skipping $env_name" "$yaml_file 未找到，跳过 $env_name")"
       continue
     fi
 
     if [ "$DRY_RUN" = false ]; then
-      if $PM env list 2>/dev/null | grep -q "^${env_name}\b"; then
-        log_info "[跳过] $env_name 已存在"
+      if $PM env list 2>/dev/null | grep -qE "^${env_name}([[:space:]]|$)"; then
+        log_info "$(txt "[Skip] $env_name already exists" "[跳过] $env_name 已存在")"
       else
-        log_info "Creating environment: $env_name ..."
+        log_info "$(txt "Creating environment: $env_name ..." "正在创建环境：$env_name ...")"
         $PM env create -f "$yaml_path"
-        log_success "$env_name created"
+        log_success "$(txt "$env_name created" "$env_name 创建完成")"
       fi
     else
       echo -e "  ${YELLOW}[DRY-RUN]${RESET} $PM env create -f \"$yaml_path\""
@@ -497,36 +745,53 @@ fi
 [ "$SKIP_ENVS" = true ] || echo ""
 
 # ── Step 7: Install HDF5 into xdxtools-core ───────────────────────────────────
-if [ "$SKIP_HDF5" = false ] && [ "$SKIP_ENVS" = false ] && [ "$HAS_CONDA" = true ]; then
-  echo -e "${BOLD}Step 7: Installing HDF5 into xdxtools-core${RESET}"
-
-  if [ "$DRY_RUN" = false ]; then
-    if $PM env list 2>/dev/null | grep -q "^xdxtools-core\b"; then
-      log_info "Installing hdf5 into xdxtools-core ..."
-      $PM install -n xdxtools-core -c conda-forge hdf5 -y
-      log_success "HDF5 installed"
+echo -e "${BOLD}$(txt "Step 7: Installing HDF5 into xdxtools-core" "Step 7: 在 xdxtools-core 中安装 HDF5")${RESET}"
+if [ "$SKIP_HDF5" = true ] || [ "$SKIP_ENVS" = true ] || [ "$HAS_CONDA" = false ]; then
+  if [ -z "$HDF5_SKIP_REASON" ]; then
+    if [ "$HAS_CONDA" = false ]; then
+      HDF5_SKIP_REASON="conda_package_manager_unavailable"
+    elif [ "$SKIP_ENVS" = true ]; then
+      HDF5_SKIP_REASON="conda_environments_not_set_up"
     else
-      log_warn "xdxtools-core environment not found, skipping HDF5 install"
+      HDF5_SKIP_REASON="hdf5_configuration_disabled"
+    fi
+  fi
+  log_warn "$(txt "Skipped ($(hdf5_skip_reason_text "$HDF5_SKIP_REASON"))" "已跳过（$(hdf5_skip_reason_text "$HDF5_SKIP_REASON")）")"
+else
+  if [ "$DRY_RUN" = false ]; then
+    if $PM env list 2>/dev/null | grep -qE "^xdxtools-core([[:space:]]|$)"; then
+      log_info "$(txt "Installing hdf5 into xdxtools-core ..." "正在向 xdxtools-core 安装 hdf5 ...")"
+      $PM install -n xdxtools-core -c conda-forge hdf5 -y
+      log_success "$(txt "HDF5 installed" "HDF5 安装完成")"
+    else
+      HDF5_SKIP_REASON="xdxtools_core_environment_not_found"
       SKIP_HDF5=true
+      log_warn "$(txt "Skipped ($(hdf5_skip_reason_text "$HDF5_SKIP_REASON"))" "已跳过（$(hdf5_skip_reason_text "$HDF5_SKIP_REASON")）")"
     fi
   else
     echo -e "  ${YELLOW}[DRY-RUN]${RESET} $PM install -n xdxtools-core -c conda-forge hdf5 -y"
   fi
-  echo ""
-elif [ "$SKIP_HDF5" = false ]; then
-  echo -e "${BOLD}Step 7: HDF5 configuration${RESET}"
-  log_warn "Skipped (conda environments not set up)"
-  echo ""
 fi
+echo ""
 
 # ── Step 8: Configure HDF5 environment variables ─────────────────────────────
 HDF5_ENV_PATH=""
-if [ "$SKIP_HDF5" = false ] && [ "$HAS_CONDA" = true ]; then
-  echo -e "${BOLD}Step 8: Configuring HDF5 environment variables${RESET}"
-
+echo -e "${BOLD}$(txt "Step 8: Configuring HDF5 environment variables" "Step 8: 配置 HDF5 环境变量")${RESET}"
+if [ "$SKIP_HDF5" = true ] || [ "$SKIP_ENVS" = true ] || [ "$HAS_CONDA" = false ]; then
+  if [ -z "$HDF5_SKIP_REASON" ]; then
+    if [ "$HAS_CONDA" = false ]; then
+      HDF5_SKIP_REASON="conda_package_manager_unavailable"
+    elif [ "$SKIP_ENVS" = true ]; then
+      HDF5_SKIP_REASON="conda_environments_not_set_up"
+    else
+      HDF5_SKIP_REASON="hdf5_configuration_disabled"
+    fi
+  fi
+  log_warn "$(txt "Skipped ($(hdf5_skip_reason_text "$HDF5_SKIP_REASON"))" "已跳过（$(hdf5_skip_reason_text "$HDF5_SKIP_REASON")）")"
+else
   if [ "$DRY_RUN" = false ]; then
     HDF5_ENV_PATH=$($PM env list 2>/dev/null \
-      | grep "^xdxtools-core" | awk '{print $NF}' | head -1)
+      | grep -E "^xdxtools-core([[:space:]]|$)" | awk '{print $NF}' | head -1)
 
     if [ -n "$HDF5_ENV_PATH" ]; then
       cat >> "$SHELL_CONFIG" << 'HEREDOC'
@@ -540,74 +805,35 @@ export HDF5_LIB_DIR="$HDF5_DIR/lib"
 export LD_LIBRARY_PATH="$HDF5_DIR/lib:${LD_LIBRARY_PATH:-}"
 export PKG_CONFIG_PATH="$HDF5_DIR/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
 HEREDOC
-      log_success "HDF5 environment variables written to $SHELL_CONFIG"
+      log_success "$(txt "HDF5 environment variables written to $SHELL_CONFIG" "已将 HDF5 环境变量写入 $SHELL_CONFIG")"
 
-      # Load for immediate verification
       export HDF5_DIR="$HDF5_ENV_PATH"
       export LD_LIBRARY_PATH="${HDF5_DIR}/lib:${LD_LIBRARY_PATH:-}"
 
       METHRIX_BIN="${INSTALL_DIR}/methrix-cli"
       if [ -f "$METHRIX_BIN" ] && "$METHRIX_BIN" --version &>/dev/null; then
         ver=$("$METHRIX_BIN" --version 2>&1 | head -1)
-        log_success "methrix-cli verified: $ver"
+        log_success "$(txt "methrix-cli verified: $ver" "methrix-cli 验证通过：$ver")"
       else
-        log_warn "methrix-cli could not be verified (may need to source $SHELL_CONFIG first)"
+        log_warn "$(txt "methrix-cli could not be verified (may need to source $SHELL_CONFIG first)" "无法验证 methrix-cli（可能需要先 source $SHELL_CONFIG）")"
       fi
     else
-      log_warn "xdxtools-core path not found, HDF5 variables not configured"
+      log_warn "$(txt "xdxtools-core path not found, HDF5 variables not configured" "未找到 xdxtools-core 路径，未配置 HDF5 环境变量")"
     fi
   else
-    echo -e "  ${YELLOW}[DRY-RUN]${RESET} would append HDF5_DIR / LD_LIBRARY_PATH to $SHELL_CONFIG"
-    echo -e "  ${YELLOW}[DRY-RUN]${RESET} would verify: methrix-cli --version"
+    echo -e "  ${YELLOW}[DRY-RUN]${RESET} $(txt "would append HDF5_DIR / LD_LIBRARY_PATH to $SHELL_CONFIG" "将向 $SHELL_CONFIG 追加 HDF5_DIR / LD_LIBRARY_PATH")"
+    echo -e "  ${YELLOW}[DRY-RUN]${RESET} $(txt "would verify: methrix-cli --version" "将验证：methrix-cli --version")"
   fi
-  echo ""
 fi
+echo ""
 
 # ── Step 9: Reference genome download instructions ───────────────────────────
 echo ""
 divider
-echo -e "${BOLD}参考基因组下载指引${RESET}"
+echo -e "${BOLD}$(txt "Reference Genome Download Guide" "参考基因组下载指引")${RESET}"
 divider
-cat << 'EOF'
-
-参考基因组托管于 HuggingFace：
-  https://huggingface.co/datasets/Genomiclab/xdxtools-genomes
-
-步骤：
-
-  1. 安装 huggingface-cli
-       pip install huggingface_hub
-
-  2. 下载全部基因组到项目目录
-       cd <your-project>
-       huggingface-cli download Genomiclab/xdxtools-genomes \
-         --local-dir ./inst/ --repo-type dataset
-
-  3. 仅下载人类基因组（RRBS/WGBS 分析）
-       huggingface-cli download Genomiclab/xdxtools-genomes \
-         --include "pdx/homo_sapiens/*" \
-         --local-dir ./inst/ --repo-type dataset
-
-  或直接访问浏览器下载后解压至项目 inst/ 目录
-
-EOF
+print_reference_genome_instructions
 divider
 
 # ── Final summary ─────────────────────────────────────────────────────────────
-echo ""
-divider
-echo -e "${GREEN}${BOLD}安装完成！${RESET}"
-divider
-echo ""
-echo "请重新打开终端，或执行："
-echo ""
-echo "    source ${SHELL_CONFIG}"
-echo ""
-echo "快速开始："
-echo ""
-echo "    xdxtools init my_project"
-echo "    xdxtools create --fastq /data/fastq --mode RRBS --pdata samples.csv --output my_project/userspace --jobid demo_rrbs"
-echo "    xdxtools run --config my_project/userspace/demo_rrbs/config/config.yaml"
-echo ""
-divider
-echo ""
+print_completion_summary

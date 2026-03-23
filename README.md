@@ -26,9 +26,9 @@ A bioinformatics workflow CLI for RRBS, WGBS, RNA-seq, and PDX analysis.
 bash <(curl -fsSL https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh)
 ```
 
-The script downloads pre-built binaries from GitHub Releases and sets up the required conda environments interactively. Use `scripts/setup.sh` only for source builds.
+The script downloads pre-built binaries from GitHub Releases and sets up the required conda environments interactively. The first interactive prompt lets you choose English or Chinese. Use `--lang en` or `--lang zh` to force the interface language, or use `scripts/setup.sh` only for source builds.
 
-If the repository itself is private, anonymous `raw.githubusercontent.com` downloads return `404`, and `wget -qO-` hides that failure. Use an authenticated bootstrap command instead. If the release repo or assets are private, export `GITHUB_TOKEN` (or `GH_TOKEN`) first. For a private fork, also set `GITHUB_RELEASES_REPO=<owner>/<repo>`. In interactive mode, if GitHub access fails and no token is configured, the installer can prompt for a hidden token and retry once.
+If the repository itself is private, anonymous `raw.githubusercontent.com` downloads return `404`, and `wget -qO-` hides that failure. Use an authenticated bootstrap command instead. If the release repo or assets are private, export `GITHUB_TOKEN` (or `GH_TOKEN` / `GITHUB_PAT`) first. For a private fork, also set `GITHUB_RELEASES_REPO=<owner>/<repo>`. In interactive mode, if GitHub access fails and no token is configured, the installer can prompt for a hidden token and retry once.
 
 Common options:
 
@@ -40,13 +40,14 @@ bash <(curl -fsSL https://raw.githubusercontent.com/rainoffallingstar/xdxtools-g
 bash <(curl -fsSL https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh) --version v0.3.0
 
 # Private repository bootstrap
-GITHUB_TOKEN="${GITHUB_PAT}" \
-  bash <(curl -fsSL -H "Authorization: Bearer ${GITHUB_PAT}" \
+export GITHUB_PAT=<your_pat>
+bash <(curl -fsSL -H "Authorization: Bearer ${GITHUB_PAT}" \
   https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh)
 
 # Private release fork
-GITHUB_TOKEN=<your_pat> GITHUB_RELEASES_REPO=<owner>/<repo> \
-  bash <(curl -fsSL -H "Authorization: Bearer <your_pat>" \
+export GITHUB_PAT=<your_pat>
+export GITHUB_RELEASES_REPO=<owner>/<repo>
+bash <(curl -fsSL -H "Authorization: Bearer ${GITHUB_PAT}" \
   https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh)
 
 # Skip conda environment creation

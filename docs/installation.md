@@ -72,7 +72,7 @@ cd xdxtools-go
 bash scripts/install.sh
 ```
 
-If the repository itself is private, anonymous `raw.githubusercontent.com` downloads return `404`, and `wget -qO-` hides that failure. Use an authenticated bootstrap command instead. If the GitHub Releases repository or assets are private, export `GITHUB_TOKEN` (or `GH_TOKEN`) before running the installer. For a private fork, also set `GITHUB_RELEASES_REPO=<owner>/<repo>` or pass `--releases-repo <owner>/<repo>`. In interactive mode, if GitHub access fails and no token is configured, the installer can prompt for a hidden token input and retry once for the current session.
+If the repository itself is private, anonymous `raw.githubusercontent.com` downloads return `404`, and `wget -qO-` hides that failure. Use an authenticated bootstrap command instead. If the GitHub Releases repository or assets are private, export `GITHUB_TOKEN` (or `GH_TOKEN` / `GITHUB_PAT`) before running the installer. For a private fork, also set `GITHUB_RELEASES_REPO=<owner>/<repo>` or pass `--releases-repo <owner>/<repo>`. The first interactive prompt lets you choose English or Chinese; you can also force the interface language with `--lang en` or `--lang zh`. If GitHub access fails and no token is configured, the installer can prompt for a hidden token input and retry once for the current session.
 
 The installer will:
 1. Download release binaries into your install directory
@@ -92,13 +92,16 @@ bash scripts/install.sh --skip-hdf5
 # Pin a specific release tag
 bash scripts/install.sh --version v0.3.0
 
+# Force Chinese installer output
+bash scripts/install.sh --lang zh
+
 # Private repository bootstrap
-GITHUB_TOKEN="${GITHUB_PAT}" \
-  bash <(curl -fsSL -H "Authorization: Bearer ${GITHUB_PAT}" \
+export GITHUB_PAT=<your_pat>
+bash <(curl -fsSL -H "Authorization: Bearer ${GITHUB_PAT}" \
   https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh)
 
 # Private GitHub Releases
-export GITHUB_TOKEN=<your_pat>
+export GITHUB_PAT=<your_pat>
 export GITHUB_RELEASES_REPO=<owner>/<repo>
 
 # Or override per invocation
