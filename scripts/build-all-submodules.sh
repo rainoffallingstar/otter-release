@@ -144,6 +144,7 @@ echo "Verifying installations"
 echo "======================================"
 
 required_bins=(enva fqc xenofilter paireads htseq2matrix methrix-cli qctb gomats)
+version_re='([0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?|[0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[0-9]+|daily-[0-9]{8})'
 missing_bins=()
 invalid_versions=()
 
@@ -155,7 +156,7 @@ for binary in "${required_bins[@]}"; do
   fi
 
   version_output="$("${CARGO_BIN}/${binary}" --version 2>&1 | head -1 || true)"
-  expected_re="^${binary} [0-9]+\\.[0-9]+\\.[0-9]+([.-][0-9A-Za-z.-]+)?$"
+  expected_re="^${binary} ${version_re}$"
   if printf '%s\n' "${version_output}" | grep -Eq "${expected_re}"; then
     echo "✓ ${binary} - ${version_output}"
   else
