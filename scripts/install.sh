@@ -9,7 +9,7 @@
 #  Options:
 #    --install-dir PATH   Override binary installation directory
 #    --skip-envs          Skip conda environment creation
-#    --skip-hdf5          Skip HDF5 configuration for methrix-cli
+#    --skip-hdf5          Skip HDF5 environment setup for methrix-cli
 #    --non-interactive    Use all defaults without prompting
 #    --dry-run            Print all actions without executing
 #    --version VER        Specify release version (e.g. v0.3.0); default: latest
@@ -202,7 +202,7 @@ print_help() {
 #  选项:
 #    --install-dir PATH   指定二进制安装目录
 #    --skip-envs          跳过 conda 环境创建
-#    --skip-hdf5          跳过 methrix-cli 的 HDF5 配置
+#    --skip-hdf5          跳过 methrix-cli 的 HDF5 环境配置
 #    --non-interactive    不提示交互，全部使用默认值
 #    --dry-run            仅打印操作，不实际执行
 #    --version VER        指定发布版本（例如 v0.3.0），默认 latest
@@ -234,7 +234,7 @@ EOF
 #  Options:
 #    --install-dir PATH   Override binary installation directory
 #    --skip-envs          Skip conda environment creation
-#    --skip-hdf5          Skip HDF5 configuration for methrix-cli
+#    --skip-hdf5          Skip HDF5 environment setup for methrix-cli
 #    --non-interactive    Use all defaults without prompting
 #    --dry-run            Print all actions without executing
 #    --version VER        Specify release version (e.g. v0.3.0); default: latest
@@ -577,6 +577,78 @@ run_conda_cache_clean() {
   esac
 }
 
+list_env_path_with_pm() {
+  local pm="$1"
+  local env_name="$2"
+  local line parts_count current_name current_prefix
+
+  command -v "$pm" >/dev/null 2>&1 || return 1
+
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    case "$line" in
+      \#*) continue ;;
+    esac
+
+    set -- $line
+    parts_count=$#
+    [ "$parts_count" -lt 2 ] && continue
+
+    current_name="$1"
+    if [ "${2:-}" = "*" ]; then
+      current_prefix="${3:-}"
+    else
+      current_prefix="${2:-}"
+    fi
+
+    [ -z "$current_prefix" ] && continue
+    if [ "$current_name" = "$env_name" ] || [ "$(basename "$current_prefix")" = "$env_name" ]; then
+      printf '%s\n' "$current_prefix"
+      return 0
+    fi
+  done < <("$pm" env list 2>/dev/null || true)
+
+  return 1
+}
+
+resolve_conda_env_path() {
+  local env_name="$1"
+  local pm candidate micromamba_bin micromamba_dir
+
+  for pm in "$PM" micromamba mamba conda; do
+    [ -n "$pm" ] || continue
+    if candidate="$(list_env_path_with_pm "$pm" "$env_name" 2>/dev/null)" && [ -n "$candidate" ]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  if [ -n "${MAMBA_ROOT_PREFIX:-}" ] && [ -d "${MAMBA_ROOT_PREFIX}/envs/${env_name}" ]; then
+    printf '%s\n' "${MAMBA_ROOT_PREFIX}/envs/${env_name}"
+    return 0
+  fi
+
+  if [ -d "$HOME/.local/share/mamba/envs/${env_name}" ]; then
+    printf '%s\n' "$HOME/.local/share/mamba/envs/${env_name}"
+    return 0
+  fi
+
+  if command -v micromamba >/dev/null 2>&1; then
+    micromamba_bin="$(command -v micromamba)"
+    micromamba_dir="$(cd "$(dirname "$micromamba_bin")" && pwd)"
+    for candidate in \
+      "$micromamba_dir/../envs/${env_name}" \
+      "$micromamba_dir/../share/mamba/envs/${env_name}"; do
+      if [ -d "$candidate" ]; then
+        printf '%s\n' "$candidate"
+        return 0
+      fi
+    done
+  fi
+
+  return 1
+}
+
 ask_secret() {
   # ask_secret <prompt>
   local prompt="$1"
@@ -821,7 +893,7 @@ for entry in "${TOOLS[@]}"; do
   dest="${INSTALL_DIR}/${bin_name}"
 
   if [ "$bin_name" = "methrix-cli" ]; then
-    echo -e "  ${YELLOW}⚠${RESET}  $(txt "methrix-cli  (needs HDF5 config – will verify in Step 8)" "methrix-cli  （需要 HDF5 配置，将在 Step 8 验证）")"
+    echo -e "  ${YELLOW}⚠${RESET}  $(txt "methrix-cli  (requires HDF5 environment setup – will verify in Step 8)" "methrix-cli  （需要 HDF5 环境配置，将在 Step 8 验证）")"
     continue
   fi
 
@@ -952,8 +1024,8 @@ if [ "$SKIP_ENVS" = false ]; then
 fi
 [ "$SKIP_ENVS" = true ] || echo ""
 
-# ── Step 7: Install HDF5 into xdxtools-core ───────────────────────────────────
-echo -e "${BOLD}$(txt "Step 7: Installing HDF5 into xdxtools-core" "Step 7: 在 xdxtools-core 中安装 HDF5")${RESET}"
+# ── Step 7: Confirm HDF5 availability for xdxtools-core ───────────────────────
+echo -e "${BOLD}$(txt "Step 7: Confirming HDF5 availability for xdxtools-core" "Step 7: 确认 xdxtools-core 的 HDF5 可用性")${RESET}"
 if [ "$SKIP_HDF5" = true ] || [ "$SKIP_ENVS" = true ] || [ "$HAS_CONDA" = false ]; then
   if [ -z "$HDF5_SKIP_REASON" ]; then
     if [ "$HAS_CONDA" = false ]; then
@@ -967,23 +1039,22 @@ if [ "$SKIP_HDF5" = true ] || [ "$SKIP_ENVS" = true ] || [ "$HAS_CONDA" = false 
   log_warn "$(txt "Skipped ($(hdf5_skip_reason_text "$HDF5_SKIP_REASON"))" "已跳过（$(hdf5_skip_reason_text "$HDF5_SKIP_REASON")）")"
 else
   if [ "$DRY_RUN" = false ]; then
-    if $PM env list 2>/dev/null | grep -qE "^xdxtools-core([[:space:]]|$)"; then
-      log_info "$(txt "Installing hdf5 into xdxtools-core ..." "正在向 xdxtools-core 安装 hdf5 ...")"
-      $PM install -n xdxtools-core -c conda-forge hdf5 -y
-      log_success "$(txt "HDF5 installed" "HDF5 安装完成")"
+    if HDF5_ENV_PATH="$(resolve_conda_env_path xdxtools-core 2>/dev/null)" && [ -n "$HDF5_ENV_PATH" ]; then
+      log_success "$(txt "xdxtools-core includes HDF5 via its environment YAML" "xdxtools-core 环境 YAML 已包含 HDF5")"
+      log_info "$(txt "Detected xdxtools-core environment: $HDF5_ENV_PATH" "检测到 xdxtools-core 环境：$HDF5_ENV_PATH")"
     else
       HDF5_SKIP_REASON="xdxtools_core_environment_not_found"
       SKIP_HDF5=true
       log_warn "$(txt "Skipped ($(hdf5_skip_reason_text "$HDF5_SKIP_REASON"))" "已跳过（$(hdf5_skip_reason_text "$HDF5_SKIP_REASON")）")"
     fi
   else
-    echo -e "  ${YELLOW}[DRY-RUN]${RESET} $PM install -n xdxtools-core -c conda-forge hdf5 -y"
+    echo -e "  ${YELLOW}[DRY-RUN]${RESET} $(txt "would confirm that xdxtools-core already bundles hdf5 from its YAML" "将确认 xdxtools-core 已从其 YAML 安装 hdf5")"
   fi
 fi
 echo ""
 
 # ── Step 8: Configure HDF5 environment variables ─────────────────────────────
-HDF5_ENV_PATH=""
+HDF5_ENV_PATH="${HDF5_ENV_PATH:-}"
 echo -e "${BOLD}$(txt "Step 8: Configuring HDF5 environment variables" "Step 8: 配置 HDF5 环境变量")${RESET}"
 if [ "$SKIP_HDF5" = true ] || [ "$SKIP_ENVS" = true ] || [ "$HAS_CONDA" = false ]; then
   if [ -z "$HDF5_SKIP_REASON" ]; then
@@ -998,8 +1069,9 @@ if [ "$SKIP_HDF5" = true ] || [ "$SKIP_ENVS" = true ] || [ "$HAS_CONDA" = false 
   log_warn "$(txt "Skipped ($(hdf5_skip_reason_text "$HDF5_SKIP_REASON"))" "已跳过（$(hdf5_skip_reason_text "$HDF5_SKIP_REASON")）")"
 else
   if [ "$DRY_RUN" = false ]; then
-    HDF5_ENV_PATH=$($PM env list 2>/dev/null \
-      | grep -E "^xdxtools-core([[:space:]]|$)" | awk '{print $NF}' | head -1)
+    if [ -z "$HDF5_ENV_PATH" ]; then
+      HDF5_ENV_PATH="$(resolve_conda_env_path xdxtools-core 2>/dev/null || true)"
+    fi
 
     if [ -n "$HDF5_ENV_PATH" ]; then
       cat >> "$SHELL_CONFIG" << 'HEREDOC'
@@ -1026,6 +1098,7 @@ HEREDOC
         log_warn "$(txt "methrix-cli could not be verified (may need to source $SHELL_CONFIG first)" "无法验证 methrix-cli（可能需要先 source $SHELL_CONFIG）")"
       fi
     else
+      HDF5_SKIP_REASON="xdxtools_core_environment_not_found"
       log_warn "$(txt "xdxtools-core path not found, HDF5 variables not configured" "未找到 xdxtools-core 路径，未配置 HDF5 环境变量")"
     fi
   else

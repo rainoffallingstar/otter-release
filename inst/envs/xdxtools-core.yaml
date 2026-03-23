@@ -19,6 +19,7 @@ dependencies:
   - bismark
   - trim-galore
   - samtools>=1.7
+  - hdf5
 
   # RNA-seq Analysis
   - star
