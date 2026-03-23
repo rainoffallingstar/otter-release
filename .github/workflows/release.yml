@@ -2,7 +2,14 @@ name: Release Binaries
 
 on:
   push:
+    branches: [ main ]
     tags: [ 'v*.*.*', 'daily-*' ]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Optional release tag. Leave empty to publish/update daily-YYYYMMDD.'
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -54,9 +61,44 @@ jobs:
       - name: Create dist directory
         run: mkdir -p dist
 
+      - name: Resolve release metadata
+        id: meta
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_TAG: ${{ github.event.inputs.tag || '' }}
+        run: |
+          if [[ "$REF_TYPE" == "tag" ]]; then
+            TAG="$REF_NAME"
+            NEEDS_TAG_PUSH=false
+          elif [[ -n "$INPUT_TAG" ]]; then
+            TAG="$INPUT_TAG"
+            NEEDS_TAG_PUSH=true
+          else
+            TAG="daily-$(date -u +%Y%m%d)"
+            NEEDS_TAG_PUSH=true
+          fi
+
+          VERSION="${TAG#v}"
+          if [[ "$TAG" == daily-* ]]; then
+            PRERELEASE=true
+          else
+            PRERELEASE=false
+          fi
+
+          {
+            echo "tag=$TAG"
+            echo "version=$VERSION"
+            echo "prerelease=$PRERELEASE"
+            echo "needs_tag_push=$NEEDS_TAG_PUSH"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Resolved release tag: $TAG"
+          echo "Build version: $VERSION"
+
       - name: Build xdxtools static
         env:
-          VERSION: ${{ github.ref_name }}
+          VERSION: ${{ steps.meta.outputs.version }}
           COMMIT: ${{ github.sha }}
         run: |
           VER="${VERSION#v}"
@@ -66,7 +108,7 @@ jobs:
 
       - name: Build Go submodules static
         env:
-          VERSION: ${{ github.ref_name }}
+          VERSION: ${{ steps.meta.outputs.version }}
         run: |
           VER="${VERSION#v}"
           bash scripts/ensure_htseq2matrix_entrypoint.sh htseq2matrix-go
@@ -133,12 +175,12 @@ jobs:
 
       - name: Generate metadata and checksums
         env:
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ steps.meta.outputs.tag }}
           COMMIT: ${{ github.sha }}
         run: |
           cd dist
           sha256sum * > checksums.txt
-          cat > manifest.json <<EOF
+          cat > manifest.json <<EOF2
           {
             "tag": "${TAG}",
             "commit": "${COMMIT}",
@@ -156,23 +198,46 @@ jobs:
               {"name":"methrix-linux-amd64","linkage":"dynamic"}
             ]
           }
-          EOF
+          EOF2
+
+      - name: Create or update release tag
+        if: steps.meta.outputs.needs_tag_push == 'true'
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          REMOTE="https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          if [[ "$TAG" == daily-* ]]; then
+            git tag -fa "$TAG" "$GITHUB_SHA" -m "Daily release ${TAG}"
+            git push --force "$REMOTE" "refs/tags/${TAG}"
+          else
+            if git ls-remote --exit-code --tags "$REMOTE" "refs/tags/${TAG}" >/dev/null 2>&1; then
+              echo "Tag ${TAG} already exists on origin" >&2
+              exit 1
+            fi
+            git tag -a "$TAG" "$GITHUB_SHA" -m "Release ${TAG}"
+            git push "$REMOTE" "refs/tags/${TAG}"
+          fi
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ steps.meta.outputs.tag }}
           files: dist/*
           generate_release_notes: true
           fail_on_unmatched_files: true
           overwrite_files: true
-          prerelease: ${{ startsWith(github.ref_name, 'daily-') }}
+          prerelease: ${{ steps.meta.outputs.prerelease == 'true' }}
           body: |
             ## Release Model
 
-            - Trigger: push of immutable release tags (`vX.Y.Z` or `vYYYY.MM.DD.N`) or movable daily aliases (`daily-YYYYMMDD`)
+            - Trigger: push of immutable release tags (`vX.Y.Z` or `vYYYY.MM.DD.N`), push to `main`, or manual dispatch
             - Immutable tags: archival release points that must never move
             - Daily aliases: same-day convenience tags that may be force-updated to the latest build for that UTC date
+            - Auto mode: `main` pushes and manual dispatch without a tag publish/update `daily-YYYYMMDD`
             - Policy: strict artifact completeness (missing required binaries => release fails)
 
             ## Linkage
