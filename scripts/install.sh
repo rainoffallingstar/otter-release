@@ -40,6 +40,8 @@ TMP_ENVS_DIR=""
 HDF5_SKIP_REASON=""
 GITHUB_AUTH_TOKEN="${GITHUB_TOKEN:-${GH_TOKEN:-${GITHUB_PAT:-}}}"
 INSTALLER_LANG="${XDXTOOLS_INSTALL_LANG:-}"
+RELEASE_METADATA=""
+RELEASE_METADATA_TAG=""
 
 # All 9 tools: binary_name:release_asset_stem:linkage(static|dynamic)
 TOOLS=(
@@ -336,16 +338,48 @@ github_api_get() {
 
 github_release_download() {
   local url="$1" dest="$2"
-  if [ -n "$GITHUB_AUTH_TOKEN" ]; then
-    curl --retry 3 --retry-all-errors --connect-timeout 15 -fL --progress-bar       -H "Authorization: Bearer $GITHUB_AUTH_TOKEN"       "$url" -o "$dest"
+  if [ -n "$GITHUB_AUTH_TOKEN" ] && [[ "$url" == https://api.github.com/repos/*/releases/assets/* ]]; then
+    curl --retry 3 --retry-all-errors --connect-timeout 15 -fL --progress-bar       -H "Accept: application/octet-stream"       -H "Authorization: Bearer $GITHUB_AUTH_TOKEN"       -H "X-GitHub-Api-Version: 2022-11-28"       "$url" -o "$dest"
   else
     curl --retry 3 --retry-all-errors --connect-timeout 15 -fL --progress-bar "$url" -o "$dest"
   fi
 }
 
 resolve_latest_release_tag() {
-  github_api_get "https://api.github.com/repos/${RELEASES_REPO}/releases/latest" \
-    | grep '"tag_name"' | cut -d'"' -f4
+  github_api_get "https://api.github.com/repos/${RELEASES_REPO}/releases?per_page=20"     | awk -F'"' '/"tag_name"/ && tag == "" { tag = $4 } END { if (tag != "") print tag }'
+}
+
+get_release_metadata() {
+  local tag="$1"
+  if [ "$RELEASE_METADATA_TAG" != "$tag" ] || [ -z "$RELEASE_METADATA" ]; then
+    RELEASE_METADATA="$(github_api_get "https://api.github.com/repos/${RELEASES_REPO}/releases/tags/${tag}")"
+    RELEASE_METADATA_TAG="$tag"
+  fi
+  printf '%s\n' "$RELEASE_METADATA"
+}
+
+resolve_release_asset_api_url() {
+  local tag="$1" asset_name="$2"
+  get_release_metadata "$tag" | awk -v asset_name="$asset_name" '
+    /"url": "https:\/\/api.github.com\/repos\/.*\/releases\/assets\// {
+      asset_url = $0
+      sub(/^.*"url": "/, "", asset_url)
+      sub(/".*,?$/, "", asset_url)
+    }
+    /"name": "/ {
+      current_name = $0
+      sub(/^.*"name": "/, "", current_name)
+      sub(/".*,?$/, "", current_name)
+      if (current_name == asset_name && found == "") {
+        found = asset_url
+      }
+    }
+    END {
+      if (found != "") {
+        print found
+      }
+    }
+  '
 }
 
 github_repo_file_get() {
@@ -598,6 +632,12 @@ for entry in "${TOOLS[@]}"; do
   fi
 
   url="${BASE_URL}/${asset}"
+  if [ -n "$GITHUB_AUTH_TOKEN" ]; then
+    asset_api_url="$(resolve_release_asset_api_url "$XDXTOOLS_VERSION" "$asset" || true)"
+    if [ -n "$asset_api_url" ]; then
+      url="$asset_api_url"
+    fi
+  fi
   if [ -f "$dest" ] && [ "${linkage}" = "static" ]; then
     log_info "$(txt "Updating $bin_name (overwriting existing static binary) ..." "正在更新 $bin_name（覆盖已有静态二进制）...")"
   else
