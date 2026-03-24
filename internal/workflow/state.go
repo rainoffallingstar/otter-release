@@ -80,9 +80,10 @@ func NewState(outputDir, jobID string) *State {
 
 // Initialize initializes the state with workflow configuration
 func (s *State) Initialize(jobID string, mode, species1, species2 string, stepCount int, samples []string, engineType, partition string) error {
+	now := time.Now()
 	s.data.JobID = jobID
-	s.data.StartTime = time.Now()
-	s.data.LastUpdate = time.Now()
+	s.data.StartTime = now
+	s.data.LastUpdate = now
 	s.data.Status = "running"
 
 	// Store configuration for validation
@@ -99,13 +100,14 @@ func (s *State) Initialize(jobID string, mode, species1, species2 string, stepCo
 	s.data.Samples = SampleState{
 		Completed: make([]string, 0),
 		Running:   make([]string, 0),
-		Pending:   make([]string, 0),
+		Pending:   make([]string, 0, len(samples)),
 	}
 
 	// Initialize step states
 	if stepCount <= 0 {
 		stepCount = 3
 	}
+	s.data.Steps = make([]StepState, 0, stepCount)
 	for step := 1; step <= stepCount; step++ {
 		s.data.Steps = append(s.data.Steps, StepState{
 			Step:   step,

@@ -31,17 +31,17 @@ func (l *Loader) LoadConfig() (*XDXToolsConfig, error) {
 	config := LoadDefaults()
 
 	// Load from file if it exists
-	if _, err := os.Stat(l.configPath); err == nil {
+	err := l.viper.ReadInConfig()
+	switch {
+	case err == nil:
 		logger.Debugf("Loading config from %s", l.configPath)
-		if err := l.viper.ReadInConfig(); err != nil {
-			return nil, fmt.Errorf("failed to read config file: %w", err)
-		}
-
 		if err := l.viper.Unmarshal(&config); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 		}
-	} else {
+	case os.IsNotExist(err):
 		logger.Debugf("Config file not found at %s, using defaults", l.configPath)
+	default:
+		return nil, fmt.Errorf("failed to read config file: %w", err)
 	}
 
 	// Auto-derive suffix2 if not set

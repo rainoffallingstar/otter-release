@@ -68,74 +68,12 @@ func (p *PDataParser) loadExcel(filePath string) (*PData, error) {
 
 	// Extract columns from first row
 	columns := rows[0]
-
-	// Apply column name mapping for R compatibility
-	normalizedColumns := make([]string, len(columns))
-	copy(normalizedColumns, columns)
-
-	for i, col := range normalizedColumns {
-		// Map Chinese column names to English for R compatibility
-		if col == "样本编号" || col == "样本ID" || col == "sample_id" {
-			normalizedColumns[i] = "sampleid"
-		} else if col == "样本分组" || col == "分组" || col == "group" {
-			normalizedColumns[i] = "sample_group"
-		} else if col == "条件" || col == "treatment" || col == "condition" {
-			normalizedColumns[i] = "condition"
-		} else {
-			// Keep original column name (already English)
-			normalizedColumns[i] = col
-		}
-	}
-
-	// Check if sampleid column exists (after normalization)
-	sampleIDCol := -1
-	for i, col := range normalizedColumns {
-		if strings.ToLower(col) == "sampleid" {
-			sampleIDCol = i
-			break
-		}
-	}
-
+	normalizedColumns, sampleIDCol, aliasCount := normalizePDataColumns(columns)
 	if sampleIDCol == -1 {
 		logger.Warn("No 'sampleid' column found, will use row indices as sample IDs")
 	}
 
-	// Build data map
-	data := make(map[string]map[string]string)
-	samples := []string{}
-
-	for i, row := range rows {
-		if i == 0 {
-			// Skip header
-			continue
-		}
-
-		var sampleID string
-		if sampleIDCol >= 0 && sampleIDCol < len(row) {
-			sampleID = row[sampleIDCol]
-		} else {
-			sampleID = fmt.Sprintf("Sample%d", i)
-		}
-
-		samples = append(samples, sampleID)
-
-		// Build data map for this sample
-		sampleData := make(map[string]string)
-		for j, value := range row {
-			if j < len(columns) {
-				// Store with normalized column name
-				normalizedColumnName := normalizedColumns[j]
-				sampleData[normalizedColumnName] = value
-
-				// Also store with original column name for R compatibility
-				if normalizedColumnName != columns[j] {
-					sampleData[columns[j]] = value
-				}
-			}
-		}
-
-		data[sampleID] = sampleData
-	}
+	data, samples := buildPDataRecords(rows[1:], columns, normalizedColumns, sampleIDCol, aliasCount)
 
 	logger.Infof("Loaded %d samples from Excel file", len(samples))
 
@@ -170,77 +108,12 @@ func (p *PDataParser) loadCSV(filePath string) (*PData, error) {
 
 	// Extract columns
 	columns := records[0]
-
-	// Apply column name mapping for R compatibility
-	// R version maps "样本编号" (Chinese) to "sampleid"
-	// This maintains compatibility with R package generated pdata files
-	normalizedColumns := make([]string, len(columns))
-	copy(normalizedColumns, columns)
-
-	for i, col := range normalizedColumns {
-		// Map Chinese column names to English for R compatibility
-		if col == "样本编号" || col == "样本ID" || col == "sample_id" {
-			normalizedColumns[i] = "sampleid"
-		} else if col == "样本分组" || col == "分组" || col == "group" {
-			normalizedColumns[i] = "sample_group"
-		} else if col == "条件" || col == "treatment" || col == "condition" {
-			normalizedColumns[i] = "condition"
-		} else {
-			// Keep original column name (already English)
-			normalizedColumns[i] = col
-		}
-	}
-
-	// Check if sampleid column exists (after normalization)
-	sampleIDCol := -1
-	for i, col := range normalizedColumns {
-		if strings.ToLower(col) == "sampleid" {
-			sampleIDCol = i
-			break
-		}
-	}
-
+	normalizedColumns, sampleIDCol, aliasCount := normalizePDataColumns(columns)
 	if sampleIDCol == -1 {
 		logger.Warn("No 'sampleid' column found, will use row indices as sample IDs")
 	}
 
-	// Build data map
-	data := make(map[string]map[string]string)
-	samples := []string{}
-
-	for i, record := range records {
-		if i == 0 {
-			// Skip header
-			continue
-		}
-
-		var sampleID string
-		if sampleIDCol >= 0 && sampleIDCol < len(record) {
-			sampleID = record[sampleIDCol]
-		} else {
-			sampleID = fmt.Sprintf("Sample%d", i)
-		}
-
-		samples = append(samples, sampleID)
-
-		// Build data map for this sample
-		// Use both normalized columns (for internal processing) and original columns (for R compatibility)
-		sampleData := make(map[string]string)
-		for j, value := range record {
-			if j < len(columns) {
-				// Store with normalized column name
-				normalizedColumnName := normalizedColumns[j]
-				sampleData[normalizedColumnName] = value
-
-				// Also store with original column name for R compatibility
-				if normalizedColumnName != columns[j] {
-					sampleData[columns[j]] = value
-				}
-			}
-		}
-
-		data[sampleID] = sampleData
-	}
+	data, samples := buildPDataRecords(records[1:], columns, normalizedColumns, sampleIDCol, aliasCount)
 
 	logger.Infof("Loaded %d samples from pdata file", len(samples))
 
@@ -249,6 +122,66 @@ func (p *PDataParser) loadCSV(filePath string) (*PData, error) {
 		Columns: columns,
 		Data:    data,
 	}, nil
+}
+
+func normalizePDataColumns(columns []string) ([]string, int, int) {
+	normalizedColumns := make([]string, len(columns))
+	sampleIDCol := -1
+	aliasCount := 0
+
+	for i, col := range columns {
+		normalized := col
+		switch col {
+		case "样本编号", "样本ID", "sample_id":
+			normalized = "sampleid"
+		case "样本分组", "分组", "group":
+			normalized = "sample_group"
+		case "条件", "treatment", "condition":
+			normalized = "condition"
+		}
+
+		normalizedColumns[i] = normalized
+		if normalized != col {
+			aliasCount++
+		}
+		if sampleIDCol == -1 && strings.EqualFold(normalized, "sampleid") {
+			sampleIDCol = i
+		}
+	}
+
+	return normalizedColumns, sampleIDCol, aliasCount
+}
+
+func buildPDataRecords(records [][]string, columns, normalizedColumns []string, sampleIDCol, aliasCount int) (map[string]map[string]string, []string) {
+	data := make(map[string]map[string]string, len(records))
+	samples := make([]string, 0, len(records))
+
+	for i, record := range records {
+		rowIndex := i + 1
+		sampleID := fmt.Sprintf("Sample%d", rowIndex)
+		if sampleIDCol >= 0 && sampleIDCol < len(record) {
+			sampleID = record[sampleIDCol]
+		}
+
+		samples = append(samples, sampleID)
+
+		sampleData := make(map[string]string, len(columns)+aliasCount)
+		for j, value := range record {
+			if j >= len(columns) {
+				break
+			}
+
+			normalizedColumnName := normalizedColumns[j]
+			sampleData[normalizedColumnName] = value
+			if normalizedColumnName != columns[j] {
+				sampleData[columns[j]] = value
+			}
+		}
+
+		data[sampleID] = sampleData
+	}
+
+	return data, samples
 }
 
 // Validate validates pdata against sample list

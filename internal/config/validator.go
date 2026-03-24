@@ -12,13 +12,15 @@ import (
 // ValidateConfig validates the workflow configuration
 func ValidateConfig(config *XDXToolsConfig) error {
 	// Validate mode
-	validModes := []string{"RRBS", "WGBS", "BSSEQ", "RNASEQ"}
-	if !contains(validModes, strings.ToUpper(config.Workflow.Mode)) {
-		return fmt.Errorf("invalid mode: %s. Valid modes: %v", config.Workflow.Mode, validModes)
+	mode := strings.ToUpper(config.Workflow.Mode)
+	switch mode {
+	case "RRBS", "WGBS", "BSSEQ", "RNASEQ":
+	default:
+		return fmt.Errorf("invalid mode: %s. Valid modes: %v", config.Workflow.Mode, []string{"RRBS", "WGBS", "BSSEQ", "RNASEQ"})
 	}
 
 	// Detect PDX mode
-	pdxMode := config.Workflow.Species.Primary != "" && config.Workflow.Species.Secondary != ""
+	pdxMode := DetectPDXMode(config)
 	if pdxMode {
 		logger.Info("PDX mode detected (species1 and species2 specified)")
 	}
@@ -65,16 +67,6 @@ func ValidateConfig(config *XDXToolsConfig) error {
 
 	logger.Debug("Configuration validation passed")
 	return nil
-}
-
-// contains checks if a slice contains a string
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if strings.EqualFold(s, item) {
-			return true
-		}
-	}
-	return false
 }
 
 // fileExists checks if a file exists

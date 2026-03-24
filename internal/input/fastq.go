@@ -39,26 +39,21 @@ func NewScanner(options *ScanOptions) *Scanner {
 func (s *Scanner) Scan() ([]Sample, error) {
 	logger.Infof("Scanning FASTQ directory: %s", s.options.FastqDir)
 
-	// Check if directory exists
-	if _, err := os.Stat(s.options.FastqDir); os.IsNotExist(err) {
-		return nil, fmt.Errorf("FASTQ directory not found: %s", s.options.FastqDir)
-	}
-
-	// Find all FASTQ files
-	files, err := filepath.Glob(filepath.Join(s.options.FastqDir, "*"))
+	entries, err := os.ReadDir(s.options.FastqDir)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("FASTQ directory not found: %s", s.options.FastqDir)
+		}
 		return nil, fmt.Errorf("failed to list files: %w", err)
 	}
 
-	// Filter FASTQ files
-	fastqFiles := []string{}
-	for _, file := range files {
-		// Skip directories
-		if info, err := os.Stat(file); err != nil || info.IsDir() {
+	fastqFiles := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
 			continue
 		}
 
-		// Check if it's a FASTQ file
+		file := filepath.Join(s.options.FastqDir, entry.Name())
 		if s.isFastqFile(file) {
 			fastqFiles = append(fastqFiles, file)
 		}
@@ -119,12 +114,13 @@ func (s *Scanner) groupFiles(files []string) ([]Sample, error) {
 	}
 
 	// Convert to Sample structs
-	var result []Sample
+	result := make([]Sample, 0, len(samples))
+	now := time.Now()
 	for sampleName, fileList := range samples {
 		sample := Sample{
 			Name:      sampleName,
 			Metadata:  make(map[string]string),
-			CreatedAt: time.Now(),
+			CreatedAt: now,
 		}
 
 		// Determine R1 and R2 files

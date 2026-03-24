@@ -24,6 +24,11 @@ type Manager struct {
 	stepResources map[int]*config.StepResource
 	parallelJobs  int
 	loadRatio     float64 // > 0: dynamic pool mode; 0: legacy batch mode
+
+	cacheReady    bool
+	pdxMode       bool
+	workflowName  string
+	configFileAbs string
 }
 
 // NewManager creates a new workflow manager
@@ -73,6 +78,16 @@ func (m *Manager) SetLoadRatio(r float64) {
 	m.loadRatio = r
 }
 
+func (m *Manager) ensureRuntimeCache() {
+	if m.cacheReady {
+		return
+	}
+
+	m.pdxMode = config.DetectPDXMode(m.workflow.Config)
+	m.workflowName = config.GetWorkflowName(m.workflow.Config.Workflow.Mode, m.pdxMode)
+	m.cacheReady = true
+}
+
 // SetJobID updates the job ID for a specific step in the state
 func (m *Manager) SetJobID(step int, jobID string) error {
 	if m.state == nil {
@@ -86,6 +101,8 @@ func (m *Manager) SetJobID(step int, jobID string) error {
 
 // getStepResource returns the resource configuration for a specific step
 func (m *Manager) getStepResource(step int) *config.StepResource {
+	m.ensureRuntimeCache()
+
 	if resource, exists := m.stepResources[step]; exists {
 		return resource
 	}
@@ -106,7 +123,7 @@ func (m *Manager) getStepResource(step int) *config.StepResource {
 	}
 
 	// Return default resource
-	return config.GetDefaultStepResource(step, m.workflow.Config.Workflow.Mode, config.DetectPDXMode(m.workflow.Config))
+	return config.GetDefaultStepResource(step, m.workflow.Config.Workflow.Mode, m.pdxMode)
 }
 
 // shouldUseSingleSampleMode returns true if the step should use single-sample mode
@@ -148,8 +165,8 @@ func (m *Manager) Initialize() error {
 	m.workflow.Status.Message = "Initializing workflow"
 
 	// Determine steps based on mode
-	pdxMode := config.DetectPDXMode(m.workflow.Config)
-	m.workflow.Steps = config.GetStepCount(m.workflow.Config.Workflow.Mode, pdxMode)
+	m.ensureRuntimeCache()
+	m.workflow.Steps = config.GetStepCount(m.workflow.Config.Workflow.Mode, m.pdxMode)
 
 	logger.Infof("Workflow initialized with %d steps", m.workflow.Steps)
 
@@ -201,7 +218,8 @@ func (m *Manager) ExecuteStep(step int) error {
 	}
 
 	// Determine workflow index
-	workflowIdx := config.GetWorkflowName(m.workflow.Config.Workflow.Mode, config.DetectPDXMode(m.workflow.Config))
+	m.ensureRuntimeCache()
+	workflowIdx := m.workflowName
 
 	// Create executor
 	executor := NewSnakemakeExecutor(workflowIdx, step, m.getConfigFile(), &WorkflowOptions{
@@ -257,7 +275,7 @@ func (m *Manager) ExecuteStep(step int) error {
 					logger.Infof("Auto-switching from SlurmEngine to SlurmArrayEngine for step %d", step)
 					// Ensure stepResource has default values if cores/memory are not set
 					if stepResource.Cores == 0 || stepResource.Memory == "" {
-						defaultResource := config.GetDefaultStepResource(step, m.workflow.Config.Workflow.Mode, config.DetectPDXMode(m.workflow.Config))
+						defaultResource := config.GetDefaultStepResource(step, m.workflow.Config.Workflow.Mode, m.pdxMode)
 						if stepResource.Cores == 0 {
 							stepResource.Cores = defaultResource.Cores
 						}
@@ -390,7 +408,8 @@ func (m *Manager) ExecuteAll() error {
 			lastCompleted+1, lastCompleted)
 
 		checkerOf := map[int]int{2: 102, 3: 103}
-		workflowIdx := config.GetWorkflowName(m.workflow.Config.Workflow.Mode, config.DetectPDXMode(m.workflow.Config))
+		m.ensureRuntimeCache()
+		workflowIdx := m.workflowName
 
 		// Start from next step, run checker after each main step
 		for step := lastCompleted + 1; step <= m.workflow.Steps; step++ {
@@ -421,7 +440,8 @@ func (m *Manager) ExecuteAll() error {
 
 		// Normal execution: run all steps
 		checkerOf := map[int]int{2: 102, 3: 103}
-		workflowIdx := config.GetWorkflowName(m.workflow.Config.Workflow.Mode, config.DetectPDXMode(m.workflow.Config))
+		m.ensureRuntimeCache()
+		workflowIdx := m.workflowName
 
 		for step := 1; step <= m.workflow.Steps; step++ {
 			if err := m.ExecuteStep(step); err != nil {
@@ -590,6 +610,10 @@ func (m *Manager) runCheckerIfExists(checkerOf map[int]int, workflowIdx string, 
 
 // getConfigFile returns the path to the Snakemake config file
 func (m *Manager) getConfigFile() string {
+	if m.configFileAbs != "" {
+		return m.configFileAbs
+	}
+
 	configPath := filepath.Join(m.workflow.Config.Directories.Config, "config.yaml")
 
 	// Convert to absolute path to ensure Snakemake can find it
@@ -600,7 +624,8 @@ func (m *Manager) getConfigFile() string {
 		}
 	}
 
-	return configPath
+	m.configFileAbs = configPath
+	return m.configFileAbs
 }
 
 // createSlurmArrayEngine creates a SlurmArrayEngine with current configuration

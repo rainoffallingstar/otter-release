@@ -492,22 +492,9 @@ func prepareFastqFiles(cfg *config.XDXToolsConfig, move bool) error {
 		return fmt.Errorf("failed to create data directory: %w", err)
 	}
 
-	// Find all FASTQ files (support various extensions)
-	patterns := []string{
-		filepath.Join(fastqDir, "*.fastq.gz"),
-		filepath.Join(fastqDir, "*.fq.gz"),
-		filepath.Join(fastqDir, "*.fastq"),
-		filepath.Join(fastqDir, "*.fq"),
-	}
-
-	var files []string
-	for _, pattern := range patterns {
-		matches, err := filepath.Glob(pattern)
-		if err != nil {
-			logger.Debugf("Error globbing %s: %v", pattern, err)
-			continue
-		}
-		files = append(files, matches...)
+	files, err := findFastqFiles(fastqDir, []string{".fastq.gz", ".fq.gz", ".fastq", ".fq"})
+	if err != nil {
+		return err
 	}
 
 	if len(files) == 0 {
@@ -552,6 +539,33 @@ func prepareFastqFiles(cfg *config.XDXToolsConfig, move bool) error {
 	return nil
 }
 
+func findFastqFiles(fastqDir string, suffixes []string) ([]string, error) {
+	entries, err := os.ReadDir(fastqDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("FASTQ directory not found: %s", fastqDir)
+		}
+		return nil, fmt.Errorf("failed to list FASTQ directory %s: %w", fastqDir, err)
+	}
+
+	files := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		name := entry.Name()
+		for _, suffix := range suffixes {
+			if strings.HasSuffix(name, suffix) {
+				files = append(files, filepath.Join(fastqDir, name))
+				break
+			}
+		}
+	}
+
+	return files, nil
+}
+
 // copyFile copies a file from src to dst
 func copyFile(src, dst string) error {
 	sourceFile, err := os.Open(src)
@@ -581,19 +595,9 @@ func copyFile(src, dst string) error {
 
 // compressFastqFiles compresses uncompressed FASTQ files to .gz format
 func compressFastqFiles(fastqDir string) error {
-	patterns := []string{
-		filepath.Join(fastqDir, "*.fastq"),
-		filepath.Join(fastqDir, "*.fq"),
-	}
-
-	var uncompressedFiles []string
-	for _, pattern := range patterns {
-		matches, err := filepath.Glob(pattern)
-		if err != nil {
-			logger.Debugf("Error globbing %s: %v", pattern, err)
-			continue
-		}
-		uncompressedFiles = append(uncompressedFiles, matches...)
+	uncompressedFiles, err := findFastqFiles(fastqDir, []string{".fastq", ".fq"})
+	if err != nil {
+		return err
 	}
 
 	if len(uncompressedFiles) == 0 {

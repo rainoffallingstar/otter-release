@@ -209,7 +209,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	// Filter valid pairs
-	var validPairs []input.PairedSample
+	validPairs := make([]input.PairedSample, 0, len(pairedSamples))
 	for _, ps := range pairedSamples {
 		if ps.Valid {
 			validPairs = append(validPairs, ps)
