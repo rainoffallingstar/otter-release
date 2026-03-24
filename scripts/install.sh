@@ -343,15 +343,44 @@ github_api_get() {
 }
 
 github_release_download() {
-  local url="$1" dest="$2" final_url="$1"
+  local url="$1" dest="$2" final_url="$1" tmp_dest="${2}.part" status=0
   if [[ "$url" != https://api.github.com/repos/*/releases/assets/* ]]; then
     final_url="$(apply_github_proxy "$url")"
   fi
-  if [ -n "$GITHUB_AUTH_TOKEN" ] && [[ "$url" == https://api.github.com/repos/*/releases/assets/* ]]; then
-    curl --retry 3 --retry-all-errors --connect-timeout 15 -fL --progress-bar       -H "Accept: application/octet-stream"       -H "Authorization: Bearer $GITHUB_AUTH_TOKEN"       -H "X-GitHub-Api-Version: 2022-11-28"       "$url" -o "$dest"
-  else
-    curl --retry 3 --retry-all-errors --connect-timeout 15 -fL --progress-bar "$final_url" -o "$dest"
+
+  if [ -f "$tmp_dest" ] && [ -s "$tmp_dest" ]; then
+    log_info "$(txt "Resuming partial download for $(basename "$dest") ..." "正在续传 $(basename "$dest") 的部分下载 ...")"
+    if [ -n "$GITHUB_AUTH_TOKEN" ] && [[ "$url" == https://api.github.com/repos/*/releases/assets/* ]]; then
+      if curl --retry 3 --retry-all-errors --connect-timeout 15 -fL -C - --progress-bar         -H "Accept: application/octet-stream"         -H "Authorization: Bearer $GITHUB_AUTH_TOKEN"         -H "X-GitHub-Api-Version: 2022-11-28"         "$url" -o "$tmp_dest"; then
+        mv -f "$tmp_dest" "$dest"
+        return 0
+      else
+        status=$?
+      fi
+    else
+      if curl --retry 3 --retry-all-errors --connect-timeout 15 -fL -C - --progress-bar "$final_url" -o "$tmp_dest"; then
+        mv -f "$tmp_dest" "$dest"
+        return 0
+      else
+        status=$?
+      fi
+    fi
+
+    if [ "$status" -ne 33 ]; then
+      return "$status"
+    fi
+
+    log_warn "$(txt "Server does not support resume for $(basename "$dest"); restarting download from scratch" "服务器不支持 $(basename "$dest") 的续传；将从头重新下载")"
+    rm -f "$tmp_dest"
   fi
+
+  if [ -n "$GITHUB_AUTH_TOKEN" ] && [[ "$url" == https://api.github.com/repos/*/releases/assets/* ]]; then
+    curl --retry 3 --retry-all-errors --connect-timeout 15 -fL --progress-bar       -H "Accept: application/octet-stream"       -H "Authorization: Bearer $GITHUB_AUTH_TOKEN"       -H "X-GitHub-Api-Version: 2022-11-28"       "$url" -o "$tmp_dest"
+  else
+    curl --retry 3 --retry-all-errors --connect-timeout 15 -fL --progress-bar "$final_url" -o "$tmp_dest"
+  fi
+
+  mv -f "$tmp_dest" "$dest"
 }
 
 resolve_latest_release_tag() {
@@ -842,7 +871,9 @@ for entry in "${TOOLS[@]}"; do
       url="$asset_api_url"
     fi
   fi
-  if [ -f "$dest" ]; then
+  if [ -f "${dest}.part" ] && [ -s "${dest}.part" ]; then
+    log_info "$(txt "Resuming partial download for $bin_name ..." "正在续传 $bin_name 的部分下载 ...")"
+  elif [ -f "$dest" ]; then
     log_info "$(txt "Updating $bin_name (overwriting existing binary) ..." "正在更新 $bin_name（覆盖已有二进制）...")"
   else
     log_info "$(txt "Downloading $bin_name ..." "正在下载 $bin_name ...")"
@@ -850,9 +881,11 @@ for entry in "${TOOLS[@]}"; do
 
   if [ "$DRY_RUN" = true ]; then
     if [ -n "$GITHUB_AUTH_TOKEN" ] && [[ "$url" == https://api.github.com/repos/*/releases/assets/* ]]; then
-      printf '  %b[DRY-RUN]%b curl -fL --progress-bar -H "Accept: application/octet-stream" -H "Authorization: Bearer $GITHUB_TOKEN" "%s" -o "%s"\n' "$YELLOW" "$RESET" "$url" "$dest"
+      printf '  %b[DRY-RUN]%b curl -fL -C - --progress-bar -H "Accept: application/octet-stream" -H "Authorization: Bearer $GITHUB_TOKEN" "%s" -o "%s.part"\n' "$YELLOW" "$RESET" "$url" "$dest"
+      printf '  %b[DRY-RUN]%b mv -f "%s.part" "%s"\n' "$YELLOW" "$RESET" "$dest" "$dest"
     else
-      printf '  %b[DRY-RUN]%b curl -fL --progress-bar "%s" -o "%s"\n' "$YELLOW" "$RESET" "$(apply_github_proxy "$url")" "$dest"
+      printf '  %b[DRY-RUN]%b curl -fL -C - --progress-bar "%s" -o "%s.part"\n' "$YELLOW" "$RESET" "$(apply_github_proxy "$url")" "$dest"
+      printf '  %b[DRY-RUN]%b mv -f "%s.part" "%s"\n' "$YELLOW" "$RESET" "$dest" "$dest"
     fi
   else
     if github_release_download "$url" "$dest"; then
