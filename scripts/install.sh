@@ -554,13 +554,11 @@ initialize_github_proxy_prefix() {
 
 resolve_enva_path() {
   if [ "$DRY_RUN" = true ] && [ -n "${INSTALL_DIR:-}" ]; then
-    printf '%s
-' "${INSTALL_DIR}/enva"
+    printf '%s\n' "${INSTALL_DIR}/enva"
     return 0
   fi
   if [ -x "${INSTALL_DIR}/enva" ]; then
-    printf '%s
-' "${INSTALL_DIR}/enva"
+    printf '%s\n' "${INSTALL_DIR}/enva"
     return 0
   fi
   if command -v enva >/dev/null 2>&1; then
@@ -640,6 +638,72 @@ list_env_path_with_pm() {
   return 1
 }
 
+append_unique_path() {
+  local value="$1"
+  local -n paths_ref="$2"
+  [ -n "$value" ] || return 0
+
+  for existing in "${paths_ref[@]}"; do
+    if [ "$existing" = "$value" ]; then
+      return 0
+    fi
+  done
+
+  paths_ref+=("$value")
+}
+
+resolve_rattler_env_path() {
+  local env_name="$1"
+  local -a root_candidates=()
+  local root prefix enva_bin conda_prefix conda_parent conda_grandparent var_name raw_value split_value old_ifs
+
+  for var_name in ENVA_RATTLER_ROOT_PREFIX RATTLER_ROOT_PREFIX MAMBA_ROOT_PREFIX; do
+    raw_value="${!var_name:-}"
+    [ -n "$raw_value" ] || continue
+    old_ifs="$IFS"
+    IFS=':'
+    for split_value in $raw_value; do
+      append_unique_path "$split_value" root_candidates
+    done
+    IFS="$old_ifs"
+  done
+
+  conda_prefix="${CONDA_PREFIX:-}"
+  if [ -n "$conda_prefix" ]; then
+    conda_parent="$(dirname "$conda_prefix")"
+    if [ "$(basename "$conda_parent")" = "envs" ]; then
+      conda_grandparent="$(dirname "$conda_parent")"
+      append_unique_path "$conda_grandparent" root_candidates
+    else
+      append_unique_path "$conda_prefix" root_candidates
+    fi
+  fi
+
+  append_unique_path "$HOME/.local/share/rattler" root_candidates
+  append_unique_path "$HOME/.local/share/mamba" root_candidates
+  append_unique_path "$HOME/.conda" root_candidates
+
+  if enva_bin="$(resolve_enva_path 2>/dev/null)" && [ -n "$enva_bin" ]; then
+    append_unique_path "$(cd "$(dirname "$enva_bin")/../.." 2>/dev/null && pwd)/share/rattler" root_candidates
+  fi
+
+  for root in "${root_candidates[@]}"; do
+    [ -n "$root" ] || continue
+    if [ "$env_name" = "base" ] && [ -d "$root/conda-meta" ]; then
+      printf '%s\n' "$root"
+      return 0
+    fi
+
+    prefix="$root/envs/$env_name"
+    if [ -d "$prefix" ]; then
+      printf '%s\n' "$prefix"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 resolve_conda_env_path() {
   local env_name="$1"
   local pm candidate micromamba_bin micromamba_dir
@@ -651,6 +715,11 @@ resolve_conda_env_path() {
       return 0
     fi
   done
+
+  if candidate="$(resolve_rattler_env_path "$env_name" 2>/dev/null)" && [ -n "$candidate" ]; then
+    printf '%s\n' "$candidate"
+    return 0
+  fi
 
   if [ -n "${MAMBA_ROOT_PREFIX:-}" ] && [ -d "${MAMBA_ROOT_PREFIX}/envs/${env_name}" ]; then
     printf '%s\n' "${MAMBA_ROOT_PREFIX}/envs/${env_name}"
