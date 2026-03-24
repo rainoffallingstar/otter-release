@@ -493,6 +493,10 @@ ask_yn() {
   [[ "$answer" =~ ^[Yy] ]] && return 0 || return 1
 }
 
+confirm_binary_overwrite() {
+  local bin_name="$1"
+  ask_yn "$(txt "Overwrite existing binary for ${bin_name}?" "是否覆盖已存在的 ${bin_name} 二进制文件？")" "Y"
+}
 
 ask_optional() {
   local prompt="$1" default="${2:-}" answer
@@ -943,6 +947,12 @@ for entry in "${TOOLS[@]}"; do
   if [ -f "${dest}.part" ] && [ -s "${dest}.part" ]; then
     log_info "$(txt "Resuming partial download for $bin_name ..." "正在续传 $bin_name 的部分下载 ...")"
   elif [ -f "$dest" ]; then
+    if [ "$DRY_RUN" = true ]; then
+      log_info "$(txt "[DRY-RUN] Existing binary detected for $bin_name; installer would ask whether to overwrite (default: yes)" "[DRY-RUN] 检测到已存在的 $bin_name 二进制文件；安装器会先询问是否覆盖（默认：是）")"
+    elif ! confirm_binary_overwrite "$bin_name"; then
+      log_info "$(txt "Skipping $bin_name and keeping the existing binary" "跳过 $bin_name，保留现有二进制文件")"
+      continue
+    fi
     log_info "$(txt "Updating $bin_name (overwriting existing binary) ..." "正在更新 $bin_name（覆盖已有二进制）...")"
   else
     log_info "$(txt "Downloading $bin_name ..." "正在下载 $bin_name ...")"
