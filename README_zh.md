@@ -27,7 +27,7 @@
 bash <(curl -fsSL https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh)
 ```
 
-脚本将从 GitHub Releases 下载预编译二进制文件，并以交互方式完成 conda 环境配置。安装开始时会先让你选择中文或英文，也可以用 `--lang en` 或 `--lang zh` 强制指定界面语言。`scripts/setup.sh` 仅用于本地源码构建。
+脚本将从 GitHub Releases 下载预编译二进制文件，并以交互方式完成 conda 环境配置。安装开始时会先让你选择中文或英文，也可以用 `--lang en` 或 `--lang zh` 强制指定界面语言。`scripts/setup.sh` 仅用于本地源码构建。 当检测到已存在的二进制文件时，安装器只会统一询问一次是否覆盖，后续所有二进制都沿用这次选择。
 
 如果仓库本身是私有的，匿名访问 `raw.githubusercontent.com` 会返回 `404`，而 `wget -qO-` 会把这个错误静默吞掉。此时应改用带认证头的启动命令。如果 release 仓库或 release 资产是私有的，请先导出 `GITHUB_TOKEN`（或 `GH_TOKEN` / `GITHUB_PAT`）；如果是私有 fork，还需要设置 `GITHUB_RELEASES_REPO=<owner>/<repo>`。在交互模式下，如果 GitHub 访问失败且当前没有配置 token，安装器可以在终端里提示你做隐藏输入，并自动重试一次。
 
