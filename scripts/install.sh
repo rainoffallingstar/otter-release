@@ -401,18 +401,25 @@ resolve_latest_release_tag() {
 }
 
 build_release_repo_candidates() {
-  local repo
+  local repo existing found
   local -a repos=()
 
   for repo in "$RELEASES_REPO" "$FALLBACK_RELEASES_REPO"; do
     [ -n "$repo" ] || continue
-    case " ${repos[*]} " in
-      *" $repo "*) ;;
-      *) repos+=("$repo") ;;
-    esac
+    found=false
+    for existing in "${repos[@]:-}"; do
+      if [ "$existing" = "$repo" ]; then
+        found=true
+        break
+      fi
+    done
+    if [ "$found" = false ]; then
+      repos+=("$repo")
+    fi
   done
 
-  printf '%s\n' "${repos[@]}"
+  printf '%s
+' "${repos[@]}"
 }
 
 try_get_release_metadata() {
