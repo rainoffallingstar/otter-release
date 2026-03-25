@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PUBLIC_RELEASES_REPO: rainoffallingstar/flightlight
-      PUBLIC_RELEASES_BRANCH: release-assets
+      PUBLIC_RELEASES_BRANCH: main
 
     steps:
       - name: Checkout with submodules
@@ -294,10 +294,21 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+          mkdir -p scripts release-metadata
+          cp "$GITHUB_WORKSPACE/scripts/install.sh" scripts/install.sh
+
           cat > README.md <<EOF
           # flightlight
 
-          Public release mirror for xdxtools binaries and environment YAML assets.
+          Public mirror for xdxtools install script, binaries, and environment YAML assets.
+
+          ## Install
+
+          ```bash
+          bash <(curl -fsSL https://raw.githubusercontent.com/${PUBLIC_RELEASES_REPO}/${PUBLIC_RELEASES_BRANCH}/scripts/install.sh)
+          ```
+
+          ## Notes
 
           - Source repository: https://github.com/${GITHUB_REPOSITORY}
           - Source commit: ${GITHUB_SHA}
@@ -305,7 +316,6 @@ jobs:
           - Updated at (UTC): $(date -u +%Y-%m-%dT%H:%M:%SZ)
           EOF
 
-          mkdir -p release-metadata
           cat > release-metadata/index.json <<EOF
           {
             "source_repository": "${GITHUB_REPOSITORY}",
@@ -316,7 +326,7 @@ jobs:
           }
           EOF
 
-          git add README.md release-metadata/index.json
+          git add README.md scripts/install.sh release-metadata/index.json
           git commit -m "Sync ${TAG}" >/dev/null
 
           REMOTE="https://x-access-token:${PUBLIC_RELEASES_PAT}@github.com/${PUBLIC_RELEASES_REPO}.git"
@@ -353,10 +363,10 @@ jobs:
             - Source repository: https://github.com/${{ github.repository }}
             - Source commit: `${{ github.sha }}`
             - Mirror branch: `${{ env.PUBLIC_RELEASES_BRANCH }}`
-            - Purpose: public binary distribution for installer and proxy-friendly downloads
+            - Purpose: public binary and installer distribution for proxy-friendly downloads
 
             ## Installation
 
             ```bash
-            bash <(curl -fsSL https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh)
+            bash <(curl -fsSL https://raw.githubusercontent.com/${{ env.PUBLIC_RELEASES_REPO }}/${{ env.PUBLIC_RELEASES_BRANCH }}/scripts/install.sh)
             ```
