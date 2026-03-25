@@ -46,7 +46,7 @@
 - **Path**: `internal/enva/`
 - **Public Methods**:
   - `Run(env, binary string, args ...string) error` - 执行 conda 环境命令
-- **Data Flow**: Shell Command → enva → conda/mamba/micromamba
+- **Data Flow**: Shell Command → enva → rattler-native envs / compatibility package managers
 - **Dependencies**: subprocess
 
 ### gomats (New)
@@ -80,7 +80,7 @@
 
 | Submodule | Binary | Purpose |
 |-----------|--------|---------|
-| enva | enva | micromamba 环境管理器 |
+| enva | enva | rattler-first 环境管理器 |
 | xenofilter-go | xenofilter | 污染过滤 |
 | Paireads | paireads | 配对 reads 处理 |
 | htseq2matrix-go | htseq2matrix | HTSeq 矩阵转换 |

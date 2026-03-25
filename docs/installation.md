@@ -22,7 +22,7 @@ xdxtools consists of two main components:
 | Component | Language | Purpose |
 |-----------|----------|---------|
 | **xdxtools** | Go 1.24+ | Main CLI for bioinformatics workflows |
-| **enva** | Rust 1.92+ | Lightweight micromamba environment manager |
+| **enva** | Rust 1.92+ | Rattler-first environment manager |
 
 ### Git Submodules
 
@@ -52,7 +52,7 @@ xdxtools consists of two main components:
 
 These will be installed automatically by enva:
 
-- **Conda/Miniconda** or **Micromamba**
+- **Optional compatibility package manager**: `conda`, `mamba`, or `micromamba` for adoption / fallback scenarios
 - **Python 3.8+**
 - **R 4.4+**
 

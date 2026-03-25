@@ -195,9 +195,8 @@ func checkEnvSupport() {
 		logger.Warn("────────────────────────────────────────────────────────")
 		logger.Warn("enva not found in PATH")
 		logger.Warn("")
-		logger.Warn("For best performance (2-5x faster), install enva:")
-		logger.Warn("  enva will auto-detect and use the fastest package manager")
-		logger.Warn("  (conda → mamba → micromamba)")
+		logger.Warn("For the best environment workflow, install enva:")
+		logger.Warn("  enva is rattler-first and can interoperate with existing conda/mamba/micromamba environments")
 		logger.Warn("")
 		logger.Warn("Installation:")
 		logger.Warn("  wget https://github.com/xdxtools/enva/releases/latest/download/enva-linux-x86_64")
@@ -213,7 +212,7 @@ func checkEnvSupport() {
 		logger.Warn("────────────────────────────────────────────────────────")
 	} else {
 		// enva found
-		logger.Info("✓ enva detected - will use fastest available package manager")
+		logger.Info("✓ enva detected - rattler-first environment management is available")
 		logger.Info("")
 	}
 }

@@ -20,7 +20,7 @@ xdxtools 项目包含 8 个子仓库（git submodules），用于不同的生物
 
 | 子仓库 | 语言 | 功能 | 二进制文件 |
 |--------|------|------|-----------|
-| enva | Rust | micromamba 环境管理器 | enva |
+| enva | Rust | rattler-first 环境管理器 | enva |
 | htseq2matrix-go | Go | HTSeq 表达矩阵转换 | htseq2matrix |
 | methrix-cli | Rust | 甲基化分析 CLI | methrix-cli |
 | xenofilter-go | Go | xenofilter 污染过滤 | xenofilter |

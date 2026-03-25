@@ -1059,8 +1059,8 @@ fi
 if [ "$SKIP_ENVS" = false ]; then
   enva_bin=""
   if enva_bin="$(resolve_enva_path 2>/dev/null)"; then
-    log_info "$(txt "Using enva for conda environment creation: $enva_bin" "将使用 enva 创建 conda 环境：$enva_bin")"
-    log_info "$(txt "enva will replace existing environments and clean caches before the first creation" "enva 将覆盖已存在环境，并在首次创建前清理缓存")"
+    log_info "$(txt "Using enva (rattler-first) for environment creation: $enva_bin" "将使用 enva（rattler 优先）创建环境：$enva_bin")"
+    log_info "$(txt "enva will create rattler-managed environments, replacing conflicts and cleaning caches before the first creation" "enva 将创建由 rattler 管理的环境，并在首次创建前处理冲突环境和清理缓存")"
   else
     log_warn "$(txt "enva not found; falling back to $PM env create" "未找到 enva；将回退到 $PM env create")"
     run_conda_cache_clean

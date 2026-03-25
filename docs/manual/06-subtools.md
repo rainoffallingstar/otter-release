@@ -24,40 +24,41 @@
 
 ## 🌿 enva {#enva}
 
-**enva** 是一个轻量级 conda 环境管理器，速度比传统 conda 快 2-5 倍。xdxtools 的分析流程使用 enva 来管理依赖环境。
+**enva** 是一个以 **rattler 为主后端** 的 conda 环境管理器。xdxtools 默认通过 enva 管理依赖环境；如有历史 `conda` / `mamba` / `micromamba` 环境，也可以继续被发现、列举和接管。
 
 ### 验证安装
 
 ```bash
 enva --version
-enva list
+enva list --detailed
 ```
 
 ### 主要命令
 
 | 命令 | 说明 |
 |------|------|
-| `enva list` | 列出所有已创建的环境 |
+| `enva list` | 列出所有可访问环境，并合并同名环境 |
 | `enva create --all` | 创建所有预定义环境 |
-| `enva create <env_name>` | 创建指定环境 |
-| `enva run <env> <cmd>` | 在指定环境中运行命令 |
-| `enva activate <env>` | 激活指定环境 |
+| `enva create --core` | 创建 `xdxtools-core` |
+| `enva run <env> -- <cmd>` | 在指定环境中运行命令 |
+| `enva install --name <env> <pkg...>` | 向环境安装一个或多个包 |
+| `enva adopt --name <env>` | 将现有环境纳入 rattler ownership |
 | `enva remove <env>` | 删除指定环境 |
 
 ### 使用示例
 
 ```bash
-# 查看已有的 conda 环境
-enva list
+# 查看已有环境及其 owner/source
+enva list --detailed
 
-# 在 bismark 环境中运行比对
-enva run bismark bismark --genome /ref/hg38 sample.fastq
+# 在 xdxtools-core 中运行 bismark
+enva run xdxtools-core -- bismark --genome /ref/hg38 sample.fastq
 
-# 批量创建所有 xdxtools 所需环境
+# 批量创建 xdxtools 所需环境
 enva create --all
 
-# 交互式激活环境
-enva activate bismark
+# 向 xdxtools-core 安装额外工具
+enva install --name xdxtools-core fastqc multiqc
 ```
 
 ---
