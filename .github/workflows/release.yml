@@ -21,6 +21,9 @@ concurrency:
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
+    env:
+      PUBLIC_RELEASES_REPO: rainoffallingstar/flightlight
+      PUBLIC_RELEASES_BRANCH: release-assets
 
     steps:
       - name: Checkout with submodules
@@ -173,6 +176,9 @@ jobs:
       - name: Verify tool versions
         run: bash scripts/verify_versions.sh dist
 
+      - name: Stage environment YAML assets
+        run: cp inst/envs/*.yaml dist/
+
       - name: Generate metadata and checksums
         env:
           TAG: ${{ steps.meta.outputs.tag }}
@@ -195,7 +201,10 @@ jobs:
               {"name":"qctb-linux-amd64-static","linkage":"static"},
               {"name":"fqc-linux-amd64-static","linkage":"static"},
               {"name":"methrix-cli-linux-amd64","linkage":"dynamic"},
-              {"name":"methrix-linux-amd64","linkage":"dynamic"}
+              {"name":"methrix-linux-amd64","linkage":"dynamic"},
+              {"name":"xdxtools-core.yaml","kind":"env_yaml"},
+              {"name":"xdxtools-snakemake.yaml","kind":"env_yaml"},
+              {"name":"xdxtools-extra.yaml","kind":"env_yaml"}
             ]
           }
           EOF2
@@ -252,3 +261,102 @@ jobs:
             ```
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check public release mirror configuration
+        id: public_release_config
+        env:
+          PUBLIC_RELEASES_PAT: ${{ secrets.SUBMODULES_PAT }}
+        run: |
+          if [[ -z "${PUBLIC_RELEASES_REPO}" ]]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ -z "${PUBLIC_RELEASES_PAT}" ]]; then
+            echo "::warning::SUBMODULES_PAT is not configured; skipping publish to ${PUBLIC_RELEASES_REPO}."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare public release mirror refs
+        if: steps.public_release_config.outputs.enabled == 'true'
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
+          PUBLIC_RELEASES_PAT: ${{ secrets.SUBMODULES_PAT }}
+        run: |
+          tmp_dir="$(mktemp -d)"
+          trap 'rm -rf "$tmp_dir"' EXIT
+
+          cd "$tmp_dir"
+          git init --initial-branch "$PUBLIC_RELEASES_BRANCH"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          cat > README.md <<EOF
+          # flightlight
+
+          Public release mirror for xdxtools binaries and environment YAML assets.
+
+          - Source repository: https://github.com/${GITHUB_REPOSITORY}
+          - Source commit: ${GITHUB_SHA}
+          - Published tag: ${TAG}
+          - Updated at (UTC): $(date -u +%Y-%m-%dT%H:%M:%SZ)
+          EOF
+
+          mkdir -p release-metadata
+          cat > release-metadata/index.json <<EOF
+          {
+            "source_repository": "${GITHUB_REPOSITORY}",
+            "source_commit": "${GITHUB_SHA}",
+            "tag": "${TAG}",
+            "workflow_run_url": "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}",
+            "updated_at_utc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+
+          git add README.md release-metadata/index.json
+          git commit -m "Sync ${TAG}" >/dev/null
+
+          REMOTE="https://x-access-token:${PUBLIC_RELEASES_PAT}@github.com/${PUBLIC_RELEASES_REPO}.git"
+          git push --force "$REMOTE" "HEAD:refs/heads/${PUBLIC_RELEASES_BRANCH}"
+
+          if [[ "$TAG" == daily-* ]]; then
+            git tag -fa "$TAG" HEAD -m "Daily release mirror ${TAG}"
+            git push --force "$REMOTE" "refs/tags/${TAG}"
+          else
+            if git ls-remote --exit-code --tags "$REMOTE" "refs/tags/${TAG}" >/dev/null 2>&1; then
+              echo "Tag ${TAG} already exists on ${PUBLIC_RELEASES_REPO}" >&2
+              exit 1
+            fi
+            git tag -a "$TAG" HEAD -m "Release mirror ${TAG}"
+            git push "$REMOTE" "refs/tags/${TAG}"
+          fi
+
+      - name: Create public mirror release
+        if: steps.public_release_config.outputs.enabled == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: ${{ env.PUBLIC_RELEASES_REPO }}
+          token: ${{ secrets.SUBMODULES_PAT }}
+          tag_name: ${{ steps.meta.outputs.tag }}
+          target_commitish: ${{ env.PUBLIC_RELEASES_BRANCH }}
+          files: dist/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          overwrite_files: true
+          prerelease: ${{ steps.meta.outputs.prerelease == 'true' }}
+          body: |
+            ## Public Mirror
+
+            - Source repository: https://github.com/${{ github.repository }}
+            - Source commit: `${{ github.sha }}`
+            - Mirror branch: `${{ env.PUBLIC_RELEASES_BRANCH }}`
+            - Purpose: public binary distribution for installer and proxy-friendly downloads
+
+            ## Installation
+
+            ```bash
+            bash <(curl -fsSL https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh)
+            ```

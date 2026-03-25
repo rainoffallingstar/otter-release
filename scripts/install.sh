@@ -13,14 +13,16 @@
 #    --non-interactive    Use all defaults without prompting
 #    --dry-run            Print all actions without executing
 #    --version VER        Specify release version (e.g. v0.3.0); default: latest
-#    --releases-repo REPO  Override GitHub release repo (owner/name)
+#    --releases-repo REPO  Override primary GitHub release repo (owner/name)
+#    --fallback-releases-repo REPO  Override fallback GitHub release repo (owner/name)
 #    --github-proxy URL   Optional GitHub proxy prefix (for public GitHub URLs)
 #    --lang LANG          Interface language: en or zh
 #    --help               Show this help message
 #
 #  Environment:
 #    GITHUB_TOKEN / GH_TOKEN / GITHUB_PAT        Optional GitHub token for private release downloads
-#    GITHUB_RELEASES_REPO           Optional release repo override (owner/name)
+#    GITHUB_RELEASES_REPO           Optional primary release repo override (owner/name)
+#    GITHUB_FALLBACK_RELEASES_REPO  Optional fallback release repo override
 #    GITHUB_PROXY_PREFIX / XDXTOOLS_GITHUB_PROXY  Optional GitHub proxy prefix
 #    XDXTOOLS_INSTALL_LANG          Optional interface language override (en|zh)
 #
@@ -33,7 +35,8 @@
 set -euo pipefail
 
 # ── Top-level configuration ───────────────────────────────────────────────────
-RELEASES_REPO="${GITHUB_RELEASES_REPO:-rainoffallingstar/xdxtools-go}"
+RELEASES_REPO="${GITHUB_RELEASES_REPO:-rainoffallingstar/flightlight}"
+FALLBACK_RELEASES_REPO="${GITHUB_FALLBACK_RELEASES_REPO:-rainoffallingstar/xdxtools-go}"
 XDXTOOLS_VERSION="latest"
 DEFAULT_INSTALL_DIR="$HOME/.cargo/bin"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -46,6 +49,8 @@ GITHUB_PROXY_PREFIX="${GITHUB_PROXY_PREFIX:-${XDXTOOLS_GITHUB_PROXY:-}}"
 INSTALLER_LANG="${XDXTOOLS_INSTALL_LANG:-}"
 RELEASE_METADATA=""
 RELEASE_METADATA_TAG=""
+RELEASE_METADATA_REPO=""
+ACTIVE_RELEASES_REPO=""
 
 # All 9 tools: binary_name:release_asset_stem:linkage(static|dynamic)
 TOOLS=(
@@ -88,6 +93,7 @@ while [[ $# -gt 0 ]]; do
     --dry-run)        DRY_RUN=true;     shift ;;
     --version)        XDXTOOLS_VERSION="$2"; shift 2 ;;
     --releases-repo)  RELEASES_REPO="$2"; shift 2 ;;
+    --fallback-releases-repo) FALLBACK_RELEASES_REPO="$2"; shift 2 ;;
     --github-proxy)   GITHUB_PROXY_PREFIX="$2"; shift 2 ;;
     --lang)           INSTALLER_LANG="$2"; shift 2 ;;
     --help)           SHOW_HELP=true; shift ;;
@@ -208,14 +214,16 @@ print_help() {
 #    --non-interactive    不提示交互，全部使用默认值
 #    --dry-run            仅打印操作，不实际执行
 #    --version VER        指定发布版本（例如 v0.3.0），默认 latest
-#    --releases-repo REPO 指定 GitHub release 仓库（owner/name）
+#    --releases-repo REPO 指定主 GitHub release 仓库（owner/name）
+#    --fallback-releases-repo REPO  指定备用 GitHub release 仓库（owner/name）
 #    --github-proxy URL   可选 GitHub 代理前缀（用于公开 GitHub 链接）
 #    --lang LANG          界面语言：en 或 zh
 #    --help               显示本帮助信息
 #
 #  环境变量:
 #    GITHUB_TOKEN / GH_TOKEN / GITHUB_PAT        私有 release 下载使用的 GitHub token
-#    GITHUB_RELEASES_REPO           release 仓库覆盖（owner/name）
+#    GITHUB_RELEASES_REPO           主 release 仓库覆盖（owner/name）
+#    GITHUB_FALLBACK_RELEASES_REPO  备用 release 仓库覆盖
 #    GITHUB_PROXY_PREFIX / XDXTOOLS_GITHUB_PROXY  GitHub 代理前缀覆盖
 #    XDXTOOLS_INSTALL_LANG          界面语言覆盖（en|zh）
 #
@@ -240,14 +248,16 @@ EOF
 #    --non-interactive    Use all defaults without prompting
 #    --dry-run            Print all actions without executing
 #    --version VER        Specify release version (e.g. v0.3.0); default: latest
-#    --releases-repo REPO Override GitHub release repo (owner/name)
+#    --releases-repo REPO Override primary GitHub release repo (owner/name)
+#    --fallback-releases-repo REPO Override fallback GitHub release repo (owner/name)
 #    --github-proxy URL   Optional GitHub proxy prefix (for public GitHub URLs)
 #    --lang LANG          Interface language: en or zh
 #    --help               Show this help message
 #
 #  Environment:
 #    GITHUB_TOKEN / GH_TOKEN / GITHUB_PAT        Optional GitHub token for private release downloads
-#    GITHUB_RELEASES_REPO           Optional release repo override (owner/name)
+#    GITHUB_RELEASES_REPO           Optional primary release repo override (owner/name)
+#    GITHUB_FALLBACK_RELEASES_REPO  Optional fallback release repo override
 #    GITHUB_PROXY_PREFIX / XDXTOOLS_GITHUB_PROXY  Optional GitHub proxy prefix
 #    XDXTOOLS_INSTALL_LANG          Optional interface language override (en|zh)
 #
@@ -386,21 +396,67 @@ github_release_download() {
 }
 
 resolve_latest_release_tag() {
-  github_api_get "https://api.github.com/repos/${RELEASES_REPO}/releases?per_page=20"     | awk -F'"' '/"tag_name"/ && tag == "" { tag = $4 } END { if (tag != "") print tag }'
+  local repo="$1"
+  github_api_get "https://api.github.com/repos/${repo}/releases?per_page=20" | awk -F'"' '/"tag_name"/ && tag == "" { tag = $4 } END { if (tag != "") print tag }'
+}
+
+build_release_repo_candidates() {
+  local repo
+  local -a repos=()
+
+  for repo in "$RELEASES_REPO" "$FALLBACK_RELEASES_REPO"; do
+    [ -n "$repo" ] || continue
+    case " ${repos[*]} " in
+      *" $repo "*) ;;
+      *) repos+=("$repo") ;;
+    esac
+  done
+
+  printf '%s\n' "${repos[@]}"
+}
+
+try_get_release_metadata() {
+  local repo="$1" tag="$2" metadata
+
+  if [ "$RELEASE_METADATA_REPO" = "$repo" ] && [ "$RELEASE_METADATA_TAG" = "$tag" ] && [ -n "$RELEASE_METADATA" ]; then
+    return 0
+  fi
+
+  if ! metadata="$(github_api_get "https://api.github.com/repos/${repo}/releases/tags/${tag}")"; then
+    return 1
+  fi
+
+  RELEASE_METADATA="$metadata"
+  RELEASE_METADATA_REPO="$repo"
+  RELEASE_METADATA_TAG="$tag"
+  return 0
 }
 
 get_release_metadata() {
-  local tag="$1"
-  if [ "$RELEASE_METADATA_TAG" != "$tag" ] || [ -z "$RELEASE_METADATA" ]; then
-    RELEASE_METADATA="$(github_api_get "https://api.github.com/repos/${RELEASES_REPO}/releases/tags/${tag}")"
-    RELEASE_METADATA_TAG="$tag"
+  local repo="$1" tag="$2"
+  if ! try_get_release_metadata "$repo" "$tag"; then
+    return 1
   fi
   printf '%s\n' "$RELEASE_METADATA"
 }
 
+select_release_repo_for_tag() {
+  local tag="$1" repo
+
+  while IFS= read -r repo; do
+    [ -n "$repo" ] || continue
+    if try_get_release_metadata "$repo" "$tag"; then
+      ACTIVE_RELEASES_REPO="$repo"
+      return 0
+    fi
+  done < <(build_release_repo_candidates)
+
+  return 1
+}
+
 resolve_release_asset_api_url() {
-  local tag="$1" asset_name="$2"
-  get_release_metadata "$tag" | awk -v asset_name="$asset_name" '
+  local repo="$1" tag="$2" asset_name="$3"
+  get_release_metadata "$repo" "$tag" | awk -v asset_name="$asset_name" '
     /"url": "https:\/\/api.github.com\/repos\/.*\/releases\/assets\// {
       asset_url = $0
       sub(/^.*"url": "/, "", asset_url)
@@ -422,21 +478,8 @@ resolve_release_asset_api_url() {
   '
 }
 
-github_repo_file_get() {
-  local repo="$1" path="$2" ref="${3:-main}"
-  local url="https://api.github.com/repos/${repo}/contents/${path}?ref=${ref}" final_url="$url"
-  if [ -z "$GITHUB_AUTH_TOKEN" ]; then
-    final_url="$(apply_github_proxy "$url")"
-  fi
-  if [ -n "$GITHUB_AUTH_TOKEN" ]; then
-    curl --retry 3 --retry-all-errors --connect-timeout 15 -fsSL       -H "Accept: application/vnd.github.raw"       -H "Authorization: Bearer $GITHUB_AUTH_TOKEN"       -H "X-GitHub-Api-Version: 2022-11-28"       "$url"
-  else
-    curl --retry 3 --retry-all-errors --connect-timeout 15 -fsSL -H "Accept: application/vnd.github.raw" "$final_url"
-  fi
-}
-
 prepare_env_files() {
-  local yaml_file remote_path
+  local yaml_file url asset_api_url
 
   ACTIVE_ENVS_DIR="$ENVS_DIR"
   if [ -d "$ACTIVE_ENVS_DIR" ]; then
@@ -445,8 +488,15 @@ prepare_env_files() {
 
   TMP_ENVS_DIR=$(mktemp -d)
   for yaml_file in "${ENV_FILES[@]}"; do
-    remote_path="inst/envs/${yaml_file}"
-    if ! github_repo_file_get "$RELEASES_REPO" "$remote_path" > "${TMP_ENVS_DIR}/${yaml_file}"; then
+    url="${BASE_URL}/${yaml_file}"
+    if [ -n "$GITHUB_AUTH_TOKEN" ]; then
+      asset_api_url="$(resolve_release_asset_api_url "$ACTIVE_RELEASES_REPO" "$XDXTOOLS_VERSION" "$yaml_file" || true)"
+      if [ -n "$asset_api_url" ]; then
+        url="$asset_api_url"
+      fi
+    fi
+
+    if ! github_release_download "$url" "${TMP_ENVS_DIR}/${yaml_file}"; then
       rm -rf "$TMP_ENVS_DIR"
       TMP_ENVS_DIR=""
       return 1
@@ -879,7 +929,10 @@ if [ -z "$INSTALL_DIR" ]; then
   INSTALL_DIR=$(ask "$(txt "Installation directory" "安装目录")" "$DEFAULT_INSTALL_DIR")
 fi
 log_info "$(txt "Binaries will be installed to: $INSTALL_DIR" "二进制文件将安装到: $INSTALL_DIR")"
-log_info "$(txt "GitHub releases repo: $RELEASES_REPO" "GitHub release 仓库: $RELEASES_REPO")"
+log_info "$(txt "Primary GitHub releases repo: $RELEASES_REPO" "主 GitHub release 仓库: $RELEASES_REPO")"
+if [ -n "$FALLBACK_RELEASES_REPO" ] && [ "$FALLBACK_RELEASES_REPO" != "$RELEASES_REPO" ]; then
+  log_info "$(txt "Fallback GitHub releases repo: $FALLBACK_RELEASES_REPO" "备用 GitHub release 仓库: $FALLBACK_RELEASES_REPO")"
+fi
 if [ "$NON_INTERACTIVE" = false ] && [ -z "$GITHUB_PROXY_PREFIX" ]; then
   GITHUB_PROXY_PREFIX=$(ask_optional "$(txt "GitHub proxy prefix (optional, e.g. https://gh-proxy.org/)" "GitHub 代理前缀（可选，例如 https://gh-proxy.org/）")")
   initialize_github_proxy_prefix
@@ -918,29 +971,53 @@ echo ""
 # ── Step 3: Resolve version and download binaries ────────────────────────────
 echo -e "${BOLD}$(txt "Step 3: Downloading binaries" "Step 3: 下载二进制文件")${RESET}"
 
-# Resolve "latest" tag via GitHub API
+# Resolve release tag and source repo via GitHub API
+ACTIVE_RELEASES_REPO=""
 if [ "$XDXTOOLS_VERSION" = "latest" ]; then
   log_info "$(txt "Querying GitHub API for latest release..." "正在查询 GitHub API 获取最新版本...")"
   latest_release_tag=""
-  if ! latest_release_tag=$(resolve_latest_release_tag 2>/dev/null); then
-    latest_release_tag=""
-  fi
-  if [ -z "$latest_release_tag" ] && maybe_prompt_github_token_on_failure "$(txt "Latest release query failed. Private release repos usually require a GitHub token." "查询最新 release 失败。私有 release 仓库通常需要 GitHub token。")"; then
-    if ! latest_release_tag=$(resolve_latest_release_tag 2>/dev/null); then
-      latest_release_tag=""
+  while IFS= read -r candidate_repo; do
+    [ -n "$candidate_repo" ] || continue
+    if latest_release_tag=$(resolve_latest_release_tag "$candidate_repo" 2>/dev/null) && [ -n "$latest_release_tag" ]; then
+      ACTIVE_RELEASES_REPO="$candidate_repo"
+      break
     fi
+  done < <(build_release_repo_candidates)
+  if [ -z "$latest_release_tag" ] && maybe_prompt_github_token_on_failure "$(txt "Latest release query failed. Private release repos usually require a GitHub token." "查询最新 release 失败。私有 release 仓库通常需要 GitHub token。")"; then
+    while IFS= read -r candidate_repo; do
+      [ -n "$candidate_repo" ] || continue
+      if latest_release_tag=$(resolve_latest_release_tag "$candidate_repo" 2>/dev/null) && [ -n "$latest_release_tag" ]; then
+        ACTIVE_RELEASES_REPO="$candidate_repo"
+        break
+      fi
+    done < <(build_release_repo_candidates)
   fi
   if [ -z "$latest_release_tag" ]; then
-    log_error "$(txt "Could not determine latest version. If the release repo is private, export GITHUB_TOKEN, GH_TOKEN, or GITHUB_PAT and retry, or use --version to specify." "无法确定最新版本。如果 release 仓库是私有的，请导出 GITHUB_TOKEN、GH_TOKEN 或 GITHUB_PAT 后重试，或使用 --version 指定版本。")"
+    log_error "$(txt "Could not determine latest version from any configured release repo. If the release repos are private, export GITHUB_TOKEN, GH_TOKEN, or GITHUB_PAT and retry, or use --version to specify." "无法从已配置的 release 仓库确定最新版本。如果 release 仓库是私有的，请导出 GITHUB_TOKEN、GH_TOKEN 或 GITHUB_PAT 后重试，或使用 --version 指定版本。")"
     exit 1
   fi
   XDXTOOLS_VERSION="$latest_release_tag"
 fi
+
+if [ -z "$ACTIVE_RELEASES_REPO" ] && ! select_release_repo_for_tag "$XDXTOOLS_VERSION" 2>/dev/null; then
+  ACTIVE_RELEASES_REPO=""
+fi
+if [ -z "$ACTIVE_RELEASES_REPO" ] && maybe_prompt_github_token_on_failure "$(txt "Release lookup failed for the requested version. Private release repos usually require a GitHub token." "查询指定版本 release 失败。私有 release 仓库通常需要 GitHub token。")"; then
+  if ! select_release_repo_for_tag "$XDXTOOLS_VERSION" 2>/dev/null; then
+    ACTIVE_RELEASES_REPO=""
+  fi
+fi
+if [ -z "$ACTIVE_RELEASES_REPO" ]; then
+  log_error "$(txt "Could not find the requested release in any configured release repo. Adjust --releases-repo / --fallback-releases-repo or use a different version." "无法在已配置的 release 仓库中找到指定版本。请调整 --releases-repo / --fallback-releases-repo，或使用其他版本。")"
+  exit 1
+fi
+
 log_info "$(txt "Version: $XDXTOOLS_VERSION" "版本: $XDXTOOLS_VERSION")"
+log_info "$(txt "Selected release repo: $ACTIVE_RELEASES_REPO" "已选择的 release 仓库: $ACTIVE_RELEASES_REPO")"
 
 run "mkdir -p \"$INSTALL_DIR\""
 
-BASE_URL="https://github.com/${RELEASES_REPO}/releases/download/${XDXTOOLS_VERSION}"
+BASE_URL="https://github.com/${ACTIVE_RELEASES_REPO}/releases/download/${XDXTOOLS_VERSION}"
 
 for entry in "${TOOLS[@]}"; do
   IFS=':' read -r bin_name asset_stem linkage <<< "$entry"
@@ -953,7 +1030,7 @@ for entry in "${TOOLS[@]}"; do
 
   url="${BASE_URL}/${asset}"
   if [ -n "$GITHUB_AUTH_TOKEN" ]; then
-    asset_api_url="$(resolve_release_asset_api_url "$XDXTOOLS_VERSION" "$asset" || true)"
+    asset_api_url="$(resolve_release_asset_api_url "$ACTIVE_RELEASES_REPO" "$XDXTOOLS_VERSION" "$asset" || true)"
     if [ -n "$asset_api_url" ]; then
       url="$asset_api_url"
     fi
@@ -1062,10 +1139,10 @@ if [ "$SKIP_ENVS" = false ]; then
 
   if prepare_env_files; then
     if [ "$ACTIVE_ENVS_DIR" != "$ENVS_DIR" ]; then
-      log_info "$(txt "Local inst/envs not found; using environment YAMLs downloaded from ${RELEASES_REPO}" "未找到本地 inst/envs；将使用从 ${RELEASES_REPO} 下载的环境 YAML")"
+      log_info "$(txt "Local inst/envs not found; using environment YAMLs downloaded from ${ACTIVE_RELEASES_REPO}" "未找到本地 inst/envs；将使用从 ${ACTIVE_RELEASES_REPO} 下载的环境 YAML")"
     fi
   else
-    log_warn "$(txt "Could not access inst/envs locally or download environment YAMLs from ${RELEASES_REPO}" "无法访问本地 inst/envs，也无法从 ${RELEASES_REPO} 下载环境 YAML")"
+    log_warn "$(txt "Could not access inst/envs locally or download environment YAMLs from ${ACTIVE_RELEASES_REPO}" "无法访问本地 inst/envs，也无法从 ${ACTIVE_RELEASES_REPO} 下载环境 YAML")"
     log_warn "$(txt "Skipping conda environment setup" "跳过 conda 环境安装")"
     HDF5_SKIP_REASON="conda_environment_yamls_unavailable"
     SKIP_ENVS=true
