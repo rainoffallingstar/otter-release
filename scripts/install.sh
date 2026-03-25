@@ -76,6 +76,8 @@ DRY_RUN=false
 SHOW_HELP=false
 INSTALL_ENVS_CHOICE="all"   # all | core | snakemake | extra
 GITHUB_TOKEN_PROMPT_ATTEMPTED=false
+BINARY_OVERWRITE_DECISION=""
+BINARY_OVERWRITE_PROMPT_SHOWN=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -495,7 +497,19 @@ ask_yn() {
 
 confirm_binary_overwrite() {
   local bin_name="$1"
-  ask_yn "$(txt "Overwrite existing binary for ${bin_name}?" "是否覆盖已存在的 ${bin_name} 二进制文件？")" "Y"
+
+  if [ -n "$BINARY_OVERWRITE_DECISION" ]; then
+    [ "$BINARY_OVERWRITE_DECISION" = "overwrite" ]
+    return
+  fi
+
+  if ask_yn "$(txt "Overwrite existing binaries starting with ${bin_name}? This choice will apply to all existing binaries." "是否从 ${bin_name} 开始覆盖已存在的二进制文件？该选择会应用到所有已存在的二进制文件。")" "Y"; then
+    BINARY_OVERWRITE_DECISION="overwrite"
+    return 0
+  fi
+
+  BINARY_OVERWRITE_DECISION="keep"
+  return 1
 }
 
 ask_optional() {
@@ -948,7 +962,10 @@ for entry in "${TOOLS[@]}"; do
     log_info "$(txt "Resuming partial download for $bin_name ..." "正在续传 $bin_name 的部分下载 ...")"
   elif [ -f "$dest" ]; then
     if [ "$DRY_RUN" = true ]; then
-      log_info "$(txt "[DRY-RUN] Existing binary detected for $bin_name; installer would ask whether to overwrite (default: yes)" "[DRY-RUN] 检测到已存在的 $bin_name 二进制文件；安装器会先询问是否覆盖（默认：是）")"
+      if [ "$BINARY_OVERWRITE_PROMPT_SHOWN" = false ]; then
+        log_info "$(txt "[DRY-RUN] Existing binaries detected; installer would ask once whether to overwrite all existing binaries (default: yes)" "[DRY-RUN] 检测到已存在的二进制文件；安装器会先统一询问是否覆盖所有已存在二进制（默认：是）")"
+        BINARY_OVERWRITE_PROMPT_SHOWN=true
+      fi
     elif ! confirm_binary_overwrite "$bin_name"; then
       log_info "$(txt "Skipping $bin_name and keeping the existing binary" "跳过 $bin_name，保留现有二进制文件")"
       continue
