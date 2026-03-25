@@ -63,31 +63,35 @@ bash <(wget -qO- https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go
 
 **症状**：安装脚本报错 `failed to install enva` 或 `enva: command not found`。
 
-**解决方法 1**：手动编译安装
+**解决方法 1**：重新运行安装脚本，单独安装 `enva`
+
+```bash
+bash <(wget -qO- https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh) --skip-envs
+```
+
+**解决方法 2**：手动编译安装（需要 Rust）
 
 ```bash
 git clone https://github.com/rainoffallingstar/enva.git
 cd enva
-conda run -n go-build go build -o ~/.cargo/bin/enva
+cargo build --release
+install -m 755 target/release/enva ~/.cargo/bin/enva
 ```
 
-**解决方法 2**：检查 Go 编译环境
+**解决方法 3**：检查 Rust 编译环境
 
 ```bash
-# 检查 go-build conda 环境是否存在
-conda env list | grep go-build
-
-# 如果不存在，先创建
-conda create -n go-build golang -y
+rustc --version
+cargo --version
 ```
 
-**解决方法 3**：直接使用 conda 代替 enva
+**解决方法 4**：直接使用 conda 兼容环境
 
-enva 是 conda 的替代品，如果 enva 无法安装，可以直接用 `conda run` 替代 `enva run`：
+`enva` 是 xdxtools 默认的环境入口；如果暂时无法安装，也可以先直接使用已有 conda 兼容环境：
 
 ```bash
-# enva run bismark bismark --help
-conda run -n bismark bismark --help
+# enva run xdxtools-core -- bismark --help
+conda run -n xdxtools-core bismark --help
 ```
 
 ---

@@ -9,14 +9,15 @@
 - SLURM Job Array + 本地工作池并行化
 - Excel/CSV pdata，支持中文列名自动映射
 - Snakemake 集成，内嵌工作流文件
-- Conda 环境自动回退（支持 [enva](https://github.com/rainoffallingstar/enva)）
-- 主 CLI 为单二进制；工作流运行仍依赖 Snakemake 与 conda/enva
+- 通过 [enva](https://github.com/rainoffallingstar/enva) 进行 rattler 优先的环境管理，并兼容历史 conda 环境
+- 主 CLI 为单二进制；工作流运行默认依赖 Snakemake 与 enva（历史 conda 兼容环境也可继续使用）
 
 ## 系统要求
 
 - Go 1.24+
 - Snakemake
-- conda / mamba / micromamba（或 [enva](https://github.com/rainoffallingstar/enva)）
+- [enva](https://github.com/rainoffallingstar/enva)（推荐）
+- `conda` / `mamba` / `micromamba` 仅用于历史兼容或被接管的环境
 
 ## 安装
 

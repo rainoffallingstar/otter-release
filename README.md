@@ -9,14 +9,15 @@ A bioinformatics workflow CLI for RRBS, WGBS, RNA-seq, and PDX analysis.
 - SLURM Job Array + local worker pool parallelization
 - Excel/CSV pdata with Chinese column name auto-mapping
 - Snakemake integration with embedded workflow files
-- Conda environment auto-fallback (enva supported)
-- Single primary CLI binary; workflow runtime depends on Snakemake + conda/enva
+- Rattler-first environment management via `enva`, with conda-compatible environment fallback
+- Single primary CLI binary; workflow runtime depends on Snakemake + `enva` (legacy conda-compatible envs also work)
 
 ## Requirements
 
 - Go 1.24+
 - Snakemake
-- conda / mamba / micromamba (or [enva](https://github.com/rainoffallingstar/enva))
+- [enva](https://github.com/rainoffallingstar/enva) (preferred)
+- `conda` / `mamba` / `micromamba` only for legacy compatibility or adopted environments
 
 ## Installation
 

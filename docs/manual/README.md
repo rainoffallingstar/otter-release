@@ -64,7 +64,7 @@
 
 | 子工具 | 用途 | 文档位置 |
 |--------|------|---------|
-| 🌿 `enva` | 轻量级 conda 环境管理器，比 conda 快 2-5 倍 | [第六章 §1](06-subtools.md#enva) |
+| 🌿 `enva` | rattler 优先的环境管理器，可统一管理和接管历史 conda 环境 | [第六章 §1](06-subtools.md#enva) |
 | 🧹 `xenofilter` | PDX 样本物种污染过滤（去掉鼠源读段） | [第六章 §2](06-subtools.md#xenofilter) |
 | 🔗 `paireads` | 配对 reads 过滤，用于 PDX 双 BAM 处理 | [第六章 §3](06-subtools.md#paireads) |
 | 📊 `htseq2matrix` | 将 HTSeq 计数文件合并为表达矩阵 | [第六章 §4](06-subtools.md#htseq2matrix) |

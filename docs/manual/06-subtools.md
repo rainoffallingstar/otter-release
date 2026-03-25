@@ -11,7 +11,7 @@
 
 | # | 工具 | 功能简介 |
 |---|------|---------|
-| 1 | [🌿 enva](#enva) | 轻量级 conda 环境管理器 |
+| 1 | [🌿 enva](#enva) | rattler 优先的环境管理器 |
 | 2 | [🧹 xenofilter](#xenofilter) | PDX 物种污染过滤 |
 | 3 | [🔗 paireads](#paireads) | 配对 reads 过滤与恢复 |
 | 4 | [📊 htseq2matrix](#htseq2matrix) | HTSeq 计数矩阵生成 |

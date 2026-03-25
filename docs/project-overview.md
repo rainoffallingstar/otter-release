@@ -73,12 +73,12 @@ xdxtools 是一个面向生信分析的工作流管理 CLI，围绕 Snakemake �
 
 ## 2. 子仓库详细说明
 
-### 2.1 enva — conda 环境管理器
+### 2.1 enva — rattler 优先的环境管理器
 
 - **语言 / 版本**: Rust 0.1.0
 - **二进制**: `enva`
-- **功能**: 轻量级 micromamba 前端，管理 4 个预设 conda 环境（core / r / snakemake / extra），比 conda 快 2-5x
-- **在 xdxtools 中的作用**: `internal/workflow/snakemake.go` 启动前检测 `enva` 是否可用；若可用则以 `enva run <env> --` 替代 `conda run -n <env>` 调用 Snakemake，加速环境切换
+- **功能**: 以 rattler 为一等公民的环境管理器，负责创建和运行 4 个预设环境（core / r / snakemake / extra），并兼容发现 / 接管历史 conda 环境
+- **在 xdxtools 中的作用**: `internal/workflow/snakemake.go` 启动前优先检测 `enva`；若可用则以 `enva run <env> --` 调用 Snakemake，并统一兼容历史 conda 环境
 - **调用位置**: 主程序调用层注入，不在 Snakemake rules 的 `shell` 块中直接出现
 
 ---

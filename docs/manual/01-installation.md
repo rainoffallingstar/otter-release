@@ -17,20 +17,19 @@
 |------|------|
 | 操作系统 | Linux（推荐 CentOS 7 / Ubuntu 18.04+） |
 | 架构 | x86-64（64 位） |
-| 网络 | 能访问 GitHub（下载工具）和 conda 源（创建环境） |
+| 网络 | 能访问 GitHub（下载工具）和 conda 频道镜像（创建环境） |
 
-### 检查 conda/micromamba 是否存在
+### 检查网络与安装目录写权限
 
 ```bash
-# 检查 conda
-conda --version
-# 期望输出类似：conda 23.x.x
+# 检查 GitHub 访问
+curl -I https://github.com
 
-# 或者检查 micromamba
-micromamba --version
+# 检查安装目录可写（默认安装到 ~/.cargo/bin）
+mkdir -p ~/.cargo/bin && test -w ~/.cargo/bin && echo "ok"
 ```
 
-如果两者都没有，请先安装 [Miniconda](https://docs.conda.io/en/latest/miniconda.html)：
+xdxtools 安装脚本会优先安装并调用 `enva`。如果你本机已经有 `conda` / `mamba` / `micromamba` 环境，后续也可以继续被 `enva` 发现和接管。若完全没有任何 conda 前缀，建议先准备一个常见发行版目录作为环境根前缀，例如 [Miniconda](https://docs.conda.io/en/latest/miniconda.html) 或 Miniforge：
 
 ```bash
 # 下载并安装 Miniconda（仅限首次）
@@ -60,7 +59,7 @@ bash <(wget -qO- https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go
    → 输入 n 跳过，后续可单独安装
 
 ❓ Create conda environments? [Y/n]:
-   → 输入 Y 创建分析所需的 conda 环境（首次安装推荐）
+   → 输入 Y 创建分析所需环境（首次安装推荐，默认由 enva/rattler 管理）
    → 已有环境可输入 n 跳过
 
 ❓ xdxtools version [default: latest]:
@@ -89,7 +88,7 @@ bash <(wget -qO- https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go
 | 选项 | 说明 | 示例 |
 |------|------|------|
 | `--non-interactive` | 全自动安装，使用所有默认选项 | `bash install.sh --non-interactive` |
-| `--skip-envs` | 跳过 conda 环境创建 | `bash install.sh --skip-envs` |
+| `--skip-envs` | 跳过环境创建 | `bash install.sh --skip-envs` |
 | `--version <v>` | 安装指定版本 | `bash install.sh --version v1.2.0` |
 | `--prefix <dir>` | 指定安装目录 | `bash install.sh --prefix ~/mybin` |
 | `--help` | 查看所有选项 | `bash install.sh --help` |
