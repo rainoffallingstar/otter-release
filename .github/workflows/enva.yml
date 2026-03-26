@@ -44,5 +44,7 @@ jobs:
         working-directory: enva
         run: cargo build
 
-      - name: Run enva end-to-end tests
-        run: bash scripts/test_enva_e2e.sh
+      - name: Run enva end-to-end tests including interactive remove flow
+        run: |
+          python3 --version
+          bash scripts/test_enva_e2e.sh
