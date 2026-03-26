@@ -38,7 +38,8 @@ set -euo pipefail
 RELEASES_REPO="${GITHUB_RELEASES_REPO:-rainoffallingstar/flightlight}"
 FALLBACK_RELEASES_REPO="${GITHUB_FALLBACK_RELEASES_REPO:-rainoffallingstar/xdxtools-go}"
 XDXTOOLS_VERSION="latest"
-DEFAULT_INSTALL_DIR="$HOME/.cargo/bin"
+DEFAULT_INSTALL_DIR=""
+USER_HOME="${HOME:-}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENVS_DIR="$SCRIPT_DIR/../inst/envs"
 ACTIVE_ENVS_DIR="$ENVS_DIR"
@@ -682,6 +683,71 @@ initialize_github_proxy_prefix() {
   GITHUB_PROXY_PREFIX="$normalized"
 }
 
+resolve_user_home() {
+  local user_name resolved
+  user_name="$(id -un 2>/dev/null || true)"
+
+  if command -v getent >/dev/null 2>&1 && [ -n "$user_name" ]; then
+    resolved="$(getent passwd "$user_name" | cut -d: -f6 | head -n 1)"
+  fi
+  if [ -z "${resolved:-}" ] && [ -n "$user_name" ]; then
+    resolved="$(eval "printf '%s' ~$user_name" 2>/dev/null || true)"
+  fi
+  if [ -z "${resolved:-}" ]; then
+    resolved="${HOME:-}"
+  fi
+
+  resolved="$(trim_whitespace "$resolved")"
+  [ -n "$resolved" ] || return 1
+  printf '%s\n' "$resolved"
+}
+
+normalize_shell_config_path() {
+  local value
+  value="$(trim_whitespace "${1:-}")"
+  if [ -z "$value" ]; then
+    return 1
+  fi
+
+  case "$value" in
+    ~)
+      value="$USER_HOME"
+      ;;
+    ~/*)
+      value="$USER_HOME/${value#~/}"
+      ;;
+  esac
+
+  printf '%s\n' "$value"
+}
+
+initialize_shell_config_path() {
+  local normalized parent
+
+  if ! normalized="$(normalize_shell_config_path "$SHELL_CONFIG")"; then
+    normalized="$DEFAULT_SHELL_CONFIG"
+  fi
+
+  parent="$(dirname "$normalized")"
+  if [ ! -d "$parent" ]; then
+    log_warn "$(txt "Shell config directory does not exist: $parent; falling back to $DEFAULT_SHELL_CONFIG" "Shell 配置文件目录不存在：$parent；将回退到 $DEFAULT_SHELL_CONFIG")"
+    normalized="$DEFAULT_SHELL_CONFIG"
+    parent="$(dirname "$normalized")"
+  fi
+
+  if [ -e "$normalized" ]; then
+    if [ ! -w "$normalized" ]; then
+      log_error "$(txt "Shell config file is not writable: $normalized" "Shell 配置文件不可写：$normalized")"
+      exit 1
+    fi
+  elif [ ! -w "$parent" ]; then
+    log_error "$(txt "Cannot create shell config file under: $parent" "无法在以下目录创建 Shell 配置文件：$parent")"
+    exit 1
+  fi
+
+  SHELL_CONFIG="$normalized"
+}
+
 resolve_enva_path() {
   if [ "$DRY_RUN" = true ] && [ -n "${INSTALL_DIR:-}" ]; then
     printf '%s\n' "${INSTALL_DIR}/enva"
@@ -956,12 +1022,18 @@ case "$ARCH" in
 esac
 log_success "$(txt "Architecture: $ARCH" "系统架构: $ARCH")"
 
+USER_HOME="$(resolve_user_home 2>/dev/null || printf '%s\n' "${HOME:-}")"
+DEFAULT_INSTALL_DIR="${USER_HOME}/.cargo/bin"
+if [ -n "${HOME:-}" ] && [ "$USER_HOME" != "$HOME" ]; then
+  log_warn "$(txt "HOME is $HOME, but the current user's home resolves to $USER_HOME; installer defaults will use $USER_HOME" "HOME 当前为 $HOME，但当前用户的家目录解析为 $USER_HOME；安装器默认值将使用 $USER_HOME")"
+fi
+
 # Shell detection
 DETECTED_SHELL="$(basename "${SHELL:-bash}")"
 case "$DETECTED_SHELL" in
-  zsh)  DEFAULT_SHELL_CONFIG="$HOME/.zshrc"  ;;
-  bash) DEFAULT_SHELL_CONFIG="$HOME/.bashrc" ;;
-  *)    DEFAULT_SHELL_CONFIG="$HOME/.profile" ;;
+  zsh)  DEFAULT_SHELL_CONFIG="$USER_HOME/.zshrc"  ;;
+  bash) DEFAULT_SHELL_CONFIG="$USER_HOME/.bashrc" ;;
+  *)    DEFAULT_SHELL_CONFIG="$USER_HOME/.profile" ;;
 esac
 log_success "$(txt "Shell: $DETECTED_SHELL → $DEFAULT_SHELL_CONFIG" "Shell: $DETECTED_SHELL → $DEFAULT_SHELL_CONFIG")"
 
@@ -1004,6 +1076,7 @@ if [ -n "$GITHUB_PROXY_PREFIX" ] && [ -n "$GITHUB_AUTH_TOKEN" ]; then
   log_info "$(txt "Authenticated GitHub API downloads stay direct to avoid leaking your token to the proxy" "带认证的 GitHub API 下载将保持直连，以避免将 token 暴露给代理")"
 fi
 SHELL_CONFIG=$(ask "$(txt "Shell config file" "Shell 配置文件")" "$DEFAULT_SHELL_CONFIG")
+initialize_shell_config_path
 log_info "$(txt "Shell config: $SHELL_CONFIG" "Shell 配置文件: $SHELL_CONFIG")"
 
 if [ "$SKIP_ENVS" = false ]; then
