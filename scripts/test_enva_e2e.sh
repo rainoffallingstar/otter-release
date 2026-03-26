@@ -30,17 +30,37 @@ YAML
 export ENVA_RATTLER_ROOT_PREFIX="${ROOT_PREFIX}"
 export MAMBA_ROOT_PREFIX="${EXTERNAL_ROOT_PREFIX}"
 export ENVA_PACKAGE_MANAGER=micromamba
+export MICROMAMBA_INSTALL_DIR="${WORKDIR}/tooling"
 
 PREFIX="${ROOT_PREFIX}/envs/${ENV_NAME}"
 SECOND_PREFIX="${ROOT_PREFIX}/envs/${SECOND_ENV_NAME}"
 DUP_PREFIX="${ROOT_PREFIX}/envs/${DUP_ENV_NAME}"
 EXTERNAL_DUP_PREFIX="${EXTERNAL_ROOT_PREFIX}/envs/${DUP_ENV_NAME}"
 
+ensure_micromamba() {
+  if command -v micromamba >/dev/null 2>&1; then
+    command -v micromamba
+    return 0
+  fi
+
+  ENVA_BACKEND=cli ENVA_PACKAGE_MANAGER=micromamba "${BIN}" list >/dev/null
+  if [ -x "${MICROMAMBA_INSTALL_DIR}/micromamba" ]; then
+    printf '%s\n' "${MICROMAMBA_INSTALL_DIR}/micromamba"
+    return 0
+  fi
+
+  echo "failed to bootstrap micromamba via enva" >&2
+  return 1
+}
+
+MICROMAMBA_BIN=$(ensure_micromamba)
+"${MICROMAMBA_BIN}" --version >/dev/null
+
 "${BIN}" --version
 "${BIN}" create --yaml "${YAML_PATH}" --name "${ENV_NAME}" --with jq
 "${BIN}" create --yaml "${YAML_PATH}" --name "${SECOND_ENV_NAME}"
 "${BIN}" create --yaml "${YAML_PATH}" --name "${DUP_ENV_NAME}"
-micromamba create -y -r "${EXTERNAL_ROOT_PREFIX}" -n "${DUP_ENV_NAME}" -c conda-forge xz >/dev/null
+"${MICROMAMBA_BIN}" create -y -r "${EXTERNAL_ROOT_PREFIX}" -n "${DUP_ENV_NAME}" -c conda-forge xz >/dev/null
 
 test -d "${PREFIX}/conda-meta"
 test -d "${SECOND_PREFIX}/conda-meta"
