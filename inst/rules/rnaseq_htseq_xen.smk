@@ -10,16 +10,16 @@ rule build_expression_matrix :
   threads:5
   shell:
     """
-    enva run xdxtools-core \
+    enva run xdxtools-core -- \
       samtools \
       sort -@ {threads} \
       -o {input.bam_sorted} \
       {input.bam_sorted}
     
-    enva run xdxtools-core \
+    enva run xdxtools-core -- \
       samtools index {input.bam_sorted}
       
-    enva run xdxtools-core \
+    enva run xdxtools-core -- \
       htseq-count -f bam -r name -s yes -t exon -i gene_id \
       -m intersection-nonempty \
     {input.bam_sorted} {params.rnaseq_gtf} > {params.methylkit}

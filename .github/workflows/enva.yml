@@ -1,0 +1,48 @@
+name: Enva CI
+
+on:
+  push:
+    branches: [ master, main ]
+    paths:
+      - '.github/workflows/enva.yml'
+      - 'enva/**'
+      - 'scripts/test_enva_e2e.sh'
+  pull_request:
+    branches: [ master, main ]
+    paths:
+      - '.github/workflows/enva.yml'
+      - 'enva/**'
+      - 'scripts/test_enva_e2e.sh'
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  enva-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.SUBMODULES_PAT }}
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: enva -> target
+
+      - name: Run enva unit tests
+        working-directory: enva
+        run: cargo test
+
+      - name: Build enva debug binary
+        working-directory: enva
+        run: cargo build
+
+      - name: Run enva end-to-end tests
+        run: bash scripts/test_enva_e2e.sh
