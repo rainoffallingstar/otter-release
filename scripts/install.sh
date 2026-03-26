@@ -83,6 +83,7 @@ INSTALL_ENVS_CHOICE="all"   # all | core | snakemake | extra
 GITHUB_TOKEN_PROMPT_ATTEMPTED=false
 BINARY_OVERWRITE_DECISION=""
 BINARY_OVERWRITE_PROMPT_SHOWN=false
+declare -A DOWNLOAD_RESUME_ELIGIBLE=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -342,36 +343,52 @@ print_completion_summary() {
   echo ""
 }
 
-github_api_get() {
-  local url="$1" final_url="$1"
-  if [ -z "$GITHUB_AUTH_TOKEN" ]; then
-    final_url="$(apply_github_proxy "$url")"
+curl_github_unauth() {
+  local url="$1" proxied_url
+  shift
+
+  if [ -n "$GITHUB_PROXY_PREFIX" ]; then
+    proxied_url="$(apply_github_proxy "$url")"
+    if curl "$@" "$proxied_url"; then
+      return 0
+    fi
+    log_warn "$(txt "GitHub proxy request failed; retrying direct connection" "GitHub 代理请求失败；正在回退到直连")"
   fi
+
+  curl "$@" "$url"
+}
+
+github_api_get() {
+  local url="$1"
   if [ -n "$GITHUB_AUTH_TOKEN" ]; then
     curl --retry 3 --retry-all-errors --connect-timeout 15 -sf       -H "Accept: application/vnd.github+json"       -H "Authorization: Bearer $GITHUB_AUTH_TOKEN"       -H "X-GitHub-Api-Version: 2022-11-28"       "$url"
   else
-    curl --retry 3 --retry-all-errors --connect-timeout 15 -sf "$final_url"
+    curl_github_unauth "$url" --retry 3 --retry-all-errors --connect-timeout 15 -sf
   fi
 }
 
 github_release_download() {
-  local url="$1" dest="$2" final_url="$1" tmp_dest="${2}.part" status=0
-  if [[ "$url" != https://api.github.com/repos/*/releases/assets/* ]]; then
-    final_url="$(apply_github_proxy "$url")"
+  local url="$1" dest="$2" tmp_dest="${2}.part" status=0
+
+  if [ -f "$tmp_dest" ] && [ -s "$tmp_dest" ] && [ -z "${DOWNLOAD_RESUME_ELIGIBLE[$tmp_dest]:-}" ]; then
+    log_info "$(txt "Ignoring stale partial download for $(basename "$dest"); restarting from scratch" "忽略 $(basename "$dest") 的历史残留部分下载；将从头重新下载")"
+    rm -f "$tmp_dest"
   fi
 
-  if [ -f "$tmp_dest" ] && [ -s "$tmp_dest" ]; then
+  if [ -f "$tmp_dest" ] && [ -s "$tmp_dest" ] && [ -n "${DOWNLOAD_RESUME_ELIGIBLE[$tmp_dest]:-}" ]; then
     log_info "$(txt "Resuming partial download for $(basename "$dest") ..." "正在续传 $(basename "$dest") 的部分下载 ...")"
     if [ -n "$GITHUB_AUTH_TOKEN" ] && [[ "$url" == https://api.github.com/repos/*/releases/assets/* ]]; then
       if curl --retry 3 --retry-all-errors --connect-timeout 15 -fL -C - --progress-bar         -H "Accept: application/octet-stream"         -H "Authorization: Bearer $GITHUB_AUTH_TOKEN"         -H "X-GitHub-Api-Version: 2022-11-28"         "$url" -o "$tmp_dest"; then
         mv -f "$tmp_dest" "$dest"
+        unset "DOWNLOAD_RESUME_ELIGIBLE[$tmp_dest]"
         return 0
       else
         status=$?
       fi
     else
-      if curl --retry 3 --retry-all-errors --connect-timeout 15 -fL -C - --progress-bar "$final_url" -o "$tmp_dest"; then
+      if curl_github_unauth "$url" --retry 3 --retry-all-errors --connect-timeout 15 -fL -C - --progress-bar -o "$tmp_dest"; then
         mv -f "$tmp_dest" "$dest"
+        unset "DOWNLOAD_RESUME_ELIGIBLE[$tmp_dest]"
         return 0
       else
         status=$?
@@ -379,25 +396,64 @@ github_release_download() {
     fi
 
     if [ "$status" -ne 33 ]; then
+      DOWNLOAD_RESUME_ELIGIBLE[$tmp_dest]=1
       return "$status"
     fi
 
     log_warn "$(txt "Server does not support resume for $(basename "$dest"); restarting download from scratch" "服务器不支持 $(basename "$dest") 的续传；将从头重新下载")"
     rm -f "$tmp_dest"
+    unset "DOWNLOAD_RESUME_ELIGIBLE[$tmp_dest]"
   fi
 
   if [ -n "$GITHUB_AUTH_TOKEN" ] && [[ "$url" == https://api.github.com/repos/*/releases/assets/* ]]; then
-    curl --retry 3 --retry-all-errors --connect-timeout 15 -fL --progress-bar       -H "Accept: application/octet-stream"       -H "Authorization: Bearer $GITHUB_AUTH_TOKEN"       -H "X-GitHub-Api-Version: 2022-11-28"       "$url" -o "$tmp_dest"
+    if ! curl --retry 3 --retry-all-errors --connect-timeout 15 -fL --progress-bar       -H "Accept: application/octet-stream"       -H "Authorization: Bearer $GITHUB_AUTH_TOKEN"       -H "X-GitHub-Api-Version: 2022-11-28"       "$url" -o "$tmp_dest"; then
+      status=$?
+      if [ -f "$tmp_dest" ] && [ -s "$tmp_dest" ]; then
+        DOWNLOAD_RESUME_ELIGIBLE[$tmp_dest]=1
+      fi
+      return "$status"
+    fi
   else
-    curl --retry 3 --retry-all-errors --connect-timeout 15 -fL --progress-bar "$final_url" -o "$tmp_dest"
+    if ! curl_github_unauth "$url" --retry 3 --retry-all-errors --connect-timeout 15 -fL --progress-bar -o "$tmp_dest"; then
+      status=$?
+      if [ -f "$tmp_dest" ] && [ -s "$tmp_dest" ]; then
+        DOWNLOAD_RESUME_ELIGIBLE[$tmp_dest]=1
+      fi
+      return "$status"
+    fi
   fi
 
   mv -f "$tmp_dest" "$dest"
+  unset "DOWNLOAD_RESUME_ELIGIBLE[$tmp_dest]"
+}
+
+resolve_latest_release_tag_via_page() {
+  local repo="$1" url html
+  url="https://github.com/${repo}/releases"
+
+  html="$(curl_github_unauth "$url" --retry 3 --retry-all-errors --connect-timeout 15 -fsSL)" || return 1
+  printf '%s' "$html"     | grep -o "/${repo}/releases/tag/[^\"?]*"     | head -n 1     | sed 's#.*/tag/##'
+}
+
+release_tag_exists_via_page() {
+  local repo="$1" tag="$2" url effective_url
+  url="https://github.com/${repo}/releases/tag/${tag}"
+
+  effective_url="$(curl_github_unauth "$url" --retry 3 --retry-all-errors --connect-timeout 15 -fsSL -o /dev/null -w '%{url_effective}')" || return 1
+  case "$effective_url" in
+    */releases/tag/${tag}) return 0 ;;
+  esac
+
+  return 1
 }
 
 resolve_latest_release_tag() {
-  local repo="$1"
-  github_api_get "https://api.github.com/repos/${repo}/releases?per_page=20" | awk -F'"' '/"tag_name"/ && tag == "" { tag = $4 } END { if (tag != "") print tag }'
+  local repo="$1" tag=""
+  if tag="$(github_api_get "https://api.github.com/repos/${repo}/releases?per_page=20" | awk -F'"' '/"tag_name"/ && tag == "" { tag = $4 } END { if (tag != "") print tag }' 2>/dev/null)" && [ -n "$tag" ]; then
+    printf '%s\n' "$tag"
+    return 0
+  fi
+  resolve_latest_release_tag_via_page "$repo"
 }
 
 build_release_repo_candidates() {
@@ -418,8 +474,7 @@ build_release_repo_candidates() {
     fi
   done
 
-  printf '%s
-' "${repos[@]}"
+  printf '%s\n' "${repos[@]}"
 }
 
 try_get_release_metadata() {
@@ -452,7 +507,7 @@ select_release_repo_for_tag() {
 
   while IFS= read -r repo; do
     [ -n "$repo" ] || continue
-    if try_get_release_metadata "$repo" "$tag"; then
+    if try_get_release_metadata "$repo" "$tag" || release_tag_exists_via_page "$repo" "$tag"; then
       ACTIVE_RELEASES_REPO="$repo"
       return 0
     fi
@@ -990,7 +1045,7 @@ if [ "$XDXTOOLS_VERSION" = "latest" ]; then
       break
     fi
   done < <(build_release_repo_candidates)
-  if [ -z "$latest_release_tag" ] && maybe_prompt_github_token_on_failure "$(txt "Latest release query failed. Private release repos usually require a GitHub token." "查询最新 release 失败。私有 release 仓库通常需要 GitHub token。")"; then
+  if [ -z "$latest_release_tag" ] && maybe_prompt_github_token_on_failure "$(txt "Latest release query failed. For public repos this usually means GitHub API or proxy connectivity issues; private repos may require a GitHub token." "查询最新 release 失败。对于公开 release 仓库，这通常意味着 GitHub API 或代理连接异常；私有 release 仓库才可能需要 GitHub token。")"; then
     while IFS= read -r candidate_repo; do
       [ -n "$candidate_repo" ] || continue
       if latest_release_tag=$(resolve_latest_release_tag "$candidate_repo" 2>/dev/null) && [ -n "$latest_release_tag" ]; then
@@ -1000,7 +1055,7 @@ if [ "$XDXTOOLS_VERSION" = "latest" ]; then
     done < <(build_release_repo_candidates)
   fi
   if [ -z "$latest_release_tag" ]; then
-    log_error "$(txt "Could not determine latest version from any configured release repo. If the release repos are private, export GITHUB_TOKEN, GH_TOKEN, or GITHUB_PAT and retry, or use --version to specify." "无法从已配置的 release 仓库确定最新版本。如果 release 仓库是私有的，请导出 GITHUB_TOKEN、GH_TOKEN 或 GITHUB_PAT 后重试，或使用 --version 指定版本。")"
+    log_error "$(txt "Could not determine latest version from any configured release repo. Check GitHub connectivity and proxy settings first. Tokens are mainly needed for private repos or rate limits, or use --version to specify." "无法从已配置的 release 仓库确定最新版本。请先检查 GitHub 连通性与代理设置。token 主要用于私有仓库或限流场景，或使用 --version 指定版本。")"
     exit 1
   fi
   XDXTOOLS_VERSION="$latest_release_tag"
@@ -1009,7 +1064,7 @@ fi
 if [ -z "$ACTIVE_RELEASES_REPO" ] && ! select_release_repo_for_tag "$XDXTOOLS_VERSION" 2>/dev/null; then
   ACTIVE_RELEASES_REPO=""
 fi
-if [ -z "$ACTIVE_RELEASES_REPO" ] && maybe_prompt_github_token_on_failure "$(txt "Release lookup failed for the requested version. Private release repos usually require a GitHub token." "查询指定版本 release 失败。私有 release 仓库通常需要 GitHub token。")"; then
+if [ -z "$ACTIVE_RELEASES_REPO" ] && maybe_prompt_github_token_on_failure "$(txt "Release lookup failed for the requested version. For public repos this usually means GitHub connectivity or proxy issues; private repos may require a GitHub token." "查询指定版本 release 失败。对于公开 release 仓库，这通常意味着 GitHub 或代理连接异常；私有 release 仓库才可能需要 GitHub token。")"; then
   if ! select_release_repo_for_tag "$XDXTOOLS_VERSION" 2>/dev/null; then
     ACTIVE_RELEASES_REPO=""
   fi
@@ -1064,7 +1119,7 @@ for entry in "${TOOLS[@]}"; do
       printf '  %b[DRY-RUN]%b curl -fL -C - --progress-bar -H "Accept: application/octet-stream" -H "Authorization: Bearer $GITHUB_TOKEN" "%s" -o "%s.part"\n' "$YELLOW" "$RESET" "$url" "$dest"
       printf '  %b[DRY-RUN]%b mv -f "%s.part" "%s"\n' "$YELLOW" "$RESET" "$dest" "$dest"
     else
-      printf '  %b[DRY-RUN]%b curl -fL -C - --progress-bar "%s" -o "%s.part"\n' "$YELLOW" "$RESET" "$(apply_github_proxy "$url")" "$dest"
+      printf '  %b[DRY-RUN]%b curl -fL -C - --progress-bar "%s" -o "%s.part" (proxy first, then direct fallback)\n' "$YELLOW" "$RESET" "$(apply_github_proxy "$url")" "$dest"
       printf '  %b[DRY-RUN]%b mv -f "%s.part" "%s"\n' "$YELLOW" "$RESET" "$dest" "$dest"
     fi
   else
