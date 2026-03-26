@@ -36,6 +36,15 @@ jobs:
         with:
           workspaces: enva -> target
 
+      - name: Install micromamba for compatibility-layer e2e
+        uses: mamba-org/setup-micromamba@v2
+        with:
+          download-micromamba: true
+          generate-run-shell: false
+          cache-downloads: false
+          micromamba-binary-path: ${{ runner.temp }}/bin/micromamba
+          post-cleanup: none
+
       - name: Run enva unit tests
         working-directory: enva
         run: cargo test
@@ -45,6 +54,8 @@ jobs:
         run: cargo build
 
       - name: Run enva end-to-end tests including interactive remove flow
+        env:
+          MICROMAMBA_BIN: ${{ runner.temp }}/bin/micromamba
         run: |
           python3 --version
           bash scripts/test_enva_e2e.sh
