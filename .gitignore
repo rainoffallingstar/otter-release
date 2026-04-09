@@ -107,6 +107,9 @@ examples/output/
 target/
 *.exe
 xdxtools
+!skills/
+!skills/xdxtools/
+!skills/xdxtools/**
 
 # Test outputs
 test_slurm/

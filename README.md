@@ -63,6 +63,27 @@ cd xdxtools-go
 go build -o xdxtools
 ```
 
+## Codex Skill
+
+This repository ships an installable Codex skill at `skills/xdxtools`. The skill is meant for the root `xdxtools` repo and its matched submodules: `enva`, `Paireads`, `bamdriver-go`, `fastqc-rs`, `gomats`, `htseq2matrix-go`, `methrix-cli`, `qctb`, and `xenofilter-go`.
+
+Install it from GitHub with Codex's bundled skill installer:
+
+```bash
+python ~/.codex/skills/.system/skill-installer/scripts/install-skill-from-github.py --repo rainoffallingstar/xdxtools-go --path skills/xdxtools
+```
+
+If you are installing from a fork or a non-default branch, replace `--repo` and optionally add `--ref <branch-or-tag>`.
+
+After installing, restart Codex to pick up the new skill.
+
+You can then invoke it explicitly in Codex prompts, for example:
+
+```text
+Use $xdxtools to inspect the root workflow CLI and update the install docs.
+Use $xdxtools to work on qctb without breaking xdxtools submodule boundaries.
+```
+
 ## Quick Start
 
 ```bash

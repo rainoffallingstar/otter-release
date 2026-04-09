@@ -63,6 +63,27 @@ cd xdxtools-go
 go build -o xdxtools
 ```
 
+## Codex 技能
+
+本仓库自带一个可安装的 Codex skill，目录为 `skills/xdxtools`。该 skill 面向根仓库 `xdxtools` 以及与之配套的子仓库：`enva`、`Paireads`、`bamdriver-go`、`fastqc-rs`、`gomats`、`htseq2matrix-go`、`methrix-cli`、`qctb` 和 `xenofilter-go`。
+
+可在 Codex 环境中使用内置的 skill installer 从 GitHub 安装：
+
+```bash
+python ~/.codex/skills/.system/skill-installer/scripts/install-skill-from-github.py --repo rainoffallingstar/xdxtools-go --path skills/xdxtools
+```
+
+如果你使用的是 fork 或非默认分支，请替换 `--repo`，并按需附加 `--ref <branch-or-tag>`。
+
+安装完成后，重启 Codex，让新 skill 生效。
+
+随后可以在 Codex 提示词中显式调用，例如：
+
+```text
+Use $xdxtools to inspect the root workflow CLI and update the install docs.
+Use $xdxtools to work on qctb without breaking xdxtools submodule boundaries.
+```
+
 ## 快速上手
 
 ```bash
