@@ -180,7 +180,7 @@ jobs:
 
       - name: Build methrix-cli (static HDF5 via CMake, native target)
         run: |
-          (cd methrix-cli && cargo build --release --features hdf5-static)
+          (cd methrix-cli && cargo build --release)
           if [ -f methrix-cli/target/release/methrix-cli ]; then
             cp methrix-cli/target/release/methrix-cli dist/methrix-linux-amd64-static
           elif [ -f methrix-cli/target/release/methrix ]; then
