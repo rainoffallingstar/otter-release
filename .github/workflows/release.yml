@@ -164,7 +164,7 @@ jobs:
           build_go_submodule htseq2matrix-go htseq2matrix-linux-amd64-static ./cmd/htseq2matrix main.Version
           build_go_submodule gomats gomats-linux-amd64-static ./cmd/gomats github.com/rainoffallingstar/gomats/pkg/cli.Version
 
-      - name: Build Rust static binaries (enva/qctb/fqc/methrix)
+      - name: Build Rust static binaries (enva/qctb/fqc)
         run: |
           (cd enva && cargo build --release --target x86_64-unknown-linux-musl)
           cp enva/target/x86_64-unknown-linux-musl/release/enva dist/enva-linux-amd64-static
@@ -178,11 +178,13 @@ jobs:
           cp fastqc-rs/target/x86_64-unknown-linux-musl/release/fqc dist/fqc-linux-amd64-static
           echo "✓ fqc-linux-amd64-static"
 
-          (cd methrix-cli && cargo build --release --features hdf5-static --target x86_64-unknown-linux-musl)
-          if [ -f methrix-cli/target/x86_64-unknown-linux-musl/release/methrix-cli ]; then
-            cp methrix-cli/target/x86_64-unknown-linux-musl/release/methrix-cli dist/methrix-linux-amd64-static
-          elif [ -f methrix-cli/target/x86_64-unknown-linux-musl/release/methrix ]; then
-            cp methrix-cli/target/x86_64-unknown-linux-musl/release/methrix dist/methrix-linux-amd64-static
+      - name: Build methrix-cli (static HDF5 via CMake, native target)
+        run: |
+          (cd methrix-cli && cargo build --release --features hdf5-static)
+          if [ -f methrix-cli/target/release/methrix-cli ]; then
+            cp methrix-cli/target/release/methrix-cli dist/methrix-linux-amd64-static
+          elif [ -f methrix-cli/target/release/methrix ]; then
+            cp methrix-cli/target/release/methrix dist/methrix-linux-amd64-static
           else
             echo "methrix-cli binary not found" >&2
             exit 1
