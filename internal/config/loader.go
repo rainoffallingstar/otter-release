@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/viper"
 	"github.com/xdxtools/xdxtools-go/internal/logger"
@@ -102,18 +103,6 @@ func (l *Loader) mergeEnvOverrides(config *XDXToolsConfig) {
 		config.Input.FastqDir = fastqDir
 	}
 
-	// Parallel
-	if workers := os.Getenv("XDXTOOLS_PARALLEL_WORKERS"); workers != "" {
-		// Convert to int
-		// This is a simplified version, in real code you'd use strconv.Atoi
-		// config.Parallel.Workers = ...
-	}
-
-	// Engine
-	if engineType := os.Getenv("XDXTOOLS_ENGINE"); engineType != "" {
-		// config.Engine.Type = engineType
-	}
-
 	logger.Debug("Environment variable overrides applied")
 }
 
@@ -139,17 +128,11 @@ func (l *Loader) mergeFlatCompatFields(config *XDXToolsConfig) {
 
 // deriveSuffix2 auto-derives suffix2 from suffix1
 func deriveSuffix2(suffix1 string) string {
-	// Try to replace '1' with '2'
-	suffix2 := suffix1
-	if suffix1 != "" {
-		suffix2 = suffix1
+	if strings.Contains(suffix1, "R1") {
+		return strings.Replace(suffix1, "R1", "R2", 1)
 	}
-
-	// If that didn't work, try replacing "R1" with "R2"
-	if suffix1 != "" {
-		suffix2 = suffix1
+	if strings.Contains(suffix1, "1") {
+		return strings.Replace(suffix1, "1", "2", 1)
 	}
-
-	// Fallback: just return the original (not ideal, but prevents errors)
-	return suffix2
+	return suffix1
 }

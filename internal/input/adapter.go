@@ -43,13 +43,6 @@ func (g *AdapterGenerator) GenerateAdapters(samples []string, pdata *PData) (ada
 		adapter1[i], adapter2[i] = g.buildAdapterForSample(barcode)
 	}
 
-	// Edge case: single sample requires a placeholder
-	// This matches R package behavior (lines 618-620 in beavergandalf.R)
-	if len(samples) == 1 {
-		adapter1 = append(adapter1, "placeholder")
-		adapter2 = append(adapter2, "placeholder")
-	}
-
 	return adapter1, adapter2, nil
 }
 

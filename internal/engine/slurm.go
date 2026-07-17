@@ -157,6 +157,7 @@ type SlurmEngine struct {
 	memory      string
 	jobName     string
 	maxRetries  int
+	waitTimeout time.Duration
 	scriptPath  string
 	successFile string
 	status      *Status
@@ -165,11 +166,12 @@ type SlurmEngine struct {
 
 // SlurmConfig represents Slurm-specific configuration
 type SlurmConfig struct {
-	Partition  string `json:"partition"`
-	Cores      int    `json:"cores"`
-	Memory     string `json:"memory"`
-	JobName    string `json:"job_name"`
-	MaxRetries int    `json:"max_retries"`
+	Partition   string        `json:"partition"`
+	Cores       int           `json:"cores"`
+	Memory      string        `json:"memory"`
+	JobName     string        `json:"job_name"`
+	MaxRetries  int           `json:"max_retries"`
+	WaitTimeout time.Duration `json:"wait_timeout"` // 0 = no timeout (default)
 }
 
 // NewSlurmEngine creates a new Slurm engine
@@ -197,11 +199,12 @@ func NewSlurmEngine(config *SlurmConfig) *SlurmEngine {
 	}
 
 	return &SlurmEngine{
-		partition:  partition,
-		cores:      cores,
-		memory:     memory,
-		jobName:    jobName,
-		maxRetries: maxRetries,
+		partition:   partition,
+		cores:       cores,
+		memory:      memory,
+		jobName:     jobName,
+		maxRetries:  maxRetries,
+		waitTimeout: config.WaitTimeout,
 		status: &Status{
 			State:     StatusPending,
 			StartTime: time.Now(),
@@ -422,7 +425,9 @@ func (e *SlurmEngine) submitJob(scriptPath string) (string, error) {
 	return "", fmt.Errorf("failed to parse job ID from output: %s", outputStr)
 }
 
-// waitForCompletion waits for the Slurm job to complete
+// waitForCompletion waits for the Slurm job to complete.
+// If e.waitTimeout > 0, the wait is bounded; if 0, waits indefinitely.
+// The actual job walltime is controlled by SLURM's --time, not this function.
 func (e *SlurmEngine) waitForCompletion() error {
 	if e.status.JobID == "" {
 		return fmt.Errorf("no job ID available")
@@ -431,8 +436,21 @@ func (e *SlurmEngine) waitForCompletion() error {
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
+	// If a wait timeout is configured, use it; otherwise wait indefinitely.
+	var timeout <-chan time.Time
+	if e.waitTimeout > 0 {
+		timer := time.NewTimer(e.waitTimeout)
+		defer timer.Stop()
+		timeout = timer.C
+	}
+
 	for {
 		select {
+		case <-timeout:
+			e.status.State = StatusFailed
+			e.status.EndTime = time.Now()
+			e.status.Message = "SLURM job timed out after " + e.waitTimeout.String()
+			return fmt.Errorf("SLURM job %s timed out after %s", e.status.JobID, e.waitTimeout.String())
 		case <-ticker.C:
 			status, err := e.checkJobStatus(e.status.JobID)
 			if err != nil {

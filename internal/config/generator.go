@@ -119,24 +119,7 @@ func GenerateSnakemakeConfig(config *XDXToolsConfig, samples []string, outputPat
 
 // inferGraftHost infers graft and host from species configuration
 func inferGraftHost(config *XDXToolsConfig) (graft, host string) {
-	if config.Workflow.Species.Secondary == "" {
-		// Single species mode
-		return config.Workflow.Species.Primary, ""
-	}
-
-	// PDX mode: determine graft and host
-	if config.Workflow.Species.Primary == "human" || config.Workflow.Species.Primary == "homo_sapiens" {
-		graft = "human"
-		host = "mouse"
-	} else if config.Workflow.Species.Primary == "mouse" || config.Workflow.Species.Primary == "mus_musculus" {
-		graft = "mouse"
-		host = "human"
-	} else {
-		graft = config.Workflow.Species.Primary
-		host = config.Workflow.Species.Secondary
-	}
-
-	return
+	return config.Workflow.Species.Primary, config.Workflow.Species.Secondary
 }
 
 // getSpeciesSlice returns species as a slice

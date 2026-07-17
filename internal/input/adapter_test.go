@@ -66,8 +66,8 @@ func TestAdapterGenerator_GenerateAdapters_WithBarcode(t *testing.T) {
 	expectedAdapter1 := "TGACGATAGATCGGAAGAGC"
 	expectedAdapter2 := "ACGATAGATCGGAAGAGC"
 
-	if len(adapter1) != 2 || len(adapter2) != 2 {
-		t.Fatalf("Expected 2 adapters each (with placeholder), got adapter1=%d, adapter2=%d", len(adapter1), len(adapter2))
+	if len(adapter1) != 1 || len(adapter2) != 1 {
+		t.Fatalf("Expected 1 adapter each, got adapter1=%d, adapter2=%d", len(adapter1), len(adapter2))
 	}
 
 	if adapter1[0] != expectedAdapter1 {
@@ -76,11 +76,6 @@ func TestAdapterGenerator_GenerateAdapters_WithBarcode(t *testing.T) {
 
 	if adapter2[0] != expectedAdapter2 {
 		t.Errorf("Expected adapter2[0]=%s, got %s", expectedAdapter2, adapter2[0])
-	}
-
-	// Placeholder should be added for single sample
-	if adapter1[1] != "placeholder" || adapter2[1] != "placeholder" {
-		t.Errorf("Expected placeholder adapters for single sample, got adapter1[1]=%s, adapter2[1]=%s", adapter1[1], adapter2[1])
 	}
 }
 

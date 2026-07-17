@@ -1,15 +1,25 @@
 package engine
 
 import (
+	"os"
 	"testing"
 
 	"github.com/xdxtools/xdxtools-go/internal/config"
 )
 
+// testPartition returns a SLURM partition name suitable for testing.
+// Defaults to "test" unless XDXTOOLS_TEST_PARTITION is set.
+func testPartition() string {
+	if p := os.Getenv("XDXTOOLS_TEST_PARTITION"); p != "" {
+		return p
+	}
+	return "test"
+}
+
 func TestSlurmArrayEngine(t *testing.T) {
 	// Create a SLURM config
 	slurmConfig := &SlurmConfig{
-		Partition:  "cpu112c",
+		Partition:  testPartition(),
 		Cores:      16,
 		Memory:     "32G",
 		JobName:    "test_job",
@@ -23,7 +33,7 @@ func TestSlurmArrayEngine(t *testing.T) {
 	stepResource := &config.StepResource{
 		Cores:      16,
 		Memory:     "32G",
-		Partition:  "cpu112c",
+		Partition:  testPartition(),
 		Threads:    8,
 		JobArray:   true,
 		MaxJobs:    5,
@@ -49,8 +59,8 @@ func TestSlurmArrayEngine(t *testing.T) {
 	if arrayEngine.stepResource.Memory != "32G" {
 		t.Errorf("Expected memory 32G, got %s", arrayEngine.stepResource.Memory)
 	}
-	if arrayEngine.stepResource.Partition != "cpu112c" {
-		t.Errorf("Expected partition cpu112c, got %s", arrayEngine.stepResource.Partition)
+	if arrayEngine.stepResource.Partition != testPartition() {
+		t.Errorf("Expected partition %s, got %s", testPartition(), arrayEngine.stepResource.Partition)
 	}
 	if arrayEngine.maxArrayJobs != 5 {
 		t.Errorf("Expected max jobs 5, got %d", arrayEngine.maxArrayJobs)
@@ -59,7 +69,7 @@ func TestSlurmArrayEngine(t *testing.T) {
 
 func TestSlurmArrayEngineEmptySamples(t *testing.T) {
 	slurmConfig := &SlurmConfig{
-		Partition: "cpu112c",
+		Partition: testPartition(),
 		Cores:     4,
 		Memory:    "8G",
 	}

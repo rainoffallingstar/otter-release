@@ -19,6 +19,37 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout with submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Test parent project
+        run: go test -count=1 -short -buildvcs=false ./internal/... ./cmd/...
+
+      - name: Test bamdriver-go
+        run: cd bamdriver-go && go test -count=1 ./...
+
+      - name: Test gomats
+        run: cd gomats && go test -count=1 ./...
+
+      - name: Test htseq2matrix-go
+        run: cd htseq2matrix-go && go test -count=1 -short ./...
+
+      - name: Test Paireads
+        run: cd Paireads && go test -count=1 ./...
+
+      - name: Test xenofilter-go
+        run: cd xenofilter-go && go test -count=1 -short ./...
+
   build-and-release:
     runs-on: ubuntu-latest
     env:

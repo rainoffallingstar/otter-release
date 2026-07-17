@@ -1,7 +1,6 @@
 package assets
 
 import (
-	"embed"
 	"fmt"
 	"io/fs"
 	"os"
@@ -11,13 +10,14 @@ import (
 	"github.com/xdxtools/xdxtools-go/internal/logger"
 )
 
-// EmbeddedAssets will be set from the root package where files are embedded
-// This is because Go embed requires files to be in the same package or subdirectory
-var EmbeddedAssets embed.FS
+// EmbeddedAssets will be set from the root package where files are embedded.
+// This is because Go embed requires files to be in the same package or subdirectory.
+// Uses fs.FS (not embed.FS) to allow testing with fstest.MapFS.
+var EmbeddedAssets fs.FS
 
-// SetEmbeddedAssets sets the embedded filesystem from the main package
-func SetEmbeddedAssets(fs embed.FS) {
-	EmbeddedAssets = fs
+// SetEmbeddedAssets sets the embedded filesystem from the main package.
+func SetEmbeddedAssets(fsys fs.FS) {
+	EmbeddedAssets = fsys
 }
 
 // AssetCopier handles copying embedded assets to a project directory
@@ -118,7 +118,7 @@ func (c *AssetCopier) copyDir(srcDir, destSubDir string) error {
 		}
 
 		// Read file content
-		content, err := EmbeddedAssets.ReadFile(path)
+		content, err := fs.ReadFile(EmbeddedAssets, path)
 		if err != nil {
 			return fmt.Errorf("failed to read embedded file %s: %w", path, err)
 		}

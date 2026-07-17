@@ -15,18 +15,18 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// generateReferencePaths 根据模式和物种生成参考文件路径
-func generateReferencePaths(mode, species1, species2, genome1Fasta, genome1Index, genome2Fasta, genome2Index, gtf1, gtf2, starIndex1, starIndex2 string) (fasta, index, gtf, ref []string, err error) {
+// generateReferencePaths generates reference file paths based on mode and species.
+// Custom paths provided by the user take priority over defaults.
+func generateReferencePaths(mode, species2, genome1Fasta, genome1Index, genome2Fasta, genome2Index, gtf1, gtf2, starIndex1, starIndex2 string) (fasta, index, gtf, ref []string, err error) {
 	mode = strings.ToUpper(mode)
 
-	// 如果用户提供了自定义路径，使用自定义路径
-	// 否则使用默认路径
+	// If user provided custom paths, use them; otherwise use default paths.
 
 	// Species1 (graft/primary)
 	if genome1Fasta != "" {
 		fasta = append(fasta, genome1Fasta)
 	} else {
-		// 使用默认路径
+		// Use default path
 		fasta = append(fasta, fmt.Sprintf("inst/pdx/homo_sapiens/hg19.fasta"))
 	}
 
@@ -36,7 +36,7 @@ func generateReferencePaths(mode, species1, species2, genome1Fasta, genome1Index
 		index = append(index, "inst/pdx/homo_sapiens/")
 	}
 
-	// Species2 (host/secondary) - 仅PDX模式
+	// Species2 (host/secondary) - PDX mode only
 	if species2 != "" {
 		if genome2Fasta != "" {
 			fasta = append(fasta, genome2Fasta)
@@ -51,7 +51,7 @@ func generateReferencePaths(mode, species1, species2, genome1Fasta, genome1Index
 		}
 	}
 
-	// RNA-seq 需要 GTF 和 STAR 索引
+	// RNA-seq requires GTF and STAR indices
 	if mode == "RNASEQ" {
 		if gtf1 != "" {
 			gtf = append(gtf, gtf1)
@@ -65,7 +65,7 @@ func generateReferencePaths(mode, species1, species2, genome1Fasta, genome1Index
 			ref = append(ref, "inst/rnaseq/homo_sapiens/")
 		}
 
-		// 如果是PDX，添加 host (species2) 的 GTF 和索引
+		// In PDX mode, add host (species2) GTF and indices
 		if species2 != "" {
 			if gtf2 != "" {
 				gtf = append(gtf, gtf2)
@@ -558,7 +558,7 @@ func generateProjectConfig(configPath, mode, species1, species2,
 
 	// Generate reference paths dynamically
 	fasta, index, gtf, ref, err := generateReferencePaths(
-		mode, species1, species2,
+		mode, species2,
 		createGenome1Fasta, createGenome1Index,
 		createGenome2Fasta, createGenome2Index,
 		createGTF1, createGTF2,

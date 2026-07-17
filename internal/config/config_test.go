@@ -257,6 +257,98 @@ func TestSampleConfig_PairedReads(t *testing.T) {
 	assert.Equal(t, "sample1_R2.fastq.gz", sample.R2)
 }
 
+func TestValidateConfig_InvalidMode(t *testing.T) {
+	cfg := LoadDefaults()
+	cfg.Workflow.Mode = "INVALID_MODE"
+	err := ValidateConfig(cfg)
+	if err == nil {
+		t.Error("expected error for invalid mode")
+	}
+}
+
+func TestValidateConfig_ValidModes(t *testing.T) {
+	for _, mode := range []string{"RRBS", "WGBS", "BSSEQ", "RNASEQ"} {
+		t.Run(mode, func(t *testing.T) {
+			cfg := LoadDefaults()
+			cfg.Workflow.Mode = mode
+			err := ValidateConfig(cfg)
+			if err != nil {
+				t.Errorf("mode %s should be valid: %v", mode, err)
+			}
+		})
+	}
+}
+
+func TestValidateConfig_MissingSuffix1(t *testing.T) {
+	cfg := LoadDefaults()
+	cfg.Input.Suffix1 = ""
+	err := ValidateConfig(cfg)
+	if err == nil {
+		t.Error("expected error for missing suffix1")
+	}
+}
+
+func TestValidateConfig_InvalidErrorRate(t *testing.T) {
+	cfg := LoadDefaults()
+	cfg.Workflow.Adapters.ErrorRate = 1.5
+	err := ValidateConfig(cfg)
+	if err == nil {
+		t.Error("expected error for error_rate > 1")
+	}
+
+	cfg.Workflow.Adapters.ErrorRate = -0.1
+	err = ValidateConfig(cfg)
+	if err == nil {
+		t.Error("expected error for error_rate < 0")
+	}
+}
+
+func TestDetectPDXMode(t *testing.T) {
+	cfg := LoadDefaults()
+	cfg.Workflow.Species.Primary = "human"
+	cfg.Workflow.Species.Secondary = ""
+	if DetectPDXMode(cfg) {
+		t.Error("not PDX when secondary is empty")
+	}
+
+	cfg.Workflow.Species.Secondary = "mouse"
+	if !DetectPDXMode(cfg) {
+		t.Error("should detect PDX with secondary set")
+	}
+}
+
+func TestGetWorkflowName(t *testing.T) {
+	tests := []struct {
+		mode, expected string
+		pdx            bool
+	}{
+		{"RNASEQ", "BeaverRNASEQPDX", true},
+		{"RNASEQ", "BeaverRNA", false},
+		{"RRBS", "BeaverPDX", true},
+		{"WGBS", "BeaverPDX", true},
+		{"BSSEQ", "BeaverPDX", true},
+		{"RRBS", "BeaverBS", false},
+	}
+	for _, tc := range tests {
+		result := GetWorkflowName(tc.mode, tc.pdx)
+		if result != tc.expected {
+			t.Errorf("GetWorkflowName(%s, %v) = %s, want %s", tc.mode, tc.pdx, result, tc.expected)
+		}
+	}
+}
+
+func TestGetStepCount(t *testing.T) {
+	if GetStepCount("RNASEQ", false) != 2 {
+		t.Error("RNASEQ non-PDX should have 2 steps")
+	}
+	if GetStepCount("RNASEQ", true) != 3 {
+		t.Error("RNASEQ PDX should have 3 steps")
+	}
+	if GetStepCount("RRBS", false) != 3 {
+		t.Error("RRBS should have 3 steps")
+	}
+}
+
 func TestEngineConfig_Slurm(t *testing.T) {
 	engine := EngineConfig{
 		Type: "slurm",

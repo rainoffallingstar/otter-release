@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"compress/gzip"
 	"fmt"
 	"io"
 	"os"
@@ -453,17 +454,23 @@ func validateRNAsplicingDependencies(cfg *config.XDXToolsConfig) error {
 		return nil
 	}
 
+	// Determine the environment name, preferring the configured conda environment.
+	rnaEnv := cfg.Engine.CondaEnv
+	if rnaEnv == "" {
+		rnaEnv = "xdxtools-core"
+	}
+
 	if _, err := exec.LookPath("enva"); err != nil {
 		return fmt.Errorf(
 			"RNA splicing preflight failed: enva not found in PATH: %w\n"+
-				"Required for rnaseq_splicing: enva + xdxtools-core environment with gomats and rmats.py.\n"+
-				"Try: enva run xdxtools-core -- gomats --help\n"+
-				"Try: enva run xdxtools-core -- rmats.py --help", err)
+				"Required for rnaseq_splicing: enva + %s environment with gomats and rmats.py.\n"+
+				"Try: enva run %s -- gomats --help\n"+
+				"Try: enva run %s -- rmats.py --help", err, rnaEnv, rnaEnv, rnaEnv)
 	}
 
 	checks := [][]string{
-		{"enva", "run", "xdxtools-core", "--", "gomats", "--help"},
-		{"enva", "run", "xdxtools-core", "--", "rmats.py", "--help"},
+		{"enva", "run", rnaEnv, "--", "gomats", "--help"},
+		{"enva", "run", rnaEnv, "--", "rmats.py", "--help"},
 	}
 
 	for _, check := range checks {
@@ -607,11 +614,6 @@ func compressFastqFiles(fastqDir string) error {
 
 	logger.Infof("Found %d uncompressed FASTQ files to compress", len(uncompressedFiles))
 
-	// Check if gzip is available
-	if _, err := exec.LookPath("gzip"); err != nil {
-		return fmt.Errorf("gzip not found in PATH, cannot compress files: %w", err)
-	}
-
 	for _, file := range uncompressedFiles {
 		compressedPath := file + ".gz"
 
@@ -623,10 +625,13 @@ func compressFastqFiles(fastqDir string) error {
 
 		logger.Infof("Compressing: %s", filepath.Base(file))
 
-		// Run gzip command
-		cmd := exec.Command("gzip", "-f", file)
-		if output, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("failed to compress %s: %w\noutput: %s", filepath.Base(file), err, string(output))
+		if err := gzipCompressFile(file, compressedPath); err != nil {
+			return fmt.Errorf("failed to compress %s: %w", filepath.Base(file), err)
+		}
+
+		// Remove the original uncompressed file
+		if err := os.Remove(file); err != nil {
+			return fmt.Errorf("failed to remove uncompressed source %s: %w", filepath.Base(file), err)
 		}
 
 		logger.Debugf("Compressed: %s", filepath.Base(file))
@@ -636,7 +641,29 @@ func compressFastqFiles(fastqDir string) error {
 	return nil
 }
 
-// validateResources 验证本地和SLURM资源
+func gzipCompressFile(src, dst string) error {
+	sourceFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer sourceFile.Close()
+
+	destFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer destFile.Close()
+
+	gzipWriter := gzip.NewWriter(destFile)
+	defer gzipWriter.Close()
+
+	if _, err := io.Copy(gzipWriter, sourceFile); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateResources validates local and SLURM resources
 func validateResources(engineType string, cfg *config.XDXToolsConfig, stepResources map[int]*config.StepResource, parallelJobs int, dryRun bool) error {
 	logger.Info("Validating resources...")
 
@@ -695,7 +722,7 @@ func validateResources(engineType string, cfg *config.XDXToolsConfig, stepResour
 				return fmt.Errorf("step %d SLURM partition validation failed: %w", step, err)
 			}
 
-			// Validate node resources (检查是否有节点满足需求)
+			// Validate node resources (check if any node meets requirements)
 			if err := engine.ValidateSlurmNodeResources(partition, stepRes.Cores, stepRes.Memory); err != nil {
 				return fmt.Errorf("step %d SLURM node resource validation failed: %w", step, err)
 			}
@@ -796,14 +823,14 @@ func buildStepResources() map[int]*config.StepResource {
 	return resources
 }
 
-// adjustParallelJobsForSlurmLimits 输出 SLURM 限制信息，实际分批逻辑由 engine 层处理
-// 返回原始 requestedJobs，不做调整
+// adjustParallelJobsForSlurmLimits logs SLURM limit info and returns the original count.
+// Batch logic is handled by the engine layer; this function is purely informational.
 func adjustParallelJobsForSlurmLimits(requestedJobs int) int {
 	limits := engine.GetSlurmUserLimits()
 	if limits.MaxSubmitJobs > 0 {
 		logger.Infof("SLURM limits: MaxSubmit=%d, Current=%d, Available=%d",
 			limits.MaxSubmitJobs, limits.CurrentJobCount, limits.AvailableJobs)
 	}
-	// 分批逻辑由 engine 层（SlurmArrayEngine.executeStepWithBatches）处理
+	// Batching logic is handled by the engine layer (SlurmArrayEngine.executeStepWithBatches)
 	return requestedJobs
 }

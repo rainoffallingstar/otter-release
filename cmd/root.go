@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -35,6 +36,12 @@ func Execute() error {
 	return rootCmd.Execute()
 }
 
+// ExecuteContext runs the root command with a context for cancellation support.
+func ExecuteContext(ctx context.Context) error {
+	rootCmd.SetContext(ctx)
+	return rootCmd.Execute()
+}
+
 func init() {
 	cobra.OnInitialize(initConfig)
 
@@ -42,35 +49,10 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is xdxtools.yaml)")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
 	rootCmd.PersistentFlags().BoolVar(&userLevel, "user-level", false, "run at user level (for PDX)")
-
-	// Bind flags with viper
-	// viper.BindPFlag("author", rootCmd.PersistentFlags().Lookup("author"))
-	// viper.BindPFlag("projectbase", rootCmd.PersistentFlags().Lookup("projectbase"))
 }
 
-// initConfig reads in config file and ENV variables if set.
+// initConfig initializes the logger based on verbose flag.
 func initConfig() {
-	if cfgFile != "" {
-		// Use config file from the flag.
-		// viper.SetConfigFile(cfgFile)
-	} else {
-		// Find home directory.
-		// home, err := os.UserHomeDir()
-		// cobra.CheckErr(err)
-
-		// Search config in home directory with name "xdxtools" (without extension).
-		// viper.AddConfigPath(home)
-		// viper.SetConfigType("yaml")
-		// viper.SetConfigName("xdxtools")
-	}
-
-	// viper.AutomaticEnv()
-
-	// If a config file is found, read it in.
-	// if err := viper.ReadInConfig(); err == nil {
-	// 	fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
-	// }
-
 	// Initialize logger
 	logger.Init(verbose)
 }

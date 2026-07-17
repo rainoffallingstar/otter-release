@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"fmt"
 	"io"
 	"os"
 
@@ -60,50 +61,98 @@ func Close() {
 }
 
 func WithFields(fields logrus.Fields) *logrus.Entry {
+	if log == nil {
+		return logrus.NewEntry(logrus.New())
+	}
 	return log.WithFields(fields)
 }
 
 func Info(msg string) {
+	if log == nil {
+		fmt.Println("[INFO]", msg)
+		return
+	}
 	log.Info(msg)
 }
 
 func Infof(format string, args ...interface{}) {
+	if log == nil {
+		fmt.Printf("[INFO] "+format+"\n", args...)
+		return
+	}
 	log.Infof(format, args...)
 }
 
 func Debug(msg string) {
+	if log == nil {
+		fmt.Println("[DEBUG]", msg)
+		return
+	}
 	log.Debug(msg)
 }
 
 func Debugf(format string, args ...interface{}) {
+	if log == nil {
+		fmt.Printf("[DEBUG] "+format+"\n", args...)
+		return
+	}
 	log.Debugf(format, args...)
 }
 
 func Warn(msg string) {
+	if log == nil {
+		fmt.Println("[WARN]", msg)
+		return
+	}
 	log.Warn(msg)
 }
 
 func Warnf(format string, args ...interface{}) {
+	if log == nil {
+		fmt.Printf("[WARN] "+format+"\n", args...)
+		return
+	}
 	log.Warnf(format, args...)
 }
 
 func Error(msg string) {
+	if log == nil {
+		fmt.Println("[ERROR]", msg)
+		return
+	}
 	log.Error(msg)
 }
 
 func Errorf(format string, args ...interface{}) {
+	if log == nil {
+		fmt.Printf("[ERROR] "+format+"\n", args...)
+		return
+	}
 	log.Errorf(format, args...)
 }
 
 func Fatal(msg string) {
+	if log == nil {
+		fmt.Println("[FATAL]", msg)
+		os.Exit(1)
+		return
+	}
 	log.Fatal(msg)
 }
 
 func Fatalf(format string, args ...interface{}) {
+	if log == nil {
+		fmt.Printf("[FATAL] "+format+"\n", args...)
+		os.Exit(1)
+		return
+	}
 	log.Fatalf(format, args...)
 }
 
 func SetOutput(output io.Writer) {
+	if log == nil {
+		return
+	}
 	log.SetOutput(output)
 }
 

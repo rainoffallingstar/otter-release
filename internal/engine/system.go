@@ -12,40 +12,40 @@ import (
 	"github.com/xdxtools/xdxtools-go/internal/logger"
 )
 
-// SystemInfo 存储系统资源信息
+// SystemInfo stores system resource information
 type SystemInfo struct {
-	TotalCores   int   // 总CPU核数
-	AvailableMem int64 // 可用内存 (MB)
-	TotalMem     int64 // 总内存 (MB)
+	TotalCores   int   // total CPU cores
+	AvailableMem int64 // available memory (MB)
+	TotalMem     int64 // total memory (MB)
 }
 
-// GetSystemInfo 获取系统资源信息
+// GetSystemInfo returns system resource information
 func GetSystemInfo() (*SystemInfo, error) {
 	info := &SystemInfo{}
 
-	// 获取CPU核数
+	// Get CPU core count
 	info.TotalCores = runtime.NumCPU()
 	if info.TotalCores <= 0 {
 		info.TotalCores = 1
 		logger.Warn("Failed to detect CPU cores, using default: 1")
 	}
 
-	// 获取内存信息 - 从 /proc/meminfo 读取
+	// Get memory info from /proc/meminfo
 	totalMemBytes, err := readTotalMemory()
 	if err != nil {
 		logger.Warnf("Failed to read memory from /proc/meminfo: %v", err)
-		// 使用 fallback 方法
+		// Use syscall fallback
 		var sysInfo syscall.Sysinfo_t
 		if err2 := syscall.Sysinfo(&sysInfo); err2 != nil {
 			return nil, fmt.Errorf("failed to get system memory info: %w", err)
 		}
-		// 假设页面大小为4096字节（大多数Linux系统）
+		// Assume 4096-byte pages (most Linux systems)
 		totalMemBytes = int64(sysInfo.Totalram) * 4096
 	}
 
-	info.TotalMem = totalMemBytes / (1024 * 1024) // 转换为MB
+	info.TotalMem = totalMemBytes / (1024 * 1024) // convert to MB
 
-	// 计算可用内存 (总内存的80%)
+	// Reserve 20% of total memory for system overhead
 	info.AvailableMem = int64(float64(info.TotalMem) * 0.8)
 
 	logger.Debugf("System info: %d cores, %d MB total memory, %d MB available (80%%)",
@@ -54,27 +54,27 @@ func GetSystemInfo() (*SystemInfo, error) {
 	return info, nil
 }
 
-// readTotalMemory 从 /proc/meminfo 读取总内存
+// readTotalMemory reads total system memory from /proc/meminfo
 func readTotalMemory() (int64, error) {
-	file, err := open("/proc/meminfo")
+	meminfoFile, err := open("/proc/meminfo")
 	if err != nil {
 		return 0, err
 	}
-	defer file.Close()
+	defer meminfoFile.Close()
 
-	scanner := bufio.NewScanner(file)
+	scanner := bufio.NewScanner(meminfoFile)
 	for scanner.Scan() {
 		line := scanner.Text()
-		// 查找 "MemTotal:" 行
+		// Look for "MemTotal:" line
 		if strings.HasPrefix(line, "MemTotal:") {
 			parts := strings.Fields(line)
 			if len(parts) >= 2 {
-				// 提取数值（单位：kB）
+				// Parse the value (unit: kB)
 				memKB, err := strconv.ParseInt(parts[1], 10, 64)
 				if err != nil {
 					return 0, fmt.Errorf("failed to parse memory value: %w", err)
 				}
-				// 转换为字节
+				// Convert to bytes
 				return memKB * 1024, nil
 			}
 		}
@@ -83,34 +83,34 @@ func readTotalMemory() (int64, error) {
 	return 0, fmt.Errorf("MemTotal not found in /proc/meminfo")
 }
 
-// open 是一个包装函数，在测试时可以模拟
-var open = func(path string) (file, error) {
+// open is a wrapper function that can be mocked in tests
+var open = func(path string) (meminfoFile, error) {
 	f, err := os.Open(path)
-	return file{f}, err
+	return meminfoFile{f}, err
 }
 
-// file 是 os.File 的包装
-type file struct {
+// meminfoFile is a wrapper around os.File for test mocking
+type meminfoFile struct {
 	*os.File
 }
 
-// bufio.Scanner 需要的接口
-func (f file) Read(p []byte) (n int, err error) {
+// Read implements io.Reader for bufio.Scanner compatibility.
+func (f meminfoFile) Read(p []byte) (n int, err error) {
 	return f.File.Read(p)
 }
 
-// ParseMemory 解析内存字符串为MB
-// 支持格式: "100G", "2000M", "10G", "512M", "8GB", "1000MB", "1T", "2TB"
+// ParseMemory parses a memory string into MB.
+// Supported formats: "100G", "2000M", "10G", "512M", "8GB", "1000MB", "1T", "2TB"
 func ParseMemory(memStr string) (int64, error) {
 	if memStr == "" {
 		return 0, nil
 	}
 
-	// 去除空格并转换为大写
+	// Trim whitespace and convert to uppercase
 	memStr = strings.TrimSpace(memStr)
 	memStr = strings.ToUpper(memStr)
 
-	// 提取数字部分
+	// Extract numeric and unit portions
 	var numStr, unitStr string
 	for i, char := range memStr {
 		if (char >= '0' && char <= '9') || char == '.' {
@@ -125,13 +125,13 @@ func ParseMemory(memStr string) (int64, error) {
 		return 0, fmt.Errorf("invalid memory format: %s", memStr)
 	}
 
-	// 解析数字
+	// Parse the numeric value
 	value, err := strconv.ParseFloat(numStr, 64)
 	if err != nil {
 		return 0, fmt.Errorf("invalid memory value: %s", numStr)
 	}
 
-	// 处理单位
+	// Apply unit multiplier
 	unitMultiplier := int64(1)
 	switch unitStr {
 	case "", "B", "BYTE", "BYTES":
@@ -148,22 +148,22 @@ func ParseMemory(memStr string) (int64, error) {
 		return 0, fmt.Errorf("unknown memory unit: %s", unitStr)
 	}
 
-	// 转换为字节，然后转为MB
+	// Convert to bytes, then to MB
 	totalBytes := int64(value * float64(unitMultiplier))
 	mb := totalBytes / (1024 * 1024)
 
 	return mb, nil
 }
 
-// ValidateLocalResources 验证本地资源是否满足需求
+// ValidateLocalResources validates that local resources meet requirements
 func ValidateLocalResources(requestedCores int, requestedMemory string) error {
-	// 获取系统信息
+	// Get system resource info
 	sysInfo, err := GetSystemInfo()
 	if err != nil {
 		return fmt.Errorf("failed to get system info: %w", err)
 	}
 
-	// 验证CPU
+	// Validate CPU cores
 	if requestedCores <= 0 {
 		return fmt.Errorf("invalid requested cores: %d", requestedCores)
 	}
@@ -173,7 +173,7 @@ func ValidateLocalResources(requestedCores int, requestedMemory string) error {
 			requestedCores, sysInfo.TotalCores)
 	}
 
-	// 验证内存
+	// Validate memory
 	if requestedMemory != "" {
 		requestedMemMB, err := ParseMemory(requestedMemory)
 		if err != nil {
@@ -190,7 +190,7 @@ func ValidateLocalResources(requestedCores int, requestedMemory string) error {
 		}
 	}
 
-	// 警告：如果请求的CPU接近系统总核心数
+	// Warn if requested cores approach system total
 	if requestedCores >= sysInfo.TotalCores {
 		logger.Warnf("Requested %d cores equals total cores (%d). System may become unresponsive.",
 			requestedCores, sysInfo.TotalCores)
@@ -202,7 +202,7 @@ func ValidateLocalResources(requestedCores int, requestedMemory string) error {
 	return nil
 }
 
-// ValidateParallelJobs 验证并行任务数是否合理
+// ValidateParallelJobs validates that the parallel job count is reasonable
 func ValidateParallelJobs(parallelJobs int) error {
 	sysInfo, err := GetSystemInfo()
 	if err != nil {
@@ -213,13 +213,13 @@ func ValidateParallelJobs(parallelJobs int) error {
 		return fmt.Errorf("invalid parallel jobs: %d", parallelJobs)
 	}
 
-	// 建议：并行任务不超过CPU核心数
+	// Recommend: parallel jobs should not exceed CPU cores
 	if parallelJobs > sysInfo.TotalCores {
 		return fmt.Errorf("parallel jobs %d exceeds CPU cores %d",
 			parallelJobs, sysInfo.TotalCores)
 	}
 
-	// 建议：并行任务不超过总核心数的75%
+	// Recommend: parallel jobs should not exceed 75% of total cores
 	maxRecommended := int(float64(sysInfo.TotalCores) * 0.75)
 	if parallelJobs > maxRecommended {
 		logger.Warnf("High parallelism (%d jobs on %d cores) may impact performance. Recommended: <= %d",
