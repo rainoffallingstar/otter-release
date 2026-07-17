@@ -88,10 +88,10 @@ jobs:
       - name: Add musl target
         run: rustup target add x86_64-unknown-linux-musl
 
-      - name: Install system dependencies (musl + HDF5)
+      - name: Install system dependencies (musl + cmake for HDF5 static)
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y musl-tools pkg-config libhdf5-dev
+          sudo apt-get install -y musl-tools cmake
 
       - name: Create dist directory
         run: mkdir -p dist
@@ -164,7 +164,7 @@ jobs:
           build_go_submodule htseq2matrix-go htseq2matrix-linux-amd64-static ./cmd/htseq2matrix main.Version
           build_go_submodule gomats gomats-linux-amd64-static ./cmd/gomats github.com/rainoffallingstar/gomats/pkg/cli.Version
 
-      - name: Build Rust static binaries (enva/qctb/fqc)
+      - name: Build Rust static binaries (enva/qctb/fqc/methrix)
         run: |
           (cd enva && cargo build --release --target x86_64-unknown-linux-musl)
           cp enva/target/x86_64-unknown-linux-musl/release/enva dist/enva-linux-amd64-static
@@ -178,29 +178,16 @@ jobs:
           cp fastqc-rs/target/x86_64-unknown-linux-musl/release/fqc dist/fqc-linux-amd64-static
           echo "✓ fqc-linux-amd64-static"
 
-      - name: Build methrix-cli (dynamic HDF5)
-        run: |
-          export HDF5_INCLUDE_DIR=/usr/include/hdf5/serial
-          export HDF5_LIB_DIR=/usr/lib/x86_64-linux-gnu/hdf5/serial
-          export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/hdf5/serial/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH
-
-          # Validate Ubuntu HDF5 layout before compiling (fail fast with clear logs).
-          test -f /usr/include/hdf5/serial/hdf5.h
-          test -f /usr/lib/x86_64-linux-gnu/hdf5/serial/libhdf5.so
-          pkg-config --modversion hdf5 || pkg-config --modversion hdf5-serial
-          pkg-config --cflags --libs hdf5 || pkg-config --cflags --libs hdf5-serial
-
-          (cd methrix-cli && cargo build --release)
-          if [ -f methrix-cli/target/release/methrix-cli ]; then
-            cp methrix-cli/target/release/methrix-cli dist/methrix-cli-linux-amd64
-          elif [ -f methrix-cli/target/release/methrix ]; then
-            cp methrix-cli/target/release/methrix dist/methrix-cli-linux-amd64
+          (cd methrix-cli && cargo build --release --features hdf5-static --target x86_64-unknown-linux-musl)
+          if [ -f methrix-cli/target/x86_64-unknown-linux-musl/release/methrix-cli ]; then
+            cp methrix-cli/target/x86_64-unknown-linux-musl/release/methrix-cli dist/methrix-linux-amd64-static
+          elif [ -f methrix-cli/target/x86_64-unknown-linux-musl/release/methrix ]; then
+            cp methrix-cli/target/x86_64-unknown-linux-musl/release/methrix dist/methrix-linux-amd64-static
           else
             echo "methrix-cli binary not found" >&2
             exit 1
           fi
-          cp dist/methrix-cli-linux-amd64 dist/methrix-linux-amd64
-          echo "✓ methrix-cli-linux-amd64 (dynamic)"
+          echo "✓ methrix-linux-amd64-static"
 
       - name: Verify required release artifacts (strict)
         run: bash scripts/verify_release_artifacts.sh dist
@@ -232,8 +219,7 @@ jobs:
               {"name":"gomats-linux-amd64-static","linkage":"static"},
               {"name":"qctb-linux-amd64-static","linkage":"static"},
               {"name":"fqc-linux-amd64-static","linkage":"static"},
-              {"name":"methrix-cli-linux-amd64","linkage":"dynamic"},
-              {"name":"methrix-linux-amd64","linkage":"dynamic"},
+              {"name":"methrix-linux-amd64-static","linkage":"static"},
               {"name":"xdxtools-core.yaml","kind":"env_yaml"},
               {"name":"xdxtools-snakemake.yaml","kind":"env_yaml"},
               {"name":"xdxtools-extra.yaml","kind":"env_yaml"}
@@ -283,8 +269,7 @@ jobs:
 
             ## Linkage
 
-            - Fully static: `xdxtools`, `enva`, `xenofilter`, `paireads`, `htseq2matrix`, `gomats`, `qctb`, `fqc`
-            - Dynamic (HDF5): `methrix-cli` (`methrix` compatibility copy included)
+            - Fully static: `xdxtools`, `enva`, `xenofilter`, `paireads`, `htseq2matrix`, `gomats`, `qctb`, `fqc`, `methrix`
 
             ## Installation
 

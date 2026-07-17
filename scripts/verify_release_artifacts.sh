@@ -13,7 +13,7 @@ required=(
   gomats-linux-amd64-static
   qctb-linux-amd64-static
   fqc-linux-amd64-static
-  methrix-cli-linux-amd64
+  methrix-linux-amd64-static
 )
 
 missing=()

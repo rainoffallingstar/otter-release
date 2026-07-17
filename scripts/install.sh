@@ -60,7 +60,7 @@ TOOLS=(
   "xenofilter:xenofilter:static"
   "paireads:paireads:static"
   "htseq2matrix:htseq2matrix:static"
-  "methrix-cli:methrix:dynamic"
+  "methrix-cli:methrix:static"
   "qctb:qctb:static"
   "fqc:fqc:static"
   "gomats:gomats:static"
