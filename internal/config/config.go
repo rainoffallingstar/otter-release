@@ -2,14 +2,14 @@ package config
 
 // XDXToolsConfig represents the complete xdxtools configuration
 type XDXToolsConfig struct {
-	Workflow      WorkflowConfig     `mapstructure:"workflow"`
-	Input         InputConfig       `mapstructure:"input"`
-	Output        OutputConfig      `mapstructure:"output"`
-	Reference     ReferenceConfig   `mapstructure:"reference"`
-	Directories   DirectoryConfig   `mapstructure:"directories"`
-	Parallel      ParallelConfig    `mapstructure:"parallel"`
-	Metadata      MetadataConfig    `mapstructure:"metadata"`
-	Engine        EngineConfig      `mapstructure:"engine"`
+	Workflow      WorkflowConfig        `mapstructure:"workflow"`
+	Input         InputConfig           `mapstructure:"input"`
+	Output        OutputConfig          `mapstructure:"output"`
+	Reference     ReferenceConfig       `mapstructure:"reference"`
+	Directories   DirectoryConfig       `mapstructure:"directories"`
+	Parallel      ParallelConfig        `mapstructure:"parallel"`
+	Metadata      MetadataConfig        `mapstructure:"metadata"`
+	Engine        EngineConfig          `mapstructure:"engine"`
 	StepResources map[int]*StepResource `mapstructure:"step_resources,omitempty"`
 }
 
@@ -183,12 +183,12 @@ type MetadataConfig struct {
 
 // EngineConfig represents execution engine configuration
 type EngineConfig struct {
-	Type       string      `mapstructure:"type"` // auto/slurm/local
-	Slurm      SlurmConfig `mapstructure:"slurm,omitempty"`
-	Local      LocalConfig `mapstructure:"local,omitempty"`
-	CondaEnv   string      `mapstructure:"conda_env,omitempty"`   // Conda environment for Snakemake
-	FallbackEnv string     `mapstructure:"fallback_env,omitempty"` // Fallback environment (default: xdxtools-snakemake)
-	NoFallback bool        `mapstructure:"no_fallback,omitempty"`  // Disable automatic fallback
+	Type        string      `mapstructure:"type"` // auto/slurm/local
+	Slurm       SlurmConfig `mapstructure:"slurm,omitempty"`
+	Local       LocalConfig `mapstructure:"local,omitempty"`
+	CondaEnv    string      `mapstructure:"conda_env,omitempty"`    // Conda environment for Snakemake
+	FallbackEnv string      `mapstructure:"fallback_env,omitempty"` // Fallback environment (default: xdxtools-snakemake)
+	NoFallback  bool        `mapstructure:"no_fallback,omitempty"`  // Disable automatic fallback
 }
 
 // SlurmConfig represents Slurm cluster configuration

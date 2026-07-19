@@ -3,6 +3,7 @@ package input
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/xdxtools/xdxtools-go/internal/logger"
@@ -455,6 +456,40 @@ func TestDeriveSuffix2(t *testing.T) {
 		if result != test.expected {
 			t.Errorf("deriveSuffix2(%s) = %s, expected %s", test.input, result, test.expected)
 		}
+	}
+}
+
+func TestScanner_groupFiles_RejectsAmbiguousInput(t *testing.T) {
+	scanner := NewScanner(&ScanOptions{
+		FastqDir: "/tmp",
+		Suffix1:  "_R1.fastq.gz",
+		Suffix2:  "_R2.fastq.gz",
+	})
+
+	_, err := scanner.groupFiles([]string{
+		"/tmp/sample_R1.fastq.gz",
+		"/other/sample_R1.fastq.gz",
+	})
+	if err == nil || !strings.Contains(err.Error(), "multiple R1 files") {
+		t.Fatalf("expected duplicate R1 error, got %v", err)
+	}
+
+	_, err = scanner.groupFiles([]string{"/tmp/sample.fastq.gz"})
+	if err == nil || !strings.Contains(err.Error(), "matches neither") {
+		t.Fatalf("expected unrecognized suffix error, got %v", err)
+	}
+}
+
+func TestScanner_groupFiles_RejectsIdenticalMateSuffixes(t *testing.T) {
+	scanner := NewScanner(&ScanOptions{
+		FastqDir: "/tmp",
+		Suffix1:  ".fastq.gz",
+		Suffix2:  ".fastq.gz",
+	})
+
+	_, err := scanner.groupFiles([]string{"/tmp/sample.fastq.gz"})
+	if err == nil || !strings.Contains(err.Error(), "must be distinct") {
+		t.Fatalf("expected distinct suffix error, got %v", err)
 	}
 }
 

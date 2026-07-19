@@ -399,6 +399,25 @@ sample3,val1,val2,val3,val4`
 	}
 }
 
+func TestPDataParser_LoadCSV_RejectsEmptyAndDuplicateSampleIDs(t *testing.T) {
+	parser := NewPDataParser()
+
+	for testName, csvContent := range map[string]string{
+		"empty":     "sampleid,condition\n,control\n",
+		"duplicate": "sampleid,condition\nsample1,control\nsample1,treatment\n",
+	} {
+		t.Run(testName, func(t *testing.T) {
+			csvFile := filepath.Join(t.TempDir(), "pdata.csv")
+			if err := os.WriteFile(csvFile, []byte(csvContent), 0644); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := parser.Load(csvFile); err == nil {
+				t.Fatalf("expected invalid sample ID error")
+			}
+		})
+	}
+}
+
 func TestPDataParser_LoadCSV_EmptyValues(t *testing.T) {
 	tmpDir := t.TempDir()
 

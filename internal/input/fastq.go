@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -84,65 +85,72 @@ func (s *Scanner) isFastqFile(filePath string) bool {
 	return false
 }
 
-// groupFiles groups FASTQ files by sample name
+// groupFiles groups FASTQ files by exact configured mate suffix.
 func (s *Scanner) groupFiles(files []string) ([]Sample, error) {
-	samples := make(map[string][]string)
-
-	// Auto-derive suffix2 if not set
+	suffix1 := s.options.Suffix1
 	suffix2 := s.options.Suffix2
 	if suffix2 == "" {
-		suffix2 = deriveSuffix2(s.options.Suffix1)
+		suffix2 = deriveSuffix2(suffix1)
+	}
+	if suffix1 == "" || suffix2 == "" || suffix1 == suffix2 {
+		return nil, fmt.Errorf("FASTQ mate suffixes must be distinct and non-empty: suffix1=%q suffix2=%q", suffix1, suffix2)
 	}
 
-	logger.Debugf("Using suffix1=%s, suffix2=%s", s.options.Suffix1, suffix2)
+	logger.Debugf("Using suffix1=%s, suffix2=%s", suffix1, suffix2)
 
+	samplesByName := make(map[string]*Sample)
+	now := time.Now()
 	for _, file := range files {
 		fileName := filepath.Base(file)
-
-		// Remove suffix1 or suffix2 to get sample name
-		sampleName := fileName
-
-		// Try removing suffix1
-		if strings.HasSuffix(fileName, s.options.Suffix1) {
-			sampleName = strings.TrimSuffix(fileName, s.options.Suffix1)
-		} else if strings.HasSuffix(fileName, suffix2) {
-			// Try removing suffix2
+		mate := 0
+		sampleName := ""
+		switch {
+		case strings.HasSuffix(fileName, suffix1):
+			mate = 1
+			sampleName = strings.TrimSuffix(fileName, suffix1)
+		case strings.HasSuffix(fileName, suffix2):
+			mate = 2
 			sampleName = strings.TrimSuffix(fileName, suffix2)
+		default:
+			return nil, fmt.Errorf("FASTQ file %q matches neither configured mate suffix %q nor %q", fileName, suffix1, suffix2)
+		}
+		if strings.TrimSpace(sampleName) == "" {
+			return nil, fmt.Errorf("FASTQ file %q produces an empty sample name", fileName)
 		}
 
-		samples[sampleName] = append(samples[sampleName], file)
-	}
-
-	// Convert to Sample structs
-	result := make([]Sample, 0, len(samples))
-	now := time.Now()
-	for sampleName, fileList := range samples {
-		sample := Sample{
-			Name:      sampleName,
-			Metadata:  make(map[string]string),
-			CreatedAt: now,
-		}
-
-		// Determine R1 and R2 files
-		for _, file := range fileList {
-			fileName := filepath.Base(file)
-			// Check if this is an R1 file
-			if strings.Contains(fileName, "_R1") || strings.Contains(fileName, "_1.") || strings.HasSuffix(fileName, s.options.Suffix1) {
-				sample.FastqR1 = file
-			} else if strings.Contains(fileName, "_R2") || strings.Contains(fileName, "_2.") || strings.HasSuffix(fileName, suffix2) {
-				// Check if this is an R2 file
-				sample.FastqR2 = file
-			} else {
-				// If no clear R1/R2 indicator, assign to R1
-				if sample.FastqR1 == "" {
-					sample.FastqR1 = file
-				}
+		sample := samplesByName[sampleName]
+		if sample == nil {
+			sample = &Sample{
+				Name:      sampleName,
+				Metadata:  make(map[string]string),
+				CreatedAt: now,
 			}
+			samplesByName[sampleName] = sample
 		}
 
-		result = append(result, sample)
+		if mate == 1 {
+			if sample.FastqR1 != "" {
+				return nil, fmt.Errorf("sample %q has multiple R1 files: %q and %q", sampleName, sample.FastqR1, file)
+			}
+			sample.FastqR1 = file
+		} else {
+			if sample.FastqR2 != "" {
+				return nil, fmt.Errorf("sample %q has multiple R2 files: %q and %q", sampleName, sample.FastqR2, file)
+			}
+			sample.FastqR2 = file
+		}
 	}
 
+	sampleNames := make([]string, 0, len(samplesByName))
+	for sampleName := range samplesByName {
+		sampleNames = append(sampleNames, sampleName)
+	}
+	sort.Strings(sampleNames)
+
+	result := make([]Sample, 0, len(sampleNames))
+	for _, sampleName := range sampleNames {
+		result = append(result, *samplesByName[sampleName])
+	}
 	return result, nil
 }
 

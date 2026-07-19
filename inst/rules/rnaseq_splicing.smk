@@ -1,7 +1,20 @@
+def rnaseq_splicing_bams(wildcards):
+    pdx_mode = str(config["metadata"]["pdx_pipeline"]).strip().lower() in {"1", "true", "yes"}
+    if pdx_mode:
+        return expand(
+            os.path.join(config["directories"]["bsmap"]["main"], "Filtered_bams", "{sample}_" + config["workflow"]["species"]["graft"] + "_Filtered.bam"),
+            sample=config["metadata"]["sample_ids"],
+        )
+    return expand(
+        os.path.join(config["directories"]["bsmap"]["main"], "{sample}_{species}.bam"),
+        sample=config["metadata"]["sample_ids"],
+        species=config["workflow"]["species"]["name"],
+    )
+
 rule rnaseq_splicing:
     message: "RNA Splicing ..."
     input:
-        expand(os.path.join(config["directories"]["bsmap"]["main"], "{sample}_{species}.bam"), sample=config["metadata"]["sample_ids"], species=config["workflow"]["species"]["name"])
+        rnaseq_splicing_bams
     output:
         os.path.join(config["directories"]["bsmap"]["main"], "RNASplicing", "RNASplicing_success.txt")
     params:
@@ -11,7 +24,7 @@ rule rnaseq_splicing:
         gtf=config["reference"]["rnaseq"]["gtf"][config["workflow"]["species"]["name"].index(config["workflow"]["species"]["graft"])],
         log_marker=os.path.join(config["directories"]["bsmap"]["main"], "RNASplicing", "RNASplicing_success.txt"),
         log_dir=os.path.join(config["directories"]["bsmap"]["main"], "RNASplicing"),
-        pdxmode=(0 if not config["metadata"]["pdx_pipeline"] else 1)
+        pdxmode=(1 if str(config["metadata"]["pdx_pipeline"]).strip().lower() in {"1", "true", "yes"} else 0)
     threads: 20
     run:
         if config["metadata"]["group_levels"] >= 2:

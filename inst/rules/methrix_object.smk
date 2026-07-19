@@ -1,7 +1,7 @@
 rule prepare_methrix_reference_cpg:
   message:"Prepare methrix reference CpG (.ron) ..."
   input:
-    genome_ref = lambda wildcards: config["reference"]["genome_fasta"][config["workflow"]["species"]["name"].index(config["workflow"]["species"]["graft"])]
+    genome_ref = lambda wildcards: config["reference"]["files"]["fasta"][config["workflow"]["species"]["name"].index(config["workflow"]["species"]["graft"])]
   output:
     os.path.join(config["directories"]["methylation_call"], "methrixh5", "reference_cpgs.ron")
   params:

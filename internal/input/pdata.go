@@ -73,7 +73,10 @@ func (p *PDataParser) loadExcel(filePath string) (*PData, error) {
 		logger.Warn("No 'sampleid' column found, will use row indices as sample IDs")
 	}
 
-	data, samples := buildPDataRecords(rows[1:], columns, normalizedColumns, sampleIDCol, aliasCount)
+	data, samples, err := buildPDataRecords(rows[1:], columns, normalizedColumns, sampleIDCol, aliasCount)
+	if err != nil {
+		return nil, err
+	}
 
 	logger.Infof("Loaded %d samples from Excel file", len(samples))
 
@@ -113,7 +116,10 @@ func (p *PDataParser) loadCSV(filePath string) (*PData, error) {
 		logger.Warn("No 'sampleid' column found, will use row indices as sample IDs")
 	}
 
-	data, samples := buildPDataRecords(records[1:], columns, normalizedColumns, sampleIDCol, aliasCount)
+	data, samples, err := buildPDataRecords(records[1:], columns, normalizedColumns, sampleIDCol, aliasCount)
+	if err != nil {
+		return nil, err
+	}
 
 	logger.Infof("Loaded %d samples from pdata file", len(samples))
 
@@ -152,36 +158,44 @@ func normalizePDataColumns(columns []string) ([]string, int, int) {
 	return normalizedColumns, sampleIDCol, aliasCount
 }
 
-func buildPDataRecords(records [][]string, columns, normalizedColumns []string, sampleIDCol, aliasCount int) (map[string]map[string]string, []string) {
+func buildPDataRecords(records [][]string, columns, normalizedColumns []string, sampleIDCol, aliasCount int) (map[string]map[string]string, []string, error) {
 	data := make(map[string]map[string]string, len(records))
 	samples := make([]string, 0, len(records))
 
-	for i, record := range records {
-		rowIndex := i + 1
-		sampleID := fmt.Sprintf("Sample%d", rowIndex)
-		if sampleIDCol >= 0 && sampleIDCol < len(record) {
-			sampleID = record[sampleIDCol]
+	for rowOffset, record := range records {
+		rowNumber := rowOffset + 2
+		sampleID := fmt.Sprintf("Sample%d", rowOffset+1)
+		if sampleIDCol >= 0 {
+			if sampleIDCol >= len(record) {
+				return nil, nil, fmt.Errorf("pdata row %d is missing the sampleid column", rowNumber)
+			}
+			sampleID = strings.TrimSpace(record[sampleIDCol])
+			if sampleID == "" {
+				return nil, nil, fmt.Errorf("pdata row %d has an empty sampleid", rowNumber)
+			}
+		}
+		if _, exists := data[sampleID]; exists {
+			return nil, nil, fmt.Errorf("pdata contains duplicate sampleid %q at row %d", sampleID, rowNumber)
 		}
 
-		samples = append(samples, sampleID)
-
 		sampleData := make(map[string]string, len(columns)+aliasCount)
-		for j, value := range record {
-			if j >= len(columns) {
+		for columnIndex, value := range record {
+			if columnIndex >= len(columns) {
 				break
 			}
 
-			normalizedColumnName := normalizedColumns[j]
+			normalizedColumnName := normalizedColumns[columnIndex]
 			sampleData[normalizedColumnName] = value
-			if normalizedColumnName != columns[j] {
-				sampleData[columns[j]] = value
+			if normalizedColumnName != columns[columnIndex] {
+				sampleData[columns[columnIndex]] = value
 			}
 		}
 
+		samples = append(samples, sampleID)
 		data[sampleID] = sampleData
 	}
 
-	return data, samples
+	return data, samples, nil
 }
 
 // Validate validates pdata against sample list

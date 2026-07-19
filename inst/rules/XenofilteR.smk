@@ -13,8 +13,8 @@ rule xenofilteR:
     mode = config["mode"],
     graft_bams = [os.path.join(config["directories"]["bsmap"]["main"], f"{s}_{config['workflow']['species']['graft']}.bam") for s in config["metadata"]["sample_ids"]],
     host_bams = [os.path.join(config["directories"]["bsmap"]["main"], f"{s}_{config['workflow']['species']['host']}.bam") for s in config["metadata"]["sample_ids"]],
-    graft_ref = config["reference"]["genome_fasta"][config["workflow"]["species"]["name"].index(config["workflow"]["species"]["graft"])] if config["workflow"]["species"]["host"] else "",
-    host_ref = config["reference"]["genome_fasta"][config["workflow"]["species"]["name"].index(config["workflow"]["species"]["host"])] if config["workflow"]["species"]["host"] else ""
+    graft_ref = config["reference"]["files"]["fasta"][config["workflow"]["species"]["name"].index(config["workflow"]["species"]["graft"])] if config["workflow"]["species"]["host"] else "",
+    host_ref = config["reference"]["files"]["fasta"][config["workflow"]["species"]["name"].index(config["workflow"]["species"]["host"])] if config["workflow"]["species"]["host"] else ""
   threads:4
   shell:
     """

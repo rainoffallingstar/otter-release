@@ -349,6 +349,13 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+func optionalString(value string) []string {
+	if value == "" {
+		return nil
+	}
+	return []string{value}
+}
+
 // generateJobID generates a random job ID (similar to R's openssl::rand_bytes)
 func generateJobID() string {
 	b := make([]byte, 20)
@@ -550,6 +557,7 @@ func generateProjectConfig(configPath, mode, species1, species2,
 
 	// Build configuration
 	pdxMode := species2 != ""
+	speciesNames := append([]string{species1}, optionalString(species2)...)
 	// workflowName := config.GetWorkflowName(mode, pdxMode)
 	// stepCount := config.GetStepCount(mode, pdxMode)
 
@@ -776,7 +784,7 @@ func generateProjectConfig(configPath, mode, species1, species2,
 			"species": map[string]interface{}{
 				"graft": cfg.Workflow.Species.Graft,
 				"host":  cfg.Workflow.Species.Host,
-				"name":  cfg.Workflow.Species.Name,
+				"name":  speciesNames,
 			},
 			"adapters": map[string]interface{}{
 				"seq1":  cfg.Workflow.Adapters.Seq1,
@@ -889,7 +897,7 @@ func generateProjectConfig(configPath, mode, species1, species2,
 		// These are not used by rootless_rules but kept for compatibility
 		"SIDs":    samples,
 		"mode":    cfg.Workflow.Mode,
-		"species": cfg.Workflow.Species.Name,
+		"species": speciesNames,
 		"workers": cfg.Parallel.Workers,
 	}
 

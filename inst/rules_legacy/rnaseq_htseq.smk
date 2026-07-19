@@ -10,7 +10,7 @@ rule build_expression_matrix :
   threads:5
   shell:
     """
-    enva run htseq -- htseq-count -f bam -r name -s yes -t exon -i gene_id -m intersection-nonempty \
+    enva run htseq -- htseq-count -f bam -r pos -s yes -t exon -i gene_id -m intersection-nonempty \
     {input.bam_sorted} {params.rnaseq_gtf} > {params.methylkit}
 
     """

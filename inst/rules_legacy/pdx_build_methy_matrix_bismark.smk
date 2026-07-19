@@ -1,7 +1,7 @@
 rule bismark_methylation_extractor :
   message:"Build beta matrix ..."
   input:
-    bam_sorted = lambda wildcards:os.path.join(config["directories"]["bsmap"]["main"],"Filtered_bams" ,f"{wildcards.sample}_fixed_"+config["workflow"]["species"]["graft"]+"_Filtered.bam")
+    bam_sorted = lambda wildcards:os.path.join(config["directories"]["bsmap"]["main"],"Filtered_bams" ,f"{wildcards.sample}_"+config["workflow"]["species"]["graft"]+"_Filtered.bam")
   output:
     os.path.join(config["directories"]["methylation_call"], "{sample}_nsort.bismark.cov.gz"),
     os.path.join(config["directories"]["bsmap"]["main"], "{sample}_nsort.bam")
