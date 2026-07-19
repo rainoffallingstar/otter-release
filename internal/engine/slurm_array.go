@@ -14,29 +14,34 @@ import (
 	"github.com/xdxtools/xdxtools-go/internal/config"
 	"github.com/xdxtools/xdxtools-go/internal/enva"
 	"github.com/xdxtools/xdxtools-go/internal/logger"
+	taskruntime "github.com/xdxtools/xdxtools-go/internal/task"
 )
 
 // SlurmArrayEngine represents a SLURM Job Array engine for multi-sample parallelization
 type SlurmArrayEngine struct {
 	*SlurmEngine
-	samples       []string
-	stepResource  *config.StepResource
+	samples      []string
+	stepResource *config.StepResource
 	arraySize    int
 	maxArrayJobs int
-	maxBatchSize int    // 每批最大 Task 数（0 = 不限制，一次提交全部）
+	maxBatchSize int     // 每批最大 Task 数（0 = 不限制，一次提交全部）
 	loadRatio    float64 // > 0: 动态池模式；0: 旧批处理模式
 }
 
 // NewSlurmArrayEngine creates a new SlurmArrayEngine
 func NewSlurmArrayEngine(config *SlurmConfig, samples []string, stepResource *config.StepResource) *SlurmArrayEngine {
 	slurmEngine := NewSlurmEngine(config)
+	maxArrayJobs := 0
+	if stepResource != nil {
+		maxArrayJobs = stepResource.MaxJobs
+	}
 
 	return &SlurmArrayEngine{
 		SlurmEngine:  slurmEngine,
-		samples:       samples,
-		stepResource:  stepResource,
+		samples:      samples,
+		stepResource: stepResource,
 		arraySize:    len(samples),
-		maxArrayJobs: stepResource.MaxJobs,
+		maxArrayJobs: maxArrayJobs,
 	}
 }
 
@@ -140,9 +145,15 @@ func (e *SlurmArrayEngine) executeWithDynamicPool(step int, condaEnv, workflowFi
 			case "COMPLETED":
 				completed = append(completed, sample)
 				delete(running, jobID)
+				if err := taskruntime.CompleteCurrentSlurmJob(jobID); err != nil {
+					logger.Warnf("Failed to update completed SLURM job %s: %v", jobID, err)
+				}
 			case "FAILED", "CANCELLED", "TIMEOUT":
 				failed = append(failed, sample)
 				delete(running, jobID)
+				if err := taskruntime.CompleteCurrentSlurmJob(jobID); err != nil {
+					logger.Warnf("Failed to update finished SLURM job %s: %v", jobID, err)
+				}
 				logger.Errorf("Sample %s failed (job %s, state %s)", sample, jobID, state)
 			}
 		}
@@ -284,7 +295,11 @@ func (e *SlurmArrayEngine) submitSingleJob(scriptPath string) (string, error) {
 	// "Submitted batch job 12345"
 	parts := strings.Fields(strings.TrimSpace(stdout.String()))
 	if len(parts) >= 4 {
-		return parts[3], nil
+		jobID := parts[3]
+		if err := taskruntime.RegisterCurrentSlurmJob(jobID); err != nil {
+			logger.Warnf("Failed to persist SLURM job %s: %v", jobID, err)
+		}
+		return jobID, nil
 	}
 	return "", fmt.Errorf("failed to parse job ID from sbatch output: %s", stdout.String())
 }
@@ -387,21 +402,21 @@ touch {{.SuccessFile}}.$SLURM_ARRAY_TASK_ID
 `
 
 	data := struct {
-		JobName       string
-		Partition     string
-		Cores         int
-		Memory        string
-		WorkDir       string
-		OutputFile    string
-		ErrorFile     string
-		SuccessFile   string
-		ArraySize     int
-		MaxArrayJobs  string
-		SampleLines   string
-		CondaCommand  string
-		Step          int
-		WorkflowFile  string
-		ConfigFile    string
+		JobName      string
+		Partition    string
+		Cores        int
+		Memory       string
+		WorkDir      string
+		OutputFile   string
+		ErrorFile    string
+		SuccessFile  string
+		ArraySize    int
+		MaxArrayJobs string
+		SampleLines  string
+		CondaCommand string
+		Step         int
+		WorkflowFile string
+		ConfigFile   string
 	}{
 		JobName:     fmt.Sprintf("%s_step%d_array", e.jobName, step),
 		Partition:   e.partition,
@@ -587,7 +602,11 @@ func (e *SlurmArrayEngine) submitArrayJob(scriptPath string) (string, error) {
 	// Expected format: "Submitted batch job 12345[0-9]"
 	parts := strings.Fields(outputStr)
 	if len(parts) >= 4 {
-		return parts[3], nil
+		jobID := parts[3]
+		if err := taskruntime.RegisterCurrentSlurmJob(jobID); err != nil {
+			logger.Warnf("Failed to persist SLURM job %s: %v", jobID, err)
+		}
+		return jobID, nil
 	}
 
 	return "", fmt.Errorf("failed to parse Job Array ID from output: %s", outputStr)
@@ -619,6 +638,9 @@ func (e *SlurmArrayEngine) waitForArrayJob(jobID string, totalTasks int) error {
 				e.status.State = StatusCompleted
 				e.status.EndTime = time.Now()
 				e.status.Message = "Job Array completed successfully"
+				if err := taskruntime.CompleteCurrentSlurmJob(jobID); err != nil {
+					logger.Warnf("Failed to update completed SLURM Job Array %s: %v", jobID, err)
+				}
 				logger.Info("Job Array completed successfully")
 				return nil
 			}
@@ -628,6 +650,9 @@ func (e *SlurmArrayEngine) waitForArrayJob(jobID string, totalTasks int) error {
 				e.status.State = StatusFailed
 				e.status.EndTime = time.Now()
 				e.status.Message = fmt.Sprintf("Job Array failed: %d tasks failed", status.Failed)
+				if err := taskruntime.CompleteCurrentSlurmJob(jobID); err != nil {
+					logger.Warnf("Failed to update failed SLURM Job Array %s: %v", jobID, err)
+				}
 				return fmt.Errorf("Job Array execution failed: %d tasks failed", status.Failed)
 			}
 		}

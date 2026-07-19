@@ -93,8 +93,13 @@ xdxtools init my_project
 # 2. Scan FASTQ, validate samples, generate config
 xdxtools create --fastq /data/fastq --mode RRBS --pdata samples.csv --output my_project/userspace --jobid demo_rrbs
 
-# 3. Execute workflow
+# 3. Execute workflow (submitted in the background by default)
 xdxtools run --config my_project/userspace/demo_rrbs/config/config.yaml
+
+# 4. Inspect the background task and follow its log
+xdxtools task list
+xdxtools task status <task-id>
+xdxtools task logs <task-id> --follow
 ```
 
 ## Commands
@@ -103,8 +108,9 @@ xdxtools run --config my_project/userspace/demo_rrbs/config/config.yaml
 |---------|-------------|
 | `init`   | Copy Snakemake workflow files to project directory |
 | `create` | Scan FASTQ, validate samples, generate config.yaml |
-| `run`    | Execute Snakemake workflow |
-| `status` | Show workflow progress |
+| `run`    | Execute Snakemake workflow as a background task by default |
+| `task`   | List, inspect, follow logs, or stop background tasks |
+| `status` | Show workflow progress for a project directory |
 | `config` | Validate configuration file |
 
 ### Key `run` flags
@@ -114,8 +120,19 @@ xdxtools run --config my_project/userspace/demo_rrbs/config/config.yaml
 | `--engine` | `auto` | Execution engine: `slurm` / `local` / `auto` |
 | `--slurm-partition` | empty | Optional SLURM partition override |
 | `--parallel-jobs` | `2` | Max concurrent jobs |
-| `--dry-run` | `false` | Test configuration without executing |
+| `--dry-run` | `false` | Validate without executing; always runs in the foreground |
+| `--foreground` / `-F` | `false` | Keep the workflow attached to the current terminal |
 | `--resume` / `-r` | `false` | Resume from last completed step |
+
+`run` creates an independent background task by default, so disconnecting SSH does not stop the xdxtools coordinator. Task metadata and the complete startup log are stored under `$XDG_STATE_HOME/xdxtools/tasks/`, or `~/.local/state/xdxtools/tasks/` when `XDG_STATE_HOME` is unset. This restores status and log viewing, not an interactive tmux terminal session.
+
+```bash
+xdxtools task list
+xdxtools task list --all
+xdxtools task status <task-id>
+xdxtools task logs <task-id> --follow
+xdxtools task stop <task-id>
+```
 
 Use `--verbose` for detailed output or `--dry-run` to troubleshoot without running.
 

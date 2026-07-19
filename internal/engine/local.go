@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -75,10 +76,10 @@ func (e *LocalEngine) Execute(cmd []string) error {
 		logger.Debugf("Setting working directory: %s", dir)
 	}
 
-	// Capture both stdout and stderr for better diagnostics
+	// Stream progress to the task log while retaining diagnostics for errors.
 	var stdout, stderr bytes.Buffer
-	e.cmd.Stdout = &stdout
-	e.cmd.Stderr = &stderr
+	e.cmd.Stdout = io.MultiWriter(os.Stdout, &stdout)
+	e.cmd.Stderr = io.MultiWriter(os.Stderr, &stderr)
 
 	// Start execution
 	logger.Debugf("Executing command: %s", strings.Join(cmd, " "))
@@ -232,10 +233,10 @@ func (e *LocalEngine) ExecuteWithParallel(commands [][]string, maxParallel int) 
 				cmdExec.Dir = dir
 			}
 
-			// Capture output
+			// Stream each sample's progress to the detached task log.
 			var stdout, stderr bytes.Buffer
-			cmdExec.Stdout = &stdout
-			cmdExec.Stderr = &stderr
+			cmdExec.Stdout = io.MultiWriter(os.Stdout, &stdout)
+			cmdExec.Stderr = io.MultiWriter(os.Stderr, &stderr)
 
 			// Execute
 			err := cmdExec.Run()

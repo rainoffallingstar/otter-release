@@ -150,8 +150,34 @@ func (s *State) Save() error {
 		return fmt.Errorf("failed to marshal state: %w", err)
 	}
 
-	if err := os.WriteFile(s.filePath, data, 0644); err != nil {
+	stateDir := filepath.Dir(s.filePath)
+	if err := os.MkdirAll(stateDir, 0o755); err != nil {
+		return fmt.Errorf("failed to create state directory: %w", err)
+	}
+	temporaryFile, err := os.CreateTemp(stateDir, ".xdxtools-state-*.tmp")
+	if err != nil {
+		return fmt.Errorf("failed to create temporary state file: %w", err)
+	}
+	temporaryPath := temporaryFile.Name()
+	defer os.Remove(temporaryPath)
+
+	if err := temporaryFile.Chmod(0o644); err != nil {
+		_ = temporaryFile.Close()
+		return fmt.Errorf("failed to set state file permissions: %w", err)
+	}
+	if _, err := temporaryFile.Write(data); err != nil {
+		_ = temporaryFile.Close()
 		return fmt.Errorf("failed to write state file: %w", err)
+	}
+	if err := temporaryFile.Sync(); err != nil {
+		_ = temporaryFile.Close()
+		return fmt.Errorf("failed to sync state file: %w", err)
+	}
+	if err := temporaryFile.Close(); err != nil {
+		return fmt.Errorf("failed to close state file: %w", err)
+	}
+	if err := os.Rename(temporaryPath, s.filePath); err != nil {
+		return fmt.Errorf("failed to replace state file: %w", err)
 	}
 
 	return nil

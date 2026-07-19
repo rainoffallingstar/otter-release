@@ -3,6 +3,7 @@ package cmd
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/xdxtools/xdxtools-go/internal/config"
@@ -128,6 +129,28 @@ func TestShouldRelaxLocalDryRunResourceValidation(t *testing.T) {
 				t.Fatalf("shouldRelaxLocalDryRunResourceValidation() = %v, want %v", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestBuildBackgroundWorkerArguments(t *testing.T) {
+	arguments := []string{
+		"run",
+		"--config", "relative.yaml",
+		"--project-dir=/tmp/old-project",
+		"--foreground",
+		"--engine", "local",
+		"--resume",
+	}
+	got := buildBackgroundWorkerArguments(arguments, "/project/config.yaml", "/project")
+	joined := strings.Join(got, " ")
+
+	if strings.Contains(joined, "relative.yaml") || strings.Contains(joined, "/tmp/old-project") || strings.Contains(joined, "--foreground") {
+		t.Fatalf("worker arguments retained replaced foreground/path flags: %v", got)
+	}
+	for _, expected := range []string{"run", "--engine local", "--resume", "--config /project/config.yaml", "--project-dir /project", "--internal-worker"} {
+		if !strings.Contains(joined, expected) {
+			t.Fatalf("worker arguments %q missing %q", joined, expected)
+		}
 	}
 }
 

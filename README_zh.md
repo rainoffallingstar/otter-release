@@ -93,8 +93,13 @@ xdxtools init my_project
 # 2. 扫描 FASTQ，验证样本，生成配置文件
 xdxtools create --fastq /data/fastq --mode RRBS --pdata samples.csv --output my_project/userspace --jobid demo_rrbs
 
-# 3. 执行工作流
+# 3. 执行工作流（默认后台提交）
 xdxtools run --config my_project/userspace/demo_rrbs/config/config.yaml
+
+# 4. 查看后台任务和日志
+xdxtools task list
+xdxtools task status <task-id>
+xdxtools task logs <task-id> --follow
 ```
 
 ## 命令速查
@@ -103,8 +108,9 @@ xdxtools run --config my_project/userspace/demo_rrbs/config/config.yaml
 |------|------|
 | `init`   | 将 Snakemake 工作流文件复制到项目目录 |
 | `create` | 扫描 FASTQ，验证样本，生成 config.yaml |
-| `run`    | 执行 Snakemake 工作流 |
-| `status` | 显示工作流进度 |
+| `run`    | 执行 Snakemake 工作流（默认后台） |
+| `task`   | 列出、查看日志或停止后台工作流任务 |
+| `status` | 显示指定项目的工作流进度 |
 | `config` | 验证配置文件 |
 
 ### `run` 常用参数
@@ -114,8 +120,20 @@ xdxtools run --config my_project/userspace/demo_rrbs/config/config.yaml
 | `--engine` | `auto` | 执行引擎：`slurm` / `local` / `auto` |
 | `--slurm-partition` | empty | 可选的 SLURM 分区覆盖 |
 | `--parallel-jobs` | `2` | 最大并发作业数 |
-| `--dry-run` | `false` | 试运行（不实际执行） |
+| `--dry-run` | `false` | 试运行并始终在前台完成验证 |
+| `--foreground` / `-F` | `false` | 不创建后台任务，保持前台阻塞运行 |
 | `--resume` / `-r` | `false` | 从上次完成的步骤恢复 |
+
+`run` 默认创建独立后台任务，因此 SSH 断开不会终止 xdxtools 协调器。任务记录和完整启动日志默认保存在 `$XDG_STATE_HOME/xdxtools/tasks/`，未设置 `XDG_STATE_HOME` 时使用 `~/.local/state/xdxtools/tasks/`。这提供任务状态和日志重连，但不是可恢复交互终端的 tmux 会话。
+
+常用管理命令：
+
+```bash
+xdxtools task list             # 活跃任务；加 --all 查看历史任务
+xdxtools task status <task-id> # 后台进程、工作流步骤和 SLURM Job ID
+xdxtools task logs <task-id> -f
+xdxtools task stop <task-id>   # 停止 local 进程组或取消已登记的 SLURM 作业
+```
 
 使用 `--verbose` 查看详细输出，或使用 `--dry-run` 在不执行的情况下排查问题。
 

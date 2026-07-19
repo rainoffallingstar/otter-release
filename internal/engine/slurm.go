@@ -12,16 +12,17 @@ import (
 	"time"
 
 	"github.com/xdxtools/xdxtools-go/internal/logger"
+	taskruntime "github.com/xdxtools/xdxtools-go/internal/task"
 )
 
 // NodeInfo 存储节点信息
 type NodeInfo struct {
 	Name            string
-	State           string  // idle/alloc/mixed/down
-	TotalCores      int     // 总CPU核心数
-	AvailableCores  int     // 可用CPU核心数
-	TotalMemory     int     // 总内存 (MB)
-	AvailableMemory int     // 可用内存 (MB)
+	State           string // idle/alloc/mixed/down
+	TotalCores      int    // 总CPU核心数
+	AvailableCores  int    // 可用CPU核心数
+	TotalMemory     int    // 总内存 (MB)
+	AvailableMemory int    // 可用内存 (MB)
 }
 
 // ValidateSlurmPartition checks if a SLURM partition exists and is accessible
@@ -117,8 +118,8 @@ func getPartitionNodes(partition string) ([]NodeInfo, error) {
 		totalCores := 0
 		availableCores := 0
 		if len(cpuParts) >= 4 {
-			totalCores, _ = strconv.Atoi(cpuParts[3])  // Total (第4个值)
-			idle, _ := strconv.Atoi(cpuParts[1])         // Idle (第2个值，available)
+			totalCores, _ = strconv.Atoi(cpuParts[3]) // Total (第4个值)
+			idle, _ := strconv.Atoi(cpuParts[1])      // Idle (第2个值，available)
 			availableCores = idle
 		}
 
@@ -306,6 +307,9 @@ func (e *SlurmEngine) Kill() error {
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to cancel job: %w", err)
 	}
+	if err := taskruntime.CompleteCurrentSlurmJob(e.status.JobID); err != nil {
+		logger.Warnf("Failed to update cancelled SLURM job %s: %v", e.status.JobID, err)
+	}
 
 	e.status.State = StatusKilled
 	e.status.EndTime = time.Now()
@@ -419,7 +423,11 @@ func (e *SlurmEngine) submitJob(scriptPath string) (string, error) {
 	// Expected format: "Submitted batch job 12345"
 	parts := strings.Fields(outputStr)
 	if len(parts) >= 4 {
-		return parts[3], nil
+		jobID := parts[3]
+		if err := taskruntime.RegisterCurrentSlurmJob(jobID); err != nil {
+			logger.Warnf("Failed to persist SLURM job %s: %v", jobID, err)
+		}
+		return jobID, nil
 	}
 
 	return "", fmt.Errorf("failed to parse job ID from output: %s", outputStr)
@@ -432,6 +440,11 @@ func (e *SlurmEngine) waitForCompletion() error {
 	if e.status.JobID == "" {
 		return fmt.Errorf("no job ID available")
 	}
+	defer func() {
+		if err := taskruntime.CompleteCurrentSlurmJob(e.status.JobID); err != nil {
+			logger.Warnf("Failed to update completed SLURM job %s: %v", e.status.JobID, err)
+		}
+	}()
 
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
@@ -543,11 +556,11 @@ func (e *SlurmEngine) collectJobOutput(jobID string) (string, error) {
 
 // SlurmUserLimits 存储 SLURM 用户限制信息
 type SlurmUserLimits struct {
-	MaxSubmitJobs    int // 最大提交任务数
-	CurrentJobCount  int // 当前任务数
-	AvailableJobs    int // 可用任务数
-	QOSMaxJobs       int // QoS 最大任务数
-	AccountMaxJobs   int // 账户最大任务数
+	MaxSubmitJobs   int // 最大提交任务数
+	CurrentJobCount int // 当前任务数
+	AvailableJobs   int // 可用任务数
+	QOSMaxJobs      int // QoS 最大任务数
+	AccountMaxJobs  int // 账户最大任务数
 }
 
 // GetSlurmUserLimits 获取用户的 SLURM 任务提交限制

@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/xdxtools/xdxtools-go/internal/assets"
@@ -15,6 +17,7 @@ import (
 	"github.com/xdxtools/xdxtools-go/internal/engine"
 	"github.com/xdxtools/xdxtools-go/internal/input"
 	"github.com/xdxtools/xdxtools-go/internal/logger"
+	taskruntime "github.com/xdxtools/xdxtools-go/internal/task"
 	"github.com/xdxtools/xdxtools-go/internal/workflow"
 )
 
@@ -65,9 +68,11 @@ var (
 	resumeFlag bool
 
 	// Asset integrity options
-	runProjectDir string
-	verifyAssets  bool
-	strictAssets  bool
+	runProjectDir  string
+	verifyAssets   bool
+	strictAssets   bool
+	foregroundRun  bool
+	internalWorker bool
 )
 
 // runCmd represents the run command
@@ -137,9 +142,163 @@ func init() {
 
 	// Resume option
 	runCmd.Flags().BoolVarP(&resumeFlag, "resume", "r", false, "Resume from last completed step")
+	runCmd.Flags().BoolVarP(&foregroundRun, "foreground", "F", false, "Run in the foreground instead of creating a background task")
+	runCmd.Flags().BoolVar(&internalWorker, "internal-worker", false, "Run as an internal background worker")
+	_ = runCmd.Flags().MarkHidden("internal-worker")
 }
 
 func runRun(cmd *cobra.Command, args []string) error {
+	if !dryRun && !foregroundRun && !internalWorker {
+		return submitBackgroundRun()
+	}
+	return executeRun(cmd)
+}
+
+func submitBackgroundRun() error {
+	configPath, projectDir, err := resolveRunPaths(runConfigFile, runProjectDir)
+	if err != nil {
+		return err
+	}
+
+	loader := config.NewLoader(configPath)
+	cfg, err := loader.LoadConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+	engineName := strings.TrimSpace(cfg.Engine.Type)
+	if runEngine != "auto" {
+		engineName = runEngine
+	}
+	if engineName == "" || engineName == "auto" {
+		engineName = engine.DetectEngine().String()
+	}
+
+	store, err := taskruntime.DefaultStore()
+	if err != nil {
+		return err
+	}
+	taskID, err := taskruntime.GenerateID()
+	if err != nil {
+		return err
+	}
+
+	executablePath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("resolve xdxtools executable: %w", err)
+	}
+	workerArguments := buildBackgroundWorkerArguments(os.Args[1:], configPath, projectDir)
+	record := taskruntime.NewRecord(taskID, projectDir, configPath, engineName, append([]string{executablePath}, workerArguments...))
+	record.LogPath = store.LogPath(taskID)
+	statePath := workflow.NewState(cfg.Output.BaseDir, cfg.Workflow.JobID).GetFilePath()
+	if !filepath.IsAbs(statePath) {
+		statePath = filepath.Join(projectDir, statePath)
+	}
+	record.StatePath = filepath.Clean(statePath)
+	if err := store.Create(record); err != nil {
+		return err
+	}
+
+	logFile, err := os.OpenFile(record.LogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	if err != nil {
+		return fmt.Errorf("open background task log: %w", err)
+	}
+	defer logFile.Close()
+
+	workerCommand := exec.Command(executablePath, workerArguments...)
+	workerCommand.Dir = projectDir
+	workerCommand.Stdin = nil
+	workerCommand.Stdout = logFile
+	workerCommand.Stderr = logFile
+	workerCommand.Env = append(os.Environ(),
+		taskruntime.EnvironmentTaskID+"="+taskID,
+		taskruntime.EnvironmentTaskStateDir+"="+store.RootDir(),
+	)
+	workerCommand.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	if err := workerCommand.Start(); err != nil {
+		_ = store.Update(taskID, func(current *taskruntime.Record) error {
+			current.Status = taskruntime.StatusFailed
+			current.Error = err.Error()
+			current.FinishedAt = time.Now()
+			return nil
+		})
+		return fmt.Errorf("start background task: %w", err)
+	}
+
+	processID := workerCommand.Process.Pid
+	if err := store.Update(taskID, func(current *taskruntime.Record) error {
+		current.PID = processID
+		current.ProcessGroupID = processID
+		if current.Status == taskruntime.StatusQueued {
+			current.Status = taskruntime.StatusRunning
+			current.StartedAt = time.Now()
+		}
+		return nil
+	}); err != nil {
+		_ = syscall.Kill(-processID, syscall.SIGTERM)
+		return err
+	}
+	if err := workerCommand.Process.Release(); err != nil {
+		return fmt.Errorf("release background worker process: %w", err)
+	}
+
+	fmt.Printf("Task submitted: %s\n", taskID)
+	fmt.Printf("Project:        %s\n", projectDir)
+	fmt.Printf("Status:         xdxtools task status %s\n", taskID)
+	fmt.Printf("Logs:           xdxtools task logs %s --follow\n", taskID)
+	return nil
+}
+
+func buildBackgroundWorkerArguments(arguments []string, configPath, projectDir string) []string {
+	workerArguments := make([]string, 0, len(arguments)+5)
+	for index := 0; index < len(arguments); index++ {
+		argument := arguments[index]
+		if argument == "--foreground" || argument == "-F" || argument == "--internal-worker" {
+			continue
+		}
+		if argument == "--config" || argument == "-c" || argument == "--project-dir" {
+			index++
+			continue
+		}
+		if strings.HasPrefix(argument, "--config=") || strings.HasPrefix(argument, "--project-dir=") {
+			continue
+		}
+		workerArguments = append(workerArguments, argument)
+	}
+	workerArguments = append(workerArguments,
+		"--config", configPath,
+		"--project-dir", projectDir,
+		"--internal-worker",
+	)
+	return workerArguments
+}
+
+func executeRun(cmd *cobra.Command) (runErr error) {
+	if internalWorker {
+		defer func() {
+			exitCode := 0
+			finalStatus := taskruntime.StatusCompleted
+			errorMessage := ""
+			if runErr != nil {
+				exitCode = 1
+				finalStatus = taskruntime.StatusFailed
+				errorMessage = runErr.Error()
+			}
+			_ = taskruntime.UpdateCurrent(func(record *taskruntime.Record) error {
+				if record.Status == taskruntime.StatusStopping {
+					finalStatus = taskruntime.StatusStopped
+				}
+				record.Status = finalStatus
+				record.ExitCode = &exitCode
+				record.Error = errorMessage
+				record.FinishedAt = time.Now()
+				if finalStatus == taskruntime.StatusCompleted || finalStatus == taskruntime.StatusStopped {
+					record.ActiveSlurmJobIDs = nil
+				}
+				return nil
+			})
+		}()
+	}
+
 	configPath, projectDir, err := resolveRunPaths(runConfigFile, runProjectDir)
 	if err != nil {
 		return err

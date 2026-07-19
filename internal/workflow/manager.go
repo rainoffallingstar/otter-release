@@ -10,6 +10,7 @@ import (
 	"github.com/xdxtools/xdxtools-go/internal/config"
 	"github.com/xdxtools/xdxtools-go/internal/engine"
 	"github.com/xdxtools/xdxtools-go/internal/logger"
+	taskruntime "github.com/xdxtools/xdxtools-go/internal/task"
 )
 
 // Manager manages workflow execution
@@ -167,8 +168,15 @@ func (m *Manager) Initialize() error {
 	// Determine steps based on mode
 	m.ensureRuntimeCache()
 	m.workflow.Steps = config.GetStepCount(m.workflow.Config.Workflow.Mode, m.pdxMode)
-
 	logger.Infof("Workflow initialized with %d steps", m.workflow.Steps)
+
+	if err := taskruntime.UpdateCurrent(func(record *taskruntime.Record) error {
+		record.CurrentStep = 0
+		record.Message = "initializing workflow"
+		return nil
+	}); err != nil {
+		logger.Warnf("Failed to persist task initialization state: %v", err)
+	}
 
 	return nil
 }
@@ -185,6 +193,24 @@ func (m *Manager) ExecuteStep(step int) error {
 	} else {
 		logger.Infof("Executing step %d/%d", step, m.workflow.Steps)
 	}
+	_ = taskruntime.UpdateCurrent(func(record *taskruntime.Record) error {
+		record.CurrentStep = step
+		if isChecker {
+			record.Message = fmt.Sprintf("running checker step %d", step)
+		} else {
+			record.Message = fmt.Sprintf("running workflow step %d of %d", step, m.workflow.Steps)
+		}
+		return nil
+	})
+
+	stepSucceeded := false
+	defer func() {
+		if stepSucceeded || isChecker || m.state == nil {
+			return
+		}
+		_ = m.state.UpdateStepStatus(step, "failed", time.Now(), "")
+		_ = m.state.Save()
+	}()
 
 	// Update state: step started
 	if m.state != nil {
@@ -340,6 +366,11 @@ func (m *Manager) ExecuteStep(step int) error {
 		_ = m.state.Save()
 	}
 
+	stepSucceeded = true
+	_ = taskruntime.UpdateCurrent(func(record *taskruntime.Record) error {
+		record.Message = fmt.Sprintf("completed step %d", step)
+		return nil
+	})
 	return nil
 }
 

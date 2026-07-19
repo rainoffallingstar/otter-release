@@ -20,6 +20,7 @@ func Init(verbose bool) {
 // If logFilePath is empty, only console output is used
 // If logFilePath is provided, logs go to both console and file
 func InitWithFile(verbose bool, logFilePath string) {
+	Close()
 	log = logrus.New()
 
 	if verbose {
