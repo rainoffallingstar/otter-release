@@ -3,13 +3,28 @@
 set -euo pipefail
 
 BIN_DIR="${1:-$HOME/.cargo/bin}"
-required_bins=(enva fqc xenofilter paireads htseq2matrix methrix-cli qctb gomats)
+
+# Each entry: "binary_name|version_prefix"
+# binary_name: file names to look for (binary, binary-linux-amd64, binary-linux-amd64-static)
+# version_prefix: the name the binary reports in --version output
+required_bins=(
+  "enva|enva"
+  "fqc|fqc"
+  "xenofilter|xenofilter"
+  "paireads|paireads"
+  "htseq2matrix|htseq2matrix"
+  "methrix|methrix-cli"
+  "qctb|qctb"
+  "gomats|gomats"
+)
 version_re='([0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?|[0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[0-9]+|daily-[0-9]{8})'
 
 missing_bins=()
 invalid_versions=()
 
-for binary in "${required_bins[@]}"; do
+for entry in "${required_bins[@]}"; do
+  binary="${entry%%|*}"
+  version_prefix="${entry##*|}"
   path="${BIN_DIR}/${binary}"
   if [ ! -x "${path}" ] && [ -x "${BIN_DIR}/${binary}-linux-amd64" ]; then
     path="${BIN_DIR}/${binary}-linux-amd64"
@@ -24,7 +39,7 @@ for binary in "${required_bins[@]}"; do
   fi
 
   output="$("${path}" --version 2>&1 | head -1 || true)"
-  expected_re="^${binary} ${version_re}$"
+  expected_re="^${version_prefix} ${version_re}$"
   if printf '%s\n' "${output}" | grep -Eq "${expected_re}"; then
     echo "✓ ${binary}: ${output}"
   else
