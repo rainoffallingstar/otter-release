@@ -84,7 +84,8 @@ func run() error {
 		return fmt.Errorf("failed to merge HTSeq files: %w", err)
 	}
 
-	df, err = processor.ConvertGeneIDs(df, geneDB, species)
+	var conversionStatistics processor.GeneIDConversionStats
+	df, conversionStatistics, err = processor.ConvertGeneIDs(df, geneDB, species)
 	if err != nil {
 		return fmt.Errorf("failed to convert gene IDs: %w", err)
 	}
