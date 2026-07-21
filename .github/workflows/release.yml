@@ -28,6 +28,11 @@ jobs:
           submodules: recursive
           token: ${{ secrets.SUBMODULES_PAT }}
 
+      - name: Install samtools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y samtools
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
