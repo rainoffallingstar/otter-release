@@ -30,9 +30,8 @@ rule xenofilteR:
       --recalculate-nm \
       {"--graft-ref " + params.graft_ref if params.graft_ref else ""}\
       {"--host-ref " + params.host_ref if params.host_ref else ""}\
-      {" --bisulfite" if params.mode != "RNASEQ" else ""}
-
-    touch {params.filter_root}/Filtered_bams/filtered_success.txt
+      {" --bisulfite" if params.mode != "RNASEQ" else ""} \
+      && touch {params.filter_root}/Filtered_bams/filtered_success.txt
 
     """
     

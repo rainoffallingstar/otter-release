@@ -4,6 +4,18 @@
 
 `docs/review/` stores the human-readable release gate checklist and the generated evidence that proves the minimal release regressions still pass.
 
+## Submodule review program
+
+The repository contains 9 Git submodules. `bamdriver-go` has completed a systematic review and remediation; the remaining 8 submodules are scheduled for staged review.
+
+- Plan: [`submodule_review_plan_2026-07-21.md`](submodule_review_plan_2026-07-21.md)
+- Wave 1 remediation: [`wave1_remediation_plan_2026-07-21.md`](wave1_remediation_plan_2026-07-21.md)
+- Wave 1 reports:
+  - [`xenofilter-go`](submodules/xenofilter-go_review_2026-07-21.md)
+  - [`Paireads`](submodules/Paireads_review_2026-07-21.md)
+- Order: BAM data chain → scientific outputs → runtime/orchestration → cross-repository integration
+- Completion requires code review, regression tests, external compatibility evidence, security/reliability checks, and main-repository integration evidence.
+
 ## Minimal release evidence
 
 Public releases now require two committed dry-run records:

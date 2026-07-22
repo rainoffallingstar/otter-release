@@ -4,6 +4,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -178,6 +179,22 @@ func TestNewAssetCopier_Defaults(t *testing.T) {
 	copier2 := NewAssetCopier("/tmp/project", "legacy")
 	if copier2.RulesType != "legacy" {
 		t.Errorf("expected RulesType 'legacy', got '%s'", copier2.RulesType)
+	}
+}
+
+func TestXenofilterSuccessMarkersRequireSuccessfulCommands(t *testing.T) {
+	rulePaths := []string{
+		filepath.Join("..", "..", "inst", "rules", "XenofilteR.smk"),
+		filepath.Join("..", "..", "inst", "rules_legacy", "XenofilteR.smk"),
+	}
+	for _, rulePath := range rulePaths {
+		ruleContent, err := os.ReadFile(rulePath)
+		if err != nil {
+			t.Fatalf("read xenofilter rule %s: %v", rulePath, err)
+		}
+		if !strings.Contains(string(ruleContent), "&& touch {params.filter_root}/Filtered_bams/filtered_success.txt") {
+			t.Fatalf("xenofilter rule %s can create its success marker without an explicit successful-command guard", rulePath)
+		}
 	}
 }
 

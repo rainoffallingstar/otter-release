@@ -21,9 +21,8 @@ rule xenofilteR:
     --threads {threads} \
     --MM_threshold {params.MM_threshold} \
     --Unmapped_penalty {params.Unmapped_penalty} \
-    --Mode {params.mode}
-    
-    touch {params.filter_root}/Filtered_bams/filtered_success.txt
+    --Mode {params.mode} \
+    && touch {params.filter_root}/Filtered_bams/filtered_success.txt
     
     """
     
