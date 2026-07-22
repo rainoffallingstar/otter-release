@@ -80,14 +80,14 @@
 
 | Submodule | Binary | Purpose | Review Status |
 |-----------|--------|---------|---------------|
-| enva | enva | rattler-first 环境管理器 | 待系统审查 |
+| enva | enva | rattler-first 环境管理器 | 审查完成（2026-07-22）：1 Critical / 7 High / 5 Medium / 2 Low，阻断发布；详见 submodules/enva_review_2026-07-22.md |
 | xenofilter-go | xenofilter | 污染过滤 | 整改提交 `6ae7f84` 已推送，主仓指针更新至该提交；0 Critical / 0 High / 0 Medium，真实 PDX 工作流集成待工具链 |
 | Paireads | paireads | 配对 reads 处理 | 整改提交 `1ece0ba` 已推送，主仓指针更新至该提交；0 Critical / 0 High / 0 Medium，Bismark extractor 集成待工具链 |
-| htseq2matrix-go | htseq2matrix | HTSeq 矩阵转换 | 待系统审查 |
-| methrix-cli | methrix-cli | 甲基化分析 | 待系统审查 |
-| qctb | qctb | 质量控制工具箱 | 待系统审查 |
-| fastqc-rs | fqc | FastQC Rust 实现 | 待系统审查 |
-| gomats | gomats | rMATS 可变剪接分析 | 待系统审查 |
+| htseq2matrix-go | htseq2matrix | HTSeq 矩阵转换 | 审查完成（2026-07-22）：2 Critical / 6 High / 7 Medium / 1 Low，阻断发布；详见 submodules/htseq2matrix-go_review_2026-07-22.md |
+| methrix-cli | methrix-cli | 甲基化分析 | 审查完成（2026-07-22）：2 Critical / 6 High / 6 Medium，阻断发布；详见 submodules/methrix-cli_review_2026-07-22.md |
+| qctb | qctb | 质量控制工具箱 | 审查完成（2026-07-22）：3 Critical / 8 High / 7 Medium / 4 Low，阻断发布；详见 submodules/qctb_review_2026-07-22.md |
+| fastqc-rs | fqc | FastQC Rust 实现 | 审查进行中（外部模型通道间歇错误，待重试完成） |
+| gomats | gomats | rMATS 可变剪接分析 | 审查完成（2026-07-22）：1 Critical / 8 High / 7 Medium / 4 Low，阻断发布；详见 submodules/gomats_review_2026-07-22.md |
 | bamdriver-go | library | BAM/BGZF、BAI/FAI、排序与 NM 计算 | 已完成系统审查和整改 |
 
 系统审查计划：`docs/review/submodule_review_plan_2026-07-21.md`。Wave 1 已完成 `xenofilter-go` 和 `Paireads` 的代码整改与本地动态审查，整改计划见 `docs/review/wave1_remediation_plan_2026-07-21.md`。两个子仓的已知 Critical/High/Medium 均已修复。`Paireads` 已补齐所有 BAM/BAI 目标路径的输入别名防护、备份阶段回滚错误传播、事务性多产物发布、加固 BAM 依赖、显式 64 MiB 最终排序预算、single group streaming、dual two-way streaming merge、显式 primary-only 语义和完整 CI 门禁；`go test`、`go vet`、`go test -race`、`govulncheck`、静态构建及 samtools 1.24 的 quickcheck/count/坐标排序/BAI 区域查询均通过。当前环境缺少 `bismark_methylation_extractor`、`snakemake`、`enva` 和 `conda`，因此主仓普通与 PDX Bismark extractor 真实集成仍待具备工具链的环境执行。
