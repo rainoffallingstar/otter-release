@@ -86,7 +86,7 @@
 | htseq2matrix-go | htseq2matrix | HTSeq 矩阵转换 | 审查完成（2026-07-22）：2 Critical / 6 High / 7 Medium / 1 Low，阻断发布；详见 submodules/htseq2matrix-go_review_2026-07-22.md |
 | methrix-cli | methrix-cli | 甲基化分析 | 审查完成（2026-07-22）：2 Critical / 6 High / 6 Medium，阻断发布；详见 submodules/methrix-cli_review_2026-07-22.md |
 | qctb | qctb | 质量控制工具箱 | 审查完成（2026-07-22）：3 Critical / 8 High / 7 Medium / 4 Low，阻断发布；详见 submodules/qctb_review_2026-07-22.md |
-| fastqc-rs | fqc | FastQC Rust 实现 | 审查进行中（外部模型通道间歇错误，待重试完成） |
+| fastqc-rs | fqc | FastQC Rust 实现 | 审查完成（2026-07-22）：1 Critical / 4 High / 8 Medium / 7 Low，阻断发布；详见 submodules/fastqc-rs_review_2026-07-22.md |
 | gomats | gomats | rMATS 可变剪接分析 | 审查完成（2026-07-22）：1 Critical / 8 High / 7 Medium / 4 Low，阻断发布；详见 submodules/gomats_review_2026-07-22.md |
 | bamdriver-go | library | BAM/BGZF、BAI/FAI、排序与 NM 计算 | 已完成系统审查和整改 |
 

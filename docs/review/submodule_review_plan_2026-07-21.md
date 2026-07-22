@@ -416,7 +416,7 @@ Critical 和 High 问题未清零时，不得将对应子仓库标记为“已�
 | Wave 1 | `Paireads` | 整改提交 `1ece0ba` 已推送，主仓指针已更新；待真实集成 | `submodules/Paireads_review_2026-07-21.md` | 0 Critical / 0 High | samtools 1.24 兼容通过，Bismark extractor 集成待工具链 |
 | Wave 2 | `methrix-cli` | 审查完成，阻断发布 | `submodules/methrix-cli_review_2026-07-22.md` | 2 Critical / 6 High | CI/release 不测试 methrix；真实 R loader 待 HDF5Array/methrix 环境 |
 | Wave 2 | `htseq2matrix-go` | 审查完成，阻断发布 | `submodules/htseq2matrix-go_review_2026-07-22.md` | 2 Critical / 6 High | Go/R 差分失败；主仓规则参数与实际 CLI 一致但缺科学兼容门禁 |
-| Wave 2 | `fastqc-rs` | 审查进行中（外部通道错误待重试） | 待创建 | 未评估 | 待验证 |
+| Wave 2 | `fastqc-rs` | 审查完成，阻断发布 | `submodules/fastqc-rs_review_2026-07-22.md` | 1 Critical / 4 High | Q20/Q30 公式错误直接污染 qctb；clippy/doctest 失败 |
 | Wave 2 | `qctb` | 审查完成，阻断发布 | `submodules/qctb_review_2026-07-22.md` | 3 Critical / 8 High | 主仓当前配置无法被 qctb 反序列化；R 契约不兼容 |
 | Wave 3 | `gomats` | 审查完成，阻断发布 | `submodules/gomats_review_2026-07-22.md` | 1 Critical / 8 High | Snakemake 边界 shell 注入；真实 rMATS 集成待工具链 |
 | Wave 3 | `enva` | 审查完成，阻断发布 | `submodules/enva_review_2026-07-22.md` | 1 Critical / 7 High | argv 边界丢失破坏主仓 `enva run` 契约；clippy 失败 |
