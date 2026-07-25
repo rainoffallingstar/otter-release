@@ -13,12 +13,12 @@ rule bismark_methylation_extractor :
   threads:5
   shell:
     """
-    # Sort by read name and filter unpaired reads using paireads
-    enva run xdxtools-core -- samtools sort  -@ {threads} -n -o {params.bam_nsorted}.tmp {input.bam_sorted}
-    paireads {params.bam_nsorted}.tmp {params.bam_nsorted}
+    # Sort by read name and filter unpaired reads using pairbam
+    enva run otter-core -- samtools sort  -@ {threads} -n -o {params.bam_nsorted}.tmp {input.bam_sorted}
+    pairbam {params.bam_nsorted}.tmp {params.bam_nsorted}
     rm -f {params.bam_nsorted}.tmp
 
-    enva run xdxtools-core -- bismark_methylation_extractor --paired-end --gzip \
+    enva run otter-core -- bismark_methylation_extractor --paired-end --gzip \
       --output_dir {params.mcall_dir} \
       --comprehensive --merge_non_CpG --bedGraph --multicore {threads} \
       --buffer_size {params.mem_size} \

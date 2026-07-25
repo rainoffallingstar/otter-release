@@ -13,7 +13,7 @@ rule picard_pdx_patch:
         if config["mode"] == "RNASEQ":
             shell(
                 """
-                enva run xdxtools-core -- picard SetNmMdAndUqTags \
+                enva run otter-core -- picard SetNmMdAndUqTags \
                 I={input.bam_sorted} \
                 O={params.bam_fixed} \
                 R={params.fasta} \
@@ -25,7 +25,7 @@ rule picard_pdx_patch:
         else:
             shell(
                 """
-                enva run xdxtools-core -- picard SetNmMdAndUqTags \
+                enva run otter-core -- picard SetNmMdAndUqTags \
                 I={input.bam_sorted} \
                 O={params.bam_fixed} \
                 R={params.fasta} \

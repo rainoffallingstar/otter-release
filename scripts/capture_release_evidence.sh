@@ -13,7 +13,7 @@ Capture minimal release evidence for:
 Options:
   --out-dir DIR          Output directory for reports and logs (default: docs/review)
   --date YYYY-MM-DD      Override UTC report date (default: today UTC)
-  --binary PATH          Use an existing xdxtools binary instead of building one
+  --binary PATH          Use an existing otter binary instead of building one
   --slurm-partition NAME SLURM partition for the RNASEQ dry-run (default: auto-detect via sinfo)
   --keep-workdir         Do not delete the temporary working directory
   --skip-rrbs            Skip RRBS local dry-run capture
@@ -25,7 +25,7 @@ USAGE
 OUT_DIR="docs/review"
 REPORT_DATE="$(date -u +%Y-%m-%d)"
 BINARY=""
-SLURM_PARTITION="${XDXTOOLS_RELEASE_SLURM_PARTITION:-}"
+SLURM_PARTITION="${OTTER_RELEASE_SLURM_PARTITION:-}"
 KEEP_WORKDIR=0
 SKIP_RRBS=0
 SKIP_RNASEQ=0
@@ -82,7 +82,7 @@ OUT_DIR="$(mkdir -p "$OUT_DIR" && cd "$OUT_DIR" && pwd)"
 EVIDENCE_DIR="$OUT_DIR/release_evidence_${REPORT_DATE}"
 mkdir -p "$EVIDENCE_DIR"
 
-WORK_ROOT="$(mktemp -d /tmp/xdxtools-release-evidence-XXXXXX)"
+WORK_ROOT="$(mktemp -d /tmp/otter-release-evidence-XXXXXX)"
 cleanup() {
   if [[ "$KEEP_WORKDIR" -eq 1 ]]; then
     echo "Keeping work directory: $WORK_ROOT"
@@ -115,13 +115,13 @@ resolve_slurm_partition() {
 }
 
 if [[ -z "$BINARY" ]]; then
-  BINARY="$WORK_ROOT/xdxtools"
-  echo "Building xdxtools for evidence capture..."
+  BINARY="$WORK_ROOT/otter"
+  echo "Building otter for evidence capture..."
   go build -trimpath -o "$BINARY" .
 fi
 
 if [[ ! -x "$BINARY" ]]; then
-  echo "xdxtools binary is not executable: $BINARY" >&2
+  echo "otter binary is not executable: $BINARY" >&2
   exit 1
 fi
 
@@ -160,7 +160,7 @@ if [[ "$SKIP_RRBS" -eq 0 ]]; then
 cd "$REPO_ROOT" && \
 "$BINARY" init "$RRBS_PROJECT" && \
 "$BINARY" create --fastq "$REPO_ROOT/testdata/fastq/test_fastq" --pdata "$REPO_ROOT/testdata/pdata/test_pdata.csv" --mode RRBS --output "$RRBS_PROJECT/userspace" --jobid rrbs_release_smoke && \
-"$BINARY" run --config "$RRBS_PROJECT/userspace/rrbs_release_smoke/config/config.yaml" --engine local --dry-run --step1-cores 4 --step1-memory 1G --step2-cores 4 --step2-memory 1G --step3-cores 4 --step3-memory 1G
+"$BINARY" run --config "$RRBS_PROJECT/userspace/rrbs_release_smoke/config/otter.yaml" --engine local --dry-run --step1-cores 4 --step1-memory 1G --step2-cores 4 --step2-memory 1G --step3-cores 4 --step3-memory 1G
 CMD
 )
   if run_case rrbs_local_dry_run "$RRBS_CMD" "$RRBS_LOG"; then
@@ -187,7 +187,7 @@ if [[ "$SKIP_RNASEQ" -eq 0 ]]; then
 cd "$REPO_ROOT" && \
 "$BINARY" init "$RNASEQ_PROJECT" && \
 "$BINARY" create --fastq "$REPO_ROOT/testdata/fastq/test_fastq" --pdata "$REPO_ROOT/testdata/pdata/test_pdata.csv" --mode RNASEQ --output "$RNASEQ_PROJECT/userspace" --jobid rnaseq_release_smoke && \
-"$BINARY" run --config "$RNASEQ_PROJECT/userspace/rnaseq_release_smoke/config/config.yaml" --engine slurm --slurm-partition "$SLURM_PARTITION" --dry-run --step1-cores 4 --step1-memory 1G --step2-cores 4 --step2-memory 1G --step3-cores 4 --step3-memory 1G
+"$BINARY" run --config "$RNASEQ_PROJECT/userspace/rnaseq_release_smoke/config/otter.yaml" --engine slurm --slurm-partition "$SLURM_PARTITION" --dry-run --step1-cores 4 --step1-memory 1G --step2-cores 4 --step2-memory 1G --step3-cores 4 --step3-memory 1G
 CMD
 )
   if run_case rnaseq_slurm_dry_run "$RNASEQ_CMD" "$RNASEQ_LOG"; then

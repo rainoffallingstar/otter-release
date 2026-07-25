@@ -6,9 +6,9 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/rainoffallingstar/otter/internal/assets"
+	"github.com/rainoffallingstar/otter/internal/logger"
 	"github.com/spf13/cobra"
-	"github.com/xdxtools/xdxtools-go/internal/assets"
-	"github.com/xdxtools/xdxtools-go/internal/logger"
 )
 
 var (
@@ -19,8 +19,8 @@ var (
 // initCmd represents the init command
 var initCmd = &cobra.Command{
 	Use:   "init [project-name]",
-	Short: "Initialize a new xdxtools project",
-	Long: `Initialize a new xdxtools project with the beaverflow directory structure.
+	Short: "Initialize a new otter project",
+	Long: `Initialize a new otter project with the beaverflow directory structure.
 
 This command creates the complete project structure and copies all required
 Snakemake workflow files, R/Python scripts, rules, and conda environments
@@ -40,8 +40,8 @@ Directory structure created:
   *.snakemake      # Snakemake workflow files (copied from package)
 
 Examples:
-  xdxtools init my_project
-  xdxtools init my_project --mode RRBS`,
+  otter init my_project
+  otter init my_project --mode RRBS`,
 	Args: cobra.MinimumNArgs(0),
 	RunE: runInit,
 }
@@ -66,7 +66,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		}
 	} else {
 		// Default project name if not provided
-		projectName = "xdxtools-project"
+		projectName = "otter-project"
 		projectDir = projectName
 	}
 
@@ -122,7 +122,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 	// Step 4: Create README.md
 	readmeContent := fmt.Sprintf(`# %s
 
-This is an xdxtools project initialized with beaverflow structure.
+This is an otter project initialized with beaverflow structure.
 
 ## Workflow Mode: %s
 
@@ -147,8 +147,8 @@ This is an xdxtools project initialized with beaverflow structure.
 3. Download reference genomes:
    - Visit: https://huggingface.co/datasets/Genomiclab/xdxtools-genomes/tree/main
    - Download and extract genomes to inst/ directory
-4. Create config file: xdxtools create --fastq data --mode %s --output %s/userspace --jobid demo_run
-5. Run workflow: xdxtools run --config %s/userspace/demo_run/config/config.yaml
+4. Create config file: otter create --fastq data --mode %s --output %s/userspace --jobid demo_run
+5. Run workflow: otter run --config %s/userspace/demo_run/config/otter.yaml
 
 ## Snakemake Workflows
 
@@ -179,8 +179,8 @@ Available workflows:
 	logger.Info("3. Download reference genomes:")
 	logger.Info("   Visit: https://huggingface.co/datasets/Genomiclab/xdxtools-genomes/tree/main")
 	logger.Info("   Download and extract genomes to inst/ directory")
-	logger.Infof("4. Create config: xdxtools create --fastq data --output %s/userspace --jobid demo_run", projectName)
-	logger.Infof("5. Run workflow: xdxtools run --config %s/userspace/demo_run/config/config.yaml", projectName)
+	logger.Infof("4. Create config: otter create --fastq data --output %s/userspace --jobid demo_run", projectName)
+	logger.Infof("5. Run workflow: otter run --config %s/userspace/demo_run/config/otter.yaml", projectName)
 
 	return nil
 }
@@ -199,12 +199,12 @@ func checkEnvSupport() {
 		logger.Warn("  enva is rattler-first and can interoperate with existing conda/mamba/micromamba environments")
 		logger.Warn("")
 		logger.Warn("Installation:")
-		logger.Warn("  wget https://github.com/xdxtools/enva/releases/latest/download/enva-linux-x86_64")
+		logger.Warn("  wget https://github.com/rainoffallingstar/enva/releases/latest/download/enva-linux-x86_64")
 		logger.Warn("  chmod +x enva-linux-x86_64")
 		logger.Warn("  sudo mv enva-linux-x86_64 /usr/local/bin/enva")
 		logger.Warn("")
 		logger.Warn("Or build from source:")
-		logger.Warn("  git clone https://github.com/xdxtools/enva")
+		logger.Warn("  git clone https://github.com/rainoffallingstar/enva")
 		logger.Warn("  cd enva && cargo build --release")
 		logger.Warn("  cp target/release/enva /usr/local/bin/enva")
 		logger.Warn("")

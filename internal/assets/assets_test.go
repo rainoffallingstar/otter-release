@@ -8,7 +8,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/xdxtools/xdxtools-go/internal/logger"
+	"github.com/rainoffallingstar/otter/internal/logger"
 )
 
 func init() {
@@ -24,11 +24,11 @@ func setupTestFS(t *testing.T) {
 		"inst/snakefiles/BeaverBS_step1.snakemake": &fstest.MapFile{
 			Data: []byte("rule step1:\n  shell: 'echo hello'\n"),
 		},
-		"inst/rules/01fqc.smk": &fstest.MapFile{
-			Data: []byte("rule fqc:\n  shell: 'fqc {input}'\n"),
+		"inst/rules/01fastqcxAtfirst.smk": &fstest.MapFile{
+			Data: []byte("rule fastqcxAtfirst:\n  shell: 'fastqcx {input}'\n"),
 		},
-		"inst/envs/xdxtools-snakemake.yaml": &fstest.MapFile{
-			Data: []byte("name: xdxtools-snakemake\n"),
+		"inst/envs/otter-snakemake.yaml": &fstest.MapFile{
+			Data: []byte("name: otter-snakemake\n"),
 		},
 		"inst/data/gene_mapping.csv": &fstest.MapFile{
 			Data: []byte("ensembl_id,symbol\nENSG001,BRCA1\n"),
@@ -100,7 +100,7 @@ func TestCopyDir_CreatesParentDirs(t *testing.T) {
 	}
 
 	// Verify nested file exists
-	destPath := filepath.Join(tmpDir, "rules", "01fqc.smk")
+	destPath := filepath.Join(tmpDir, "rules", "01fastqcxAtfirst.smk")
 	if _, err := os.Stat(destPath); os.IsNotExist(err) {
 		t.Fatalf("expected %s to exist after copy", destPath)
 	}
@@ -123,8 +123,8 @@ func TestCopyAll(t *testing.T) {
 	}{
 		{filepath.Join(tmpDir, "R", "test.R"), "R script"},
 		{filepath.Join(tmpDir, "BeaverBS_step1.snakemake"), "snakefile"},
-		{filepath.Join(tmpDir, "rules", "01fqc.smk"), "rule"},
-		{filepath.Join(tmpDir, "envs", "xdxtools-snakemake.yaml"), "env"},
+		{filepath.Join(tmpDir, "rules", "01fastqcxAtfirst.smk"), "rule"},
+		{filepath.Join(tmpDir, "envs", "otter-snakemake.yaml"), "env"},
 		{filepath.Join(tmpDir, "data", "gene_mapping.csv"), "data"},
 	}
 
@@ -190,10 +190,10 @@ func TestXenofilterSuccessMarkersRequireSuccessfulCommands(t *testing.T) {
 	for _, rulePath := range rulePaths {
 		ruleContent, err := os.ReadFile(rulePath)
 		if err != nil {
-			t.Fatalf("read xenofilter rule %s: %v", rulePath, err)
+			t.Fatalf("read xenofilx rule %s: %v", rulePath, err)
 		}
 		if !strings.Contains(string(ruleContent), "&& touch {params.filter_root}/Filtered_bams/filtered_success.txt") {
-			t.Fatalf("xenofilter rule %s can create its success marker without an explicit successful-command guard", rulePath)
+			t.Fatalf("xenofilx rule %s can create its success marker without an explicit successful-command guard", rulePath)
 		}
 	}
 }
@@ -241,30 +241,32 @@ func TestWorkflowCommandsQuotePathArguments(t *testing.T) {
 		},
 		{
 			name:     "raw FastQC",
-			rulePath: filepath.Join("..", "..", "inst", "rules", "01fqcAtfirst.smk"),
+			rulePath: filepath.Join("..", "..", "inst", "rules", "01fastqcxAtfirst.smk"),
 			requiredSnippets: []string{
-				"fqc -q {input.R1:q} -s {params.R1_dir:q} --no-html",
-				"fqc -q {input.R2:q} -s {params.R2_dir:q} --no-html",
-				"{sample}_R1_fqc\", \"fastqc_data.txt",
-				"{sample}_R2_fqc\", \"fastqc_data.txt",
+				"rule fastqcxAtfirst:",
+				"fastqcx -q {input.R1:q} -s {params.R1_dir:q} --no-html",
+				"fastqcx -q {input.R2:q} -s {params.R2_dir:q} --no-html",
+				"{sample}_R1_fastqcx\", \"fastqc_data.txt",
+				"{sample}_R2_fastqcx\", \"fastqc_data.txt",
 			},
 			forbiddenSnippets: []string{
-				"fqc -q {input.R1} ",
-				"fqc -q {input.R2} ",
+				"fastqcx -q {input.R1} ",
+				"fastqcx -q {input.R2} ",
 			},
 		},
 		{
 			name:     "clean FastQC",
-			rulePath: filepath.Join("..", "..", "inst", "rules", "03-0-fqcAtclean.smk"),
+			rulePath: filepath.Join("..", "..", "inst", "rules", "03-0-fastqcxAtclean.smk"),
 			requiredSnippets: []string{
-				"fqc -q {input.R1:q} -s {params.R1_dir:q} --no-html",
-				"fqc -q {input.R2:q} -s {params.R2_dir:q} --no-html",
-				"{sample}_val_1_fqc\", \"fastqc_data.txt",
-				"{sample}_val_2_fqc\", \"fastqc_data.txt",
+				"rule fastqcxAtclean:",
+				"fastqcx -q {input.R1:q} -s {params.R1_dir:q} --no-html",
+				"fastqcx -q {input.R2:q} -s {params.R2_dir:q} --no-html",
+				"{sample}_val_1_fastqcx\", \"fastqc_data.txt",
+				"{sample}_val_2_fastqcx\", \"fastqc_data.txt",
 			},
 			forbiddenSnippets: []string{
-				"fqc -q {input.R1} ",
-				"fqc -q {input.R2} ",
+				"fastqcx -q {input.R1} ",
+				"fastqcx -q {input.R2} ",
 			},
 		},
 	}

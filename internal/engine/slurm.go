@@ -11,8 +11,8 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/xdxtools/xdxtools-go/internal/logger"
-	taskruntime "github.com/xdxtools/xdxtools-go/internal/task"
+	"github.com/rainoffallingstar/otter/internal/logger"
+	taskruntime "github.com/rainoffallingstar/otter/internal/task"
 )
 
 // NodeInfo 存储节点信息
@@ -192,7 +192,7 @@ func NewSlurmEngine(config *SlurmConfig) *SlurmEngine {
 	}
 	jobName := config.JobName
 	if jobName == "" {
-		jobName = "xdxtools_job"
+		jobName = "otter_job"
 	}
 	maxRetries := config.MaxRetries
 	if maxRetries <= 0 {
@@ -331,7 +331,7 @@ func (e *SlurmEngine) generateSlurmScript(cmd []string) (string, error) {
 	if tmpDir == "" {
 		tmpDir = os.TempDir()
 	}
-	scriptPath := filepath.Join(tmpDir, fmt.Sprintf("xdxtools_%s.sh", e.jobName))
+	scriptPath := filepath.Join(tmpDir, fmt.Sprintf("otter_%s.sh", e.jobName))
 
 	// Slurm script template
 	const scriptTemplate = `#!/bin/bash

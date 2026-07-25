@@ -1,206 +1,88 @@
 # 第一章：安装指南
 
-> **本章你将学到：**
-> - 安装 xdxtools 及全套子工具
-> - 配置 PATH 环境变量，让终端能找到工具
-> - 验证安装是否成功
+## 支持状态
 
----
+主仓统一为 `rainoffallingstar/otter`。当前运行时仍需 Snakemake；`craftmake` 是正在接入的 Go 替代执行层，暂时与 Snakemake 双轨。
 
-## 📋 安装前检查
+## 安装前要求
 
-在开始安装之前，请先确认以下条件：
+- Linux 或 macOS；SLURM 集群以 Linux 为主
+- Git、Go 1.24+
+- 构建 Rust 组件时需要 Rust 工具链
+- `methx` 构建/运行需要 HDF5
+- 能访问 GitHub 和配置的软件包频道
 
-### 系统要求
-
-| 条件 | 要求 |
-|------|------|
-| 操作系统 | Linux（推荐 CentOS 7 / Ubuntu 18.04+） |
-| 架构 | x86-64（64 位） |
-| 网络 | 能访问 GitHub（下载工具）和 conda 频道镜像（创建环境） |
-
-### 检查网络与安装目录写权限
+## Release 安装
 
 ```bash
-# 检查 GitHub 访问
-curl -I https://github.com
-
-# 检查安装目录可写（默认安装到 ~/.cargo/bin）
-mkdir -p ~/.cargo/bin && test -w ~/.cargo/bin && echo "ok"
+bash <(curl -fsSL https://raw.githubusercontent.com/rainoffallingstar/otter/main/scripts/install.sh)
 ```
 
-xdxtools 安装脚本会优先安装并调用 `enva`。如果你本机已经有 `conda` / `mamba` / `micromamba` 环境，后续也可以继续被 `enva` 发现和接管。若完全没有任何 conda 前缀，建议先准备一个常见发行版目录作为环境根前缀，例如 [Miniconda](https://docs.conda.io/en/latest/miniconda.html) 或 Miniforge：
+安装脚本和 release 资产也处于命名迁移范围。如果当前 release 仍包含旧二进制名或旧环境前缀，应作为兼容资产记录，不要把它误写成已完成迁移。
+
+## 源码安装
 
 ```bash
-# 下载并安装 Miniconda（仅限首次）
-wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
-bash Miniconda3-latest-Linux-x86_64.sh
-# 按提示操作，最后选择 yes 初始化
+git clone --recurse-submodules https://github.com/rainoffallingstar/otter.git
+cd otter
+conda activate go-env
+go build -o otter .
+install -m 755 otter "$HOME/.cargo/bin/otter"
 ```
 
----
+当前源码根命令可能仍显示 `xdxtools`。输出文件名改为 `otter` 不等于代码迁移完成，打包前必须运行 `./otter --help` 核对。
 
-## 🚀 一键安装（推荐方式）
+## 子模块
 
-### 运行安装脚本
+```text
+craftmake enva fastqcx xenofilx pairbam seq2mat matsrun qctb methx bamdriver
+```
+
+若目录为空：
 
 ```bash
-bash <(wget -qO- https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh)
+git submodule update --init --recursive
 ```
 
-安装脚本会逐步询问你的选项，下面是每个问题的说明：
-
-```
-❓ Select installation directory [default: ~/.cargo/bin]:
-   → 直接回车使用默认路径（推荐），或输入自定义路径
-
-❓ Install all subtools? [Y/n]:
-   → 输入 Y 或直接回车，安装所有 8 个子工具（推荐）
-   → 输入 n 跳过，后续可单独安装
-
-❓ Create conda environments? [Y/n]:
-   → 输入 Y 创建分析所需环境（首次安装推荐，默认由 enva/rattler 管理）
-   → 已有环境可输入 n 跳过
-
-❓ xdxtools version [default: latest]:
-   → 直接回车安装最新版本
-```
-
-安装过程大约需要 **15-30 分钟**（视网络速度），请耐心等待。
-
-### 📍 安装日志示例
-
-```
-[INFO] Downloading xdxtools v1.x.x ...
-[INFO] Installing to ~/.cargo/bin/xdxtools ...
-[INFO] Installing enva ...
-[INFO] Installing xenofilter ...
-...
-[SUCCESS] All tools installed successfully!
-```
-
----
-
-## ⚙️ 安装选项说明
-
-如果你熟悉命令行，可以使用以下选项跳过交互式问答：
-
-| 选项 | 说明 | 示例 |
-|------|------|------|
-| `--non-interactive` | 全自动安装，使用所有默认选项 | `bash install.sh --non-interactive` |
-| `--skip-envs` | 跳过环境创建 | `bash install.sh --skip-envs` |
-| `--version <v>` | 安装指定版本 | `bash install.sh --version v1.2.0` |
-| `--prefix <dir>` | 指定安装目录 | `bash install.sh --prefix ~/mybin` |
-| `--help` | 查看所有选项 | `bash install.sh --help` |
-
----
-
-## ✅ 验证安装
-
-安装完成后，运行以下命令验证：
+## 环境
 
 ```bash
-# 验证主工具
-xdxtools --version
-# 期望输出：xdxtools version 1.x.x
+enva create --core
+enva create --snakemake
+enva create --extra
+enva list --detailed
+enva validate --all
+```
 
-# 验证子工具
+期望环境名：
+
+| 环境 | 用途 |
+|---|---|
+| `otter-core` | 核心生信工具与算子 |
+| `otter-snakemake` | 当前 Snakemake 兼容路径 |
+| `otter-extra` | 附加分析和可视化工具 |
+
+## 验证
+
+```bash
+command -v otter craftmake enva
+command -v fastqcx xenofilx pairbam seq2mat matsrun qctb methx bamdriver
+
+otter --help
+craftmake --help
 enva --version
-xenofilter --version
-paireads --version
-htseq2matrix --version
-methrix-cli --version
-qctb --version
-fqc --version
-gomats --version
 ```
 
-如果某个命令报 `command not found`，请看下一节 PATH 配置。
+`craftmake --help` 成功不代表 `otter run` 已切换到 craftmake。
 
----
-
-## 🔧 PATH 配置说明
-
-工具默认安装到 `~/.cargo/bin/`，如果终端找不到命令，需要将该目录加入 `PATH`。
-
-### 查看当前 PATH
+## HDF5
 
 ```bash
-echo $PATH
-# 检查是否包含 ~/.cargo/bin
-```
-
-### 添加到 PATH（永久生效）
-
-```bash
-# 编辑 ~/.bashrc（bash 用户）或 ~/.zshrc（zsh 用户）
-echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> ~/.bashrc
-
-# 使配置立即生效
-source ~/.bashrc
-```
-
-### 验证 PATH 配置
-
-```bash
-which xdxtools
-# 期望输出：/home/你的用户名/.cargo/bin/xdxtools
-```
-
----
-
-## 🐍 Conda 环境说明
-
-xdxtools 的分析流程依赖以下三个 conda 环境：
-
-| 环境名 | 用途 | 占用空间 |
-|--------|------|---------|
-| `go-build` | 编译 Go 子工具 | ~200 MB |
-| `rust_build` | 编译 Rust 工具（fqc） | ~500 MB |
-| `methrix-cli` 相关 | methrix-cli 运行时依赖（含 HDF5） | ~1 GB |
-
-查看已创建的环境：
-
-```bash
-conda env list
-# 或
-enva list
-```
-
----
-
-## 🧪 HDF5 配置提示
-
-如果你需要使用 **methrix-cli**（甲基化 HDF5 分析），需要额外配置 HDF5 库路径。
-
-将以下内容添加到 `~/.bashrc`：
-
-```bash
-# HDF5 环境变量（methrix-cli 专用）
-export HDF5_DIR="$HOME/miniconda3/envs/rust_build"
+export HDF5_DIR="$CONDA_PREFIX"
 export HDF5_INCLUDE_DIR="$HDF5_DIR/include"
 export HDF5_LIB_DIR="$HDF5_DIR/lib"
-export LD_LIBRARY_PATH="$HDF5_DIR/lib:$LD_LIBRARY_PATH"
 export PKG_CONFIG_PATH="$HDF5_DIR/lib/pkgconfig:$PKG_CONFIG_PATH"
+export LD_LIBRARY_PATH="$HDF5_DIR/lib:$LD_LIBRARY_PATH"
 ```
 
-> ⚠️ **注意**：将 `$HOME/miniconda3` 替换为你实际的 conda 安装路径。
-
-运行后生效：
-
-```bash
-source ~/.bashrc
-methrix-cli --version
-```
-
----
-
-## 🆘 安装遇到问题？
-
-- 命令找不到 → [FAQ：`xdxtools: command not found`](07-faq.md#command-not-found)
-- enva 安装失败 → [FAQ：enva 安装失败](07-faq.md#enva-install-fail)
-- methrix 报 HDF5 错误 → [FAQ：HDF5 错误](07-faq.md#hdf5-error)
-
----
-
-**下一章：** [📁 第二章：数据准备](02-data-preparation.md)
+下一章：[数据准备](02-data-preparation.md)

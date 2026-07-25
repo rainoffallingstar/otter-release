@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/xdxtools/xdxtools-go/internal/config"
-	"github.com/xdxtools/xdxtools-go/internal/engine"
-	"github.com/xdxtools/xdxtools-go/internal/logger"
-	taskruntime "github.com/xdxtools/xdxtools-go/internal/task"
+	"github.com/rainoffallingstar/otter/internal/config"
+	"github.com/rainoffallingstar/otter/internal/engine"
+	"github.com/rainoffallingstar/otter/internal/logger"
+	taskruntime "github.com/rainoffallingstar/otter/internal/task"
 )
 
 // Manager manages workflow execution
@@ -19,7 +19,7 @@ type Manager struct {
 	state         *State
 	dryRun        bool
 	condaEnv      string
-	fallbackEnv   string // Fallback environment (default: xdxtools-snakemake)
+	fallbackEnv   string // Fallback environment (default: otter-snakemake)
 	noFallback    bool   // Disable automatic fallback
 	samples       []string
 	stepResources map[int]*config.StepResource
@@ -150,7 +150,7 @@ func (m *Manager) Initialize() error {
 	}
 
 	// Initialize file logging
-	logFilePath := filepath.Join(logsDir, "xdxtools.log")
+	logFilePath := filepath.Join(logsDir, "otter.log")
 	logger.InitWithFile(false, logFilePath)
 	logger.Infof("Logging to file: %s", logFilePath)
 
@@ -625,7 +625,7 @@ func (m *Manager) runCheckerIfExists(checkerOf map[int]int, workflowIdx string, 
 	}
 	checkerFile := snakefileForStep(workflowIdx, checkerStep)
 	exists := false
-	for _, c := range []string{checkerFile, filepath.Join("xdxtools-project", checkerFile)} {
+	for _, c := range []string{checkerFile, filepath.Join("otter-project", checkerFile)} {
 		if _, err := os.Stat(c); err == nil {
 			exists = true
 			break

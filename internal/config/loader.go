@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/rainoffallingstar/otter/internal/logger"
 	"github.com/spf13/viper"
-	"github.com/xdxtools/xdxtools-go/internal/logger"
 )
 
 // Loader handles configuration loading
@@ -28,7 +28,7 @@ func NewLoader(configPath string) *Loader {
 }
 
 // LoadConfig loads configuration from file
-func (l *Loader) LoadConfig() (*XDXToolsConfig, error) {
+func (l *Loader) LoadConfig() (*OtterConfig, error) {
 	config := LoadDefaults()
 
 	// Load from file if it exists
@@ -68,7 +68,7 @@ func (l *Loader) LoadConfig() (*XDXToolsConfig, error) {
 }
 
 // SaveConfig saves configuration to file
-func (l *Loader) SaveConfig(config *XDXToolsConfig) error {
+func (l *Loader) SaveConfig(config *OtterConfig) error {
 	// Ensure directory exists
 	if err := os.MkdirAll(filepath.Dir(l.configPath), 0755); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
@@ -84,22 +84,22 @@ func (l *Loader) SaveConfig(config *XDXToolsConfig) error {
 }
 
 // mergeEnvOverrides merges environment variable overrides
-func (l *Loader) mergeEnvOverrides(config *XDXToolsConfig) {
+func (l *Loader) mergeEnvOverrides(config *OtterConfig) {
 	// Mode
-	if mode := os.Getenv("XDXTOOLS_MODE"); mode != "" {
+	if mode := os.Getenv("OTTER_MODE"); mode != "" {
 		config.Workflow.Mode = mode
 	}
 
 	// Species
-	if species1 := os.Getenv("XDXTOOLS_SPECIES1"); species1 != "" {
+	if species1 := os.Getenv("OTTER_SPECIES1"); species1 != "" {
 		config.Workflow.Species.Primary = species1
 	}
-	if species2 := os.Getenv("XDXTOOLS_SPECIES2"); species2 != "" {
+	if species2 := os.Getenv("OTTER_SPECIES2"); species2 != "" {
 		config.Workflow.Species.Secondary = species2
 	}
 
 	// FASTQ
-	if fastqDir := os.Getenv("XDXTOOLS_FASTQ_DIR"); fastqDir != "" {
+	if fastqDir := os.Getenv("OTTER_FASTQ_DIR"); fastqDir != "" {
 		config.Input.FastqDir = fastqDir
 	}
 
@@ -107,7 +107,7 @@ func (l *Loader) mergeEnvOverrides(config *XDXToolsConfig) {
 }
 
 // mergeReferenceFields merges flat reference fields into nested structure
-func (l *Loader) mergeReferenceFields(config *XDXToolsConfig) {
+func (l *Loader) mergeReferenceFields(config *OtterConfig) {
 	// Merge GenomeFasta into Files.Fasta for backward compatibility
 	if len(config.Reference.GenomeFasta) > 0 && len(config.Reference.Files.Fasta) == 0 {
 		config.Reference.Files.Fasta = config.Reference.GenomeFasta
@@ -116,7 +116,7 @@ func (l *Loader) mergeReferenceFields(config *XDXToolsConfig) {
 }
 
 // mergeFlatCompatFields merges flat top-level fields into nested structure for compatibility.
-func (l *Loader) mergeFlatCompatFields(config *XDXToolsConfig) {
+func (l *Loader) mergeFlatCompatFields(config *OtterConfig) {
 	// mode -> workflow.mode (used by Go runtime config validation and execution)
 	if config.Workflow.Mode == "" {
 		if mode := l.viper.GetString("mode"); mode != "" {

@@ -25,7 +25,7 @@ dependencies = [
 ]
 dev_dependencies = []
 prefer_repositories_for = []
-conda_env = "xdxtools-r"
+conda_env = "otter-r"
 pak_fallback = true
 
 [[project.repositories]]

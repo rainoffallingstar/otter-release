@@ -9,7 +9,7 @@
 
 ## 📁 FASTQ 文件命名规范
 
-FASTQ 文件（测序原始数据）必须按照特定规则命名，xdxtools 才能正确识别成对的读段（R1 和 R2）。
+FASTQ 文件（测序原始数据）必须按照特定规则命名，otter 才能正确识别成对的读段（R1 和 R2）。
 
 ### ✅ 正确命名示例
 
@@ -62,7 +62,7 @@ ls -la *.fastq.gz
 
 ## 📊 样本信息表（pdata）制作指南
 
-样本信息表（pdata）是一个 Excel 或 CSV 文件，记录每个样本的基本信息。xdxtools 会读取这个表来匹配 FASTQ 文件并生成分析配置。
+样本信息表（pdata）是一个 Excel 或 CSV 文件，记录每个样本的基本信息。otter 会读取这个表来匹配 FASTQ 文件并生成分析配置。
 
 ### 必填列
 
@@ -80,7 +80,7 @@ ls -la *.fastq.gz
 
 ### 支持中文列名
 
-xdxtools 支持中文列名，会自动识别并转换：
+otter 支持中文列名，会自动识别并转换：
 
 | 中文列名 | 等价英文列名 |
 |---------|------------|
@@ -126,7 +126,7 @@ sample4,TGACCA,control,Group_B
 
 **留空时的行为：**
 
-如果该列为空，xdxtools 会生成配置 `NO_ADAPTER_CAL_USE_DEFAULT`，表示使用 Trim Galore 的默认适配器检测模式——这对大多数没有 inline barcode 的样本来说完全够用。
+如果该列为空，otter 会生成配置 `NO_ADAPTER_CAL_USE_DEFAULT`，表示使用 Trim Galore 的默认适配器检测模式——这对大多数没有 inline barcode 的样本来说完全够用。
 
 ---
 
@@ -145,7 +145,7 @@ my_project/               ← 你的工作目录
 └── samples.xlsx          ← 样本信息表放这里
 ```
 
-> **提示：** 你不需要手动创建 `userspace/` 等目录，`xdxtools init` 命令会自动为你创建分析所需的所有目录。
+> **提示：** 你不需要手动创建 `userspace/` 等目录，`otter init` 命令会自动为你创建分析所需的所有目录。
 
 ### 检查数据准备是否完成
 

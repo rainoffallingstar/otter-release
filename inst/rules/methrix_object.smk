@@ -58,8 +58,8 @@ rule prepare_methrix_reference_cpg:
         if [[ -f "$near_ron" ]]; then
           cp -f "$near_ron" "{output}"
         else
-          methrix-cli extract-cpgs --genome "$ref" --output "{output}" || \
-          methrix-cli extract-cp-gs --genome "$ref" --output "{output}"
+          methx extract-cpgs --genome "$ref" --output "{output}" || \
+          methx extract-cp-gs --genome "$ref" --output "{output}"
         fi
       fi
     """
@@ -83,7 +83,7 @@ rule create_methrix_object :
   threads:10
   shell:
     """
-      methrix-cli process \
+      methx process \
         --input "{params.mcall_dir}" \
         --output "{params.methrix_dir}" \
         --genome "{params.genome}" \

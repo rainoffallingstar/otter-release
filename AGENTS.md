@@ -6,13 +6,13 @@
 - Test fixtures: `testdata/` (FASTQ, pdata CSVs, e2e placeholders).
 - Docs: `docs/` (architecture, build/install, manual pages).
 - Helper scripts: `scripts/` (`setup.sh`, `build.sh`, `release.sh`, `build-all-submodules.sh`).
-- Git submodules/tools live in their own directories (for example `enva/`, `fastqc-rs/`, `methrix-cli/`, `qctb/`, `xenofilter-go/`, `gomats/`). Treat each as an independent module when changing code.
+- Git submodules/tools live in their own directories (for example `enva/`, `fastqcx/`, `methx/`, `qctb/`, `xenofilx/`, `matsrun/`). Treat each as an independent module when changing code.
 
 ## Build, Test, and Development Commands
 - Activate the correct toolchain first:
   - Go work: `conda activate go-env`
   - Rust/submodule work: `conda activate rust_build`
-- `go build -o xdxtools .` builds the main CLI locally.
+- `go build -o otter .` builds the main CLI locally.
 - `go test -v ./...` runs all Go unit tests.
 - `go vet ./...` runs static checks used by CI.
 - `./scripts/build.sh vX.Y.Z` produces release-style binaries in `dist/`.
@@ -24,7 +24,7 @@
 - Default Rust environment: `rust_build` (Conda).
 - Example session:
   - `conda activate go-env` for `go build`, `go test`, `go vet`.
-  - `conda activate rust_build` for `cargo build` in Rust submodules (for example `enva/`, `fastqc-rs/`, `methrix-cli/`, `qctb/`).
+  - `conda activate rust_build` for `cargo build` in Rust submodules (for example `enva/`, `fastqcx/`, `methx/`, `qctb/`).
 
 ## Coding Style & Naming Conventions
 - Go style follows standard tooling: run `gofmt` (or `go fmt ./...`) before commit.

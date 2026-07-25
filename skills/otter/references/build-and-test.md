@@ -1,46 +1,46 @@
-# xdxtools build and test matrix
+# otter build and test matrix
 
 ## Root repo
 
-### `xdxtools`
+### `otter`
 
 - Toolchain: `conda activate go-env`
-- Build: `go build -o xdxtools .`
+- Build: `go build -o otter .`
 - Test: `go test -v ./...`
 - Static checks: `go vet ./...`
 - Release-style build: `./scripts/build.sh vX.Y.Z`
 
 ## Go submodules
 
-### `Paireads`
+### `pairbam`
 
 - Toolchain: `conda activate go-env`
-- Build: `go build -o paireads ./cmd/paireads`
+- Build: `go build -o pairbam ./cmd/pairbam`
 - Test: `go test ./...`
 
-### `bamdriver-go`
+### `bamdriver`
 
 - Toolchain: `conda activate go-env`
 - Build: prefer consumer-driven validation; if needed use `go test ./...`
 - Test: `go test ./...`
 
-### `gomats`
+### `matsrun`
 
 - Toolchain: `conda activate go-env`
-- Build: `go build -o gomats ./cmd/gomats`
+- Build: `go build -o matsrun ./cmd/matsrun`
 - Test: `go test ./...`
 
-### `htseq2matrix-go`
+### `seq2mat`
 
 - Toolchain: `conda activate go-env`
-- Build: `go build -o htseq2matrix cmd/htseq2matrix/main.go`
+- Build: `go build -o seq2mat cmd/seq2mat/main.go`
 - Test: `go test ./...`
 - Notes: Gene mapping assets may be embedded; keep data-path assumptions aligned with the repo README.
 
-### `xenofilter-go`
+### `xenofilx`
 
 - Toolchain: `conda activate go-env`
-- Build: `go build -o xenofilter ./cmd/xenofilter`
+- Build: `go build -o xenofilx ./cmd/xenofilx`
 - Test: `go test ./...`
 
 ## Rust submodules
@@ -51,13 +51,13 @@
 - Build: `cargo build --release`
 - Test: `cargo test`
 
-### `fastqc-rs`
+### `fastqcx`
 
 - Toolchain: `conda activate rust_build`
 - Build: `cargo build --release`
 - Test: `cargo test`
 
-### `methrix-cli`
+### `methx`
 
 - Toolchain: `conda activate rust_build`
 - Build: `cargo build --release`
@@ -73,6 +73,6 @@
 ## Validation strategy
 
 - Prefer repo-local formatter and tests first.
-- For root `xdxtools` changes, run `go test -v ./...` and `go vet ./...` when the change can affect shared CLI or config behavior.
-- For shared library changes in `bamdriver-go`, validate at least one downstream consumer when feasible.
+- For root `otter` changes, run `go test -v ./...` and `go vet ./...` when the change can affect shared CLI or config behavior.
+- For shared library changes in `bamdriver`, validate at least one downstream consumer when feasible.
 - If a command cannot run because a system dependency is missing, report the missing dependency instead of guessing success.

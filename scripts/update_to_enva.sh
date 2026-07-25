@@ -34,7 +34,7 @@ for DIR in "${DIRS[@]}"; do
         # Check if file contains "conda run -n"
         if grep -q "conda run -n" "$file"; then
             # Replace "conda run -n <env>" with "enva run <env>"
-            # Example: "conda run -n xdxtools-core" → "enva run xdxtools-core"
+            # Example: "conda run -n otter-core" → "enva run otter-core"
             sed -i.bak 's/conda run -n \([^ ]\+\)/enva run \1/g' "$file"
             UPDATED=$((UPDATED + 1))
             echo "  ✓ Updated: $(basename "$file")"
@@ -64,5 +64,5 @@ if [ $UPDATED -gt 0 ]; then
     echo ""
     echo "Next steps:"
     echo "  1. Review changes with: git diff"
-    echo "  2. Test with: xdxtools run --config config.yaml --dry-run"
+    echo "  2. Test with: otter run --config otter.yaml --dry-run"
 fi

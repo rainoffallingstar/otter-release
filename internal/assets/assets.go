@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/xdxtools/xdxtools-go/internal/logger"
+	"github.com/rainoffallingstar/otter/internal/logger"
 )
 
 // EmbeddedAssets will be set from the root package where files are embedded.

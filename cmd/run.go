@@ -11,14 +11,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/rainoffallingstar/otter/internal/assets"
+	"github.com/rainoffallingstar/otter/internal/config"
+	"github.com/rainoffallingstar/otter/internal/engine"
+	"github.com/rainoffallingstar/otter/internal/input"
+	"github.com/rainoffallingstar/otter/internal/logger"
+	taskruntime "github.com/rainoffallingstar/otter/internal/task"
+	"github.com/rainoffallingstar/otter/internal/workflow"
 	"github.com/spf13/cobra"
-	"github.com/xdxtools/xdxtools-go/internal/assets"
-	"github.com/xdxtools/xdxtools-go/internal/config"
-	"github.com/xdxtools/xdxtools-go/internal/engine"
-	"github.com/xdxtools/xdxtools-go/internal/input"
-	"github.com/xdxtools/xdxtools-go/internal/logger"
-	taskruntime "github.com/xdxtools/xdxtools-go/internal/task"
-	"github.com/xdxtools/xdxtools-go/internal/workflow"
 )
 
 var (
@@ -82,16 +82,16 @@ var runCmd = &cobra.Command{
 	Long: `Execute a bioinformatics workflow with the specified configuration.
 
 Examples:
-  xdxtools run --config config.yaml
-  xdxtools run --config config.yaml --engine slurm
-  xdxtools run --config config.yaml --dry-run`,
+  otter run --config otter.yaml
+  otter run --config otter.yaml --engine slurm
+  otter run --config otter.yaml --dry-run`,
 	RunE: runRun,
 }
 
 func init() {
 	rootCmd.AddCommand(runCmd)
 
-	runCmd.Flags().StringVarP(&runConfigFile, "config", "c", "config.yaml", "Configuration file")
+	runCmd.Flags().StringVarP(&runConfigFile, "config", "c", "otter.yaml", "Configuration file")
 	runCmd.Flags().StringVarP(&runEngine, "engine", "e", "auto", "Execution engine (auto/slurm/local)")
 	runCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Perform a dry run without executing")
 	runCmd.Flags().BoolVarP(&verboseRun, "verbose", "v", false, "Verbose output")
@@ -184,7 +184,7 @@ func submitBackgroundRun() error {
 
 	executablePath, err := os.Executable()
 	if err != nil {
-		return fmt.Errorf("resolve xdxtools executable: %w", err)
+		return fmt.Errorf("resolve otter executable: %w", err)
 	}
 	workerArguments := buildBackgroundWorkerArguments(os.Args[1:], configPath, projectDir)
 	record := taskruntime.NewRecord(taskID, projectDir, configPath, engineName, append([]string{executablePath}, workerArguments...))
@@ -243,8 +243,8 @@ func submitBackgroundRun() error {
 
 	fmt.Printf("Task submitted: %s\n", taskID)
 	fmt.Printf("Project:        %s\n", projectDir)
-	fmt.Printf("Status:         xdxtools task status %s\n", taskID)
-	fmt.Printf("Logs:           xdxtools task logs %s --follow\n", taskID)
+	fmt.Printf("Status:         otter task status %s\n", taskID)
+	fmt.Printf("Logs:           otter task logs %s --follow\n", taskID)
 	return nil
 }
 
@@ -315,7 +315,7 @@ func executeRun(cmd *cobra.Command) (runErr error) {
 		m, err := assets.LoadManifest(projectDir)
 		if err != nil {
 			if os.IsNotExist(err) {
-				logger.Warnf("Assets manifest not found: %s (run `xdxtools assets stamp --project %s` to generate)", assets.ManifestPath(projectDir), projectDir)
+				logger.Warnf("Assets manifest not found: %s (run `otter assets stamp --project %s` to generate)", assets.ManifestPath(projectDir), projectDir)
 			} else {
 				logger.Warnf("Failed to load assets manifest: %v", err)
 			}
@@ -500,12 +500,12 @@ func executeRun(cmd *cobra.Command) (runErr error) {
 	// Set fallback configuration from config
 	fallbackEnv := cfg.Engine.FallbackEnv
 	if fallbackEnv == "" {
-		fallbackEnv = "xdxtools-snakemake" // Default fallback
+		fallbackEnv = "otter-snakemake" // Default fallback
 	}
 	manager.SetFallbackConfig(fallbackEnv, cfg.Engine.NoFallback)
 
 	// Preflight check for rnaseq_splicing dependency chain:
-	// gomats -> rmats.py in xdxtools-core environment via enva.
+	// matsrun -> rmats.py in otter-core environment via enva.
 	if err := validateRNAsplicingDependencies(cfg); err != nil {
 		return err
 	}
@@ -601,14 +601,14 @@ func shouldRelaxLocalDryRunResourceValidation(step int, stepResources map[int]*c
 	return !hasCustom || (customRes.Cores == 0 && customRes.Memory == "")
 }
 
-func shouldPreflightRNAsplicing(cfg *config.XDXToolsConfig) bool {
+func shouldPreflightRNAsplicing(cfg *config.OtterConfig) bool {
 	if strings.ToUpper(strings.TrimSpace(cfg.Workflow.Mode)) != "RNASEQ" {
 		return false
 	}
 	return cfg.Metadata.GroupLevels >= 2
 }
 
-func validateRNAsplicingDependencies(cfg *config.XDXToolsConfig) error {
+func validateRNAsplicingDependencies(cfg *config.OtterConfig) error {
 	if !shouldPreflightRNAsplicing(cfg) {
 		return nil
 	}
@@ -616,19 +616,19 @@ func validateRNAsplicingDependencies(cfg *config.XDXToolsConfig) error {
 	// Determine the environment name, preferring the configured conda environment.
 	rnaEnv := cfg.Engine.CondaEnv
 	if rnaEnv == "" {
-		rnaEnv = "xdxtools-core"
+		rnaEnv = "otter-core"
 	}
 
 	if _, err := exec.LookPath("enva"); err != nil {
 		return fmt.Errorf(
 			"RNA splicing preflight failed: enva not found in PATH: %w\n"+
-				"Required for rnaseq_splicing: enva + %s environment with gomats and rmats.py.\n"+
-				"Try: enva run %s -- gomats --help\n"+
+				"Required for rnaseq_splicing: enva + %s environment with matsrun and rmats.py.\n"+
+				"Try: enva run %s -- matsrun --help\n"+
 				"Try: enva run %s -- rmats.py --help", err, rnaEnv, rnaEnv, rnaEnv)
 	}
 
 	checks := [][]string{
-		{"enva", "run", rnaEnv, "--", "gomats", "--help"},
+		{"enva", "run", rnaEnv, "--", "matsrun", "--help"},
 		{"enva", "run", rnaEnv, "--", "rmats.py", "--help"},
 	}
 
@@ -638,9 +638,9 @@ func validateRNAsplicingDependencies(cfg *config.XDXToolsConfig) error {
 		if err != nil {
 			return fmt.Errorf(
 				"RNA splicing preflight failed while running `%s`: %w\noutput:\n%s\n"+
-					"Required for rnaseq_splicing: enva + xdxtools-core with gomats and rmats.py.\n"+
-					"Try: enva run xdxtools-core -- gomats --help\n"+
-					"Try: enva run xdxtools-core -- rmats.py --help",
+					"Required for rnaseq_splicing: enva + otter-core with matsrun and rmats.py.\n"+
+					"Try: enva run otter-core -- matsrun --help\n"+
+					"Try: enva run otter-core -- rmats.py --help",
 				strings.Join(check, " "), err, string(output))
 		}
 	}
@@ -649,7 +649,7 @@ func validateRNAsplicingDependencies(cfg *config.XDXToolsConfig) error {
 }
 
 // prepareFastqFiles prepares FASTQ files by copying or moving them to the project data directory
-func prepareFastqFiles(cfg *config.XDXToolsConfig, move bool) error {
+func prepareFastqFiles(cfg *config.OtterConfig, move bool) error {
 	fastqDir := cfg.Input.FastqDir
 	dataDir := cfg.Output.RawDir
 
@@ -823,7 +823,7 @@ func gzipCompressFile(src, dst string) error {
 }
 
 // validateResources validates local and SLURM resources
-func validateResources(engineType string, cfg *config.XDXToolsConfig, stepResources map[int]*config.StepResource, parallelJobs int, dryRun bool) error {
+func validateResources(engineType string, cfg *config.OtterConfig, stepResources map[int]*config.StepResource, parallelJobs int, dryRun bool) error {
 	logger.Info("Validating resources...")
 
 	// Get workflow mode and PDX status

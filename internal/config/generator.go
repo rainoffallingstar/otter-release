@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/xdxtools/xdxtools-go/internal/logger"
+	"github.com/rainoffallingstar/otter/internal/logger"
 	"gopkg.in/yaml.v3"
 )
 
@@ -41,9 +41,9 @@ type SnakemakeConfig struct {
 	LogDir      string `yaml:"SID_log"`
 
 	// Reference files
-	GenomeFile  []string `yaml:"genomeFile"`
-	GenomeFasta []string `yaml:"genome_fasta"`
-	GenomeAnno  []string `yaml:"genomeAnno"`
+	GenomeFile  []string    `yaml:"genomeFile"`
+	GenomeFasta []string    `yaml:"genome_fasta"`
+	GenomeAnno  []string    `yaml:"genomeAnno"`
 	RNASEQGTF   interface{} `yaml:"rnaseq_gtf"`
 	RNASEQRef   interface{} `yaml:"rnaseq_ref"`
 
@@ -55,7 +55,7 @@ type SnakemakeConfig struct {
 }
 
 // GenerateSnakemakeConfig generates YAML configuration for Snakemake
-func GenerateSnakemakeConfig(config *XDXToolsConfig, samples []string, outputPath string) error {
+func GenerateSnakemakeConfig(config *OtterConfig, samples []string, outputPath string) error {
 	// Infer graft and host
 	graft, host := inferGraftHost(config)
 
@@ -118,12 +118,12 @@ func GenerateSnakemakeConfig(config *XDXToolsConfig, samples []string, outputPat
 }
 
 // inferGraftHost infers graft and host from species configuration
-func inferGraftHost(config *XDXToolsConfig) (graft, host string) {
+func inferGraftHost(config *OtterConfig) (graft, host string) {
 	return config.Workflow.Species.Primary, config.Workflow.Species.Secondary
 }
 
 // getSpeciesSlice returns species as a slice
-func getSpeciesSlice(config *XDXToolsConfig) []string {
+func getSpeciesSlice(config *OtterConfig) []string {
 	if config.Workflow.Species.Secondary == "" {
 		return []string{config.Workflow.Species.Primary}
 	}

@@ -17,7 +17,7 @@ rule rnaseqmappingbowtie:
   threads: 40
   shell:
     """
-    enva run xdxtools-core -- STAR --runThreadN {threads} \
+    enva run otter-core -- STAR --runThreadN {threads} \
     --readFilesCommand zcat \
     --quantMode GeneCounts \
     --genomeDir {params.rnaseq_ref} \
@@ -28,9 +28,9 @@ rule rnaseqmappingbowtie:
      --outSAMattributes NH HI AS nM NM MD \
     --outFileNamePrefix  {params.bam_aligned_prefix} 
     
-    enva run xdxtools-core -- samtools sort -@ {threads} -o {params.bam_sorted} {params.bam_aligned}
+    enva run otter-core -- samtools sort -@ {threads} -o {params.bam_sorted} {params.bam_aligned}
     
-    enva run xdxtools-core -- samtools index {params.bam_sorted}
+    enva run otter-core -- samtools index {params.bam_sorted}
     
     rm -f {params.bam_aligned}
     

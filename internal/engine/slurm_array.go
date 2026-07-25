@@ -11,10 +11,10 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/xdxtools/xdxtools-go/internal/config"
-	"github.com/xdxtools/xdxtools-go/internal/enva"
-	"github.com/xdxtools/xdxtools-go/internal/logger"
-	taskruntime "github.com/xdxtools/xdxtools-go/internal/task"
+	"github.com/rainoffallingstar/otter/internal/config"
+	"github.com/rainoffallingstar/otter/internal/enva"
+	"github.com/rainoffallingstar/otter/internal/logger"
+	taskruntime "github.com/rainoffallingstar/otter/internal/task"
 )
 
 // SlurmArrayEngine represents a SLURM Job Array engine for multi-sample parallelization
@@ -212,7 +212,7 @@ func (e *SlurmArrayEngine) generateSingleSampleScript(
 		tmpDir = os.TempDir()
 	}
 	scriptPath := filepath.Join(tmpDir,
-		fmt.Sprintf("xdxtools_pool_step%d_%s_%s.sh", step, e.jobName, sample))
+		fmt.Sprintf("otter_pool_step%d_%s_%s.sh", step, e.jobName, sample))
 
 	const scriptTemplate = `#!/bin/bash
 #SBATCH --job-name={{.JobName}}
@@ -364,7 +364,7 @@ func (e *SlurmArrayEngine) generateArrayScript(step int, condaEnv string, workfl
 	if tmpDir == "" {
 		tmpDir = os.TempDir()
 	}
-	scriptPath := filepath.Join(tmpDir, fmt.Sprintf("xdxtools_array_step%d_%s.sh", step, e.jobName))
+	scriptPath := filepath.Join(tmpDir, fmt.Sprintf("otter_array_step%d_%s.sh", step, e.jobName))
 
 	// Prepare sample array for script
 	sampleLines := make([]string, len(e.samples))
@@ -474,7 +474,7 @@ func (e *SlurmArrayEngine) generateArrayScriptForBatch(step int, condaEnv string
 	if tmpDir == "" {
 		tmpDir = os.TempDir()
 	}
-	scriptPath := filepath.Join(tmpDir, fmt.Sprintf("xdxtools_array_step%d_%s_batch%d.sh", step, e.jobName, batchIdx))
+	scriptPath := filepath.Join(tmpDir, fmt.Sprintf("otter_array_step%d_%s_batch%d.sh", step, e.jobName, batchIdx))
 
 	// Prepare sample array for script
 	sampleLines := make([]string, len(samples))

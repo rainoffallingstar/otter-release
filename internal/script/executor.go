@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/xdxtools/xdxtools-go/internal/enva"
-	"github.com/xdxtools/xdxtools-go/internal/engine"
-	"github.com/xdxtools/xdxtools-go/internal/logger"
+	"github.com/rainoffallingstar/otter/internal/engine"
+	"github.com/rainoffallingstar/otter/internal/enva"
+	"github.com/rainoffallingstar/otter/internal/logger"
 )
 
 // ScriptConfig represents configuration for script execution

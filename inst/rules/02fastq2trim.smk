@@ -36,7 +36,7 @@ rule fastq2trim:
     T2={params.T2}
     
     # 构建trim_galore命令
-    command="enva run xdxtools-core -- trim_galore -e $error -j $threads --basename $basename --paired -o $dir"
+    command="enva run otter-core -- trim_galore -e $error -j $threads --basename $basename --paired -o $dir"
     
     # 仅当 adapter 不是 "NO_ADAPTER_CAL_USE_DEFAULT" 时才添加参数
     if [ "$adapter" != "NO_ADAPTER_CAL_USE_DEFAULT" ]; then

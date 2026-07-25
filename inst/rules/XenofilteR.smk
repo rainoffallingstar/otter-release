@@ -20,7 +20,7 @@ rule xenofilteR:
     """
     mkdir -p {params.filter_root}/Filtered_bams
 
-    xenofilter run \
+    xenofilx run \
       --graft {params.graft_bams} \
       --host {params.host_bams} \
       --output {params.filter_root}/Filtered_bams \

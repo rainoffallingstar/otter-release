@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TARGET_DIR="${1:-htseq2matrix-go}"
-ENTRYPOINT="${TARGET_DIR}/cmd/htseq2matrix/main.go"
+TARGET_DIR="${1:-seq2mat}"
+ENTRYPOINT="${TARGET_DIR}/cmd/seq2mat/main.go"
 
 if [ -f "${ENTRYPOINT}" ]; then
-  echo "htseq2matrix entrypoint exists: ${ENTRYPOINT}"
+  echo "seq2mat entrypoint exists: ${ENTRYPOINT}"
   exit 0
 fi
 
-echo "htseq2matrix entrypoint missing, generating fallback at ${ENTRYPOINT}"
+echo "seq2mat entrypoint missing, generating fallback at ${ENTRYPOINT}"
 mkdir -p "$(dirname "${ENTRYPOINT}")"
 
 cat > "${ENTRYPOINT}" <<'EOF'
@@ -22,9 +22,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gerui/htseq2matrix-go/internal/database"
-	"github.com/gerui/htseq2matrix-go/internal/htseq"
-	"github.com/gerui/htseq2matrix-go/internal/processor"
+	"github.com/rainoffallingstar/seq2mat/internal/database"
+	"github.com/rainoffallingstar/seq2mat/internal/htseq"
+	"github.com/rainoffallingstar/seq2mat/internal/processor"
 )
 
 var (
@@ -40,7 +40,7 @@ func main() {
 	flag.Parse()
 
 	if *showVer {
-		fmt.Printf("htseq2matrix %s\n", Version)
+		fmt.Printf("seq2mat %s\n", Version)
 		return
 	}
 	if *htseqDir == "" {
@@ -111,4 +111,4 @@ func run() error {
 }
 EOF
 
-echo "Generated fallback htseq2matrix entrypoint."
+echo "Generated fallback seq2mat entrypoint."

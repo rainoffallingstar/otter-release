@@ -46,24 +46,24 @@ jobs:
       - name: Test parent project
         run: go test -count=1 -short -buildvcs=false ./internal/... ./cmd/...
 
-      - name: Test bamdriver-go
-        run: cd bamdriver-go && go test -count=1 ./...
+      - name: Test bamdriver
+        run: cd bamdriver && go test -count=1 ./...
 
-      - name: Test gomats
-        run: cd gomats && go test -count=1 ./...
+      - name: Test matsrun
+        run: cd matsrun && go test -count=1 ./...
 
-      - name: Test htseq2matrix-go
-        run: cd htseq2matrix-go && go test -count=1 -short ./...
+      - name: Test seq2mat
+        run: cd seq2mat && go test -count=1 -short ./...
 
-      - name: Test Paireads
-        run: cd Paireads && go test -count=1 ./...
+      - name: Test pairbam
+        run: cd pairbam && go test -count=1 ./...
 
-      - name: Test xenofilter-go
-        run: cd xenofilter-go && go test -count=1 -short ./...
+      - name: Test xenofilx
+        run: cd xenofilx && go test -count=1 -short ./...
 
-      - name: Test methrix-cli
+      - name: Test methx
         run: |
-          cd methrix-cli
+          cd methx
           cargo fmt --all -- --check
           cargo clippy --all-targets --all-features --locked -- -D warnings
           cargo test --all-targets --all-features --locked
@@ -149,22 +149,22 @@ jobs:
           echo "Resolved release tag: $TAG"
           echo "Build version: $VERSION"
 
-      - name: Build xdxtools static
+      - name: Build otter static
         env:
           VERSION: ${{ steps.meta.outputs.version }}
           COMMIT: ${{ github.sha }}
         run: |
           VER="${VERSION#v}"
-          LDFLAGS="-s -w -X github.com/xdxtools/xdxtools-go/cmd.buildVersion=${VER} -X github.com/xdxtools/xdxtools-go/cmd.buildCommit=${COMMIT:0:7}"
-          CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags="$LDFLAGS" -o dist/xdxtools-linux-amd64-static .
-          echo "✓ xdxtools-linux-amd64-static"
+          LDFLAGS="-s -w -X github.com/rainoffallingstar/otter/cmd.buildVersion=${VER} -X github.com/rainoffallingstar/otter/cmd.buildCommit=${COMMIT:0:7}"
+          CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags="$LDFLAGS" -o dist/otter-linux-amd64-static .
+          echo "✓ otter-linux-amd64-static"
 
       - name: Build Go submodules static
         env:
           VERSION: ${{ steps.meta.outputs.version }}
         run: |
           VER="${VERSION#v}"
-          bash scripts/ensure_htseq2matrix_entrypoint.sh htseq2matrix-go
+          bash scripts/ensure_seq2mat_entrypoint.sh seq2mat
 
           build_go_submodule() {
             local dir="$1" out="$2" pkg="$3" sym="$4"
@@ -177,12 +177,12 @@ jobs:
             echo "✓ $out"
           }
 
-          build_go_submodule xenofilter-go xenofilter-linux-amd64-static ./cmd/xenofilter github.com/rainoffallingstar/xenofilter-go/pkg/cli.Version
-          build_go_submodule Paireads paireads-linux-amd64-static ./cmd/paireads main.Version
-          build_go_submodule htseq2matrix-go htseq2matrix-linux-amd64-static ./cmd/htseq2matrix main.Version
-          build_go_submodule gomats gomats-linux-amd64-static ./cmd/gomats github.com/rainoffallingstar/gomats/pkg/cli.Version
+          build_go_submodule xenofilx xenofilx-linux-amd64-static ./cmd/xenofilx github.com/rainoffallingstar/xenofilx/pkg/cli.Version
+          build_go_submodule pairbam pairbam-linux-amd64-static ./cmd/pairbam main.Version
+          build_go_submodule seq2mat seq2mat-linux-amd64-static ./cmd/seq2mat main.Version
+          build_go_submodule matsrun matsrun-linux-amd64-static ./cmd/matsrun github.com/rainoffallingstar/matsrun/pkg/cli.Version
 
-      - name: Build Rust static binaries (enva/qctb/fqc)
+      - name: Build Rust static binaries (enva/qctb/fastqcx)
         run: |
           (cd enva && cargo build --release --target x86_64-unknown-linux-musl)
           cp enva/target/x86_64-unknown-linux-musl/release/enva dist/enva-linux-amd64-static
@@ -192,22 +192,20 @@ jobs:
           cp qctb/target/x86_64-unknown-linux-musl/release/qctb dist/qctb-linux-amd64-static
           echo "✓ qctb-linux-amd64-static"
 
-          (cd fastqc-rs && cargo build --release --target x86_64-unknown-linux-musl)
-          cp fastqc-rs/target/x86_64-unknown-linux-musl/release/fqc dist/fqc-linux-amd64-static
-          echo "✓ fqc-linux-amd64-static"
+          (cd fastqcx && cargo build --release --target x86_64-unknown-linux-musl)
+          cp fastqcx/target/x86_64-unknown-linux-musl/release/fastqcx dist/fastqcx-linux-amd64-static
+          echo "✓ fastqcx-linux-amd64-static"
 
-      - name: Build methrix-cli (static HDF5 via CMake, native target)
+      - name: Build methx (static HDF5 via CMake, native target)
         run: |
-          (cd methrix-cli && cargo build --release --features download)
-          if [ -f methrix-cli/target/release/methrix-cli ]; then
-            cp methrix-cli/target/release/methrix-cli dist/methrix-linux-amd64-static
-          elif [ -f methrix-cli/target/release/methrix ]; then
-            cp methrix-cli/target/release/methrix dist/methrix-linux-amd64-static
+          (cd methx && cargo build --release --features download)
+          if [ -f methx/target/release/methx ]; then
+            cp methx/target/release/methx dist/methx-linux-amd64-static
           else
-            echo "methrix-cli binary not found" >&2
+            echo "methx binary not found" >&2
             exit 1
           fi
-          echo "✓ methrix-linux-amd64-static"
+          echo "✓ methx-linux-amd64-static"
 
       - name: Verify required release artifacts (strict)
         run: bash scripts/verify_release_artifacts.sh dist
@@ -231,18 +229,18 @@ jobs:
             "commit": "${COMMIT}",
             "generated_at_utc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "artifacts": [
-              {"name":"xdxtools-linux-amd64-static","linkage":"static"},
+              {"name":"otter-linux-amd64-static","linkage":"static"},
               {"name":"enva-linux-amd64-static","linkage":"static"},
-              {"name":"xenofilter-linux-amd64-static","linkage":"static"},
-              {"name":"paireads-linux-amd64-static","linkage":"static"},
-              {"name":"htseq2matrix-linux-amd64-static","linkage":"static"},
-              {"name":"gomats-linux-amd64-static","linkage":"static"},
+              {"name":"xenofilx-linux-amd64-static","linkage":"static"},
+              {"name":"pairbam-linux-amd64-static","linkage":"static"},
+              {"name":"seq2mat-linux-amd64-static","linkage":"static"},
+              {"name":"matsrun-linux-amd64-static","linkage":"static"},
               {"name":"qctb-linux-amd64-static","linkage":"static"},
-              {"name":"fqc-linux-amd64-static","linkage":"static"},
-              {"name":"methrix-linux-amd64-static","linkage":"static"},
-              {"name":"xdxtools-core.yaml","kind":"env_yaml"},
-              {"name":"xdxtools-snakemake.yaml","kind":"env_yaml"},
-              {"name":"xdxtools-extra.yaml","kind":"env_yaml"}
+              {"name":"fastqcx-linux-amd64-static","linkage":"static"},
+              {"name":"methx-linux-amd64-static","linkage":"static"},
+              {"name":"otter-core.yaml","kind":"env_yaml"},
+              {"name":"otter-snakemake.yaml","kind":"env_yaml"},
+              {"name":"otter-extra.yaml","kind":"env_yaml"}
             ]
           }
           EOF2
@@ -289,12 +287,12 @@ jobs:
 
             ## Linkage
 
-            - Fully static: `xdxtools`, `enva`, `xenofilter`, `paireads`, `htseq2matrix`, `gomats`, `qctb`, `fqc`, `methrix`
+            - Fully static: `otter`, `enva`, `xenofilx`, `pairbam`, `seq2mat`, `matsrun`, `qctb`, `fastqcx`, `methx`
 
             ## Installation
 
             ```bash
-            bash <(curl -fsSL https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh)
+            bash <(curl -fsSL https://raw.githubusercontent.com/rainoffallingstar/otter/main/scripts/install.sh)
             ```
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -337,7 +335,7 @@ jobs:
           cat > README.md <<EOF
           # flightlight
 
-          Public mirror for xdxtools install script, binaries, and environment YAML assets.
+          Public mirror for otter install script, binaries, and environment YAML assets.
 
           ## Install
 

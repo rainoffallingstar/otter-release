@@ -5,7 +5,7 @@ import (
 )
 
 // LoadDefaults loads default configuration values
-func LoadDefaults() *XDXToolsConfig {
+func LoadDefaults() *OtterConfig {
 	// Get user info
 	userID := os.Getenv("USER")
 	if userID == "" {
@@ -17,7 +17,7 @@ func LoadDefaults() *XDXToolsConfig {
 		userEmail = os.Getenv("EMAIL")
 	}
 
-	return &XDXToolsConfig{
+	return &OtterConfig{
 		Workflow: WorkflowConfig{
 			Mode:   "RRBS",
 			UserID: userID,

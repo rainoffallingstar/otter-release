@@ -53,6 +53,10 @@ www/
 
 # Snakemake outputs
 *.snakemake
+!inst/snakefiles/BeaverBS_step1.snakemake
+!inst/snakefiles/BeaverPDX_step1.snakemake
+!inst/snakefiles/BeaverRNA_step1.snakemake
+!inst/snakefiles/BeaverRNASEQPDX_step1.snakemake
 .snakemake/
 
 # Conda environments
@@ -106,11 +110,11 @@ examples/output/
 # Build outputs
 target/
 *.exe
-xdxtools
+otter
 !skills/
-!skills/xdxtools/
-!skills/xdxtools/**
+!skills/otter/
+!skills/otter/**
 
 # Test outputs
 test_slurm/
-gomats.lock
+matsrun.lock

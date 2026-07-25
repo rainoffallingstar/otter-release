@@ -3,21 +3,21 @@ package workflow
 import (
 	"time"
 
-	"github.com/xdxtools/xdxtools-go/internal/config"
-	"github.com/xdxtools/xdxtools-go/internal/engine"
+	"github.com/rainoffallingstar/otter/internal/config"
+	"github.com/rainoffallingstar/otter/internal/engine"
 )
 
 // Workflow represents a workflow instance
 type Workflow struct {
-	ID        string                 `json:"id"`
-	Config    *config.XDXToolsConfig `json:"config"`
-	Status    *engine.Status         `json:"status"`
-	Samples   []string               `json:"samples"`
-	Steps     int                    `json:"steps"`
-	OutputDir string                 `json:"output_dir"`
-	LogFile   string                 `json:"log_file"`
-	Engine    engine.Engine          `json:"-"`
-	Options   *WorkflowOptions       `json:"options,omitempty"`
+	ID        string              `json:"id"`
+	Config    *config.OtterConfig `json:"config"`
+	Status    *engine.Status      `json:"status"`
+	Samples   []string            `json:"samples"`
+	Steps     int                 `json:"steps"`
+	OutputDir string              `json:"output_dir"`
+	LogFile   string              `json:"log_file"`
+	Engine    engine.Engine       `json:"-"`
+	Options   *WorkflowOptions    `json:"options,omitempty"`
 }
 
 // Step represents a workflow step
@@ -51,7 +51,7 @@ type WorkflowOptions struct {
 }
 
 // NewWorkflow creates a new workflow
-func NewWorkflow(config *config.XDXToolsConfig, samples []string) *Workflow {
+func NewWorkflow(config *config.OtterConfig, samples []string) *Workflow {
 	return &Workflow{
 		ID:     config.Workflow.JobID,
 		Config: config,

@@ -1,152 +1,104 @@
-# xdxtools
+# otter
 
-用于 RRBS、WGBS、RNA-seq 和 PDX 分析的生物信息学工作流 CLI 工具。
+`otter` 是面向 RRBS、WGBS、RNA-seq 和 PDX 分析的生物信息学工作流 CLI。GitHub 主仓统一为 [rainoffallingstar/otter](https://github.com/rainoffallingstar/otter)。
 
-## 功能特性
+## 产品体系
 
-- 工作流模式：RRBS / WGBS / RNA-seq / PDX
-- 自动 FASTQ 配对 + 每样本适配器生成（支持 barcode）
-- SLURM Job Array + 本地工作池并行化
-- Excel/CSV pdata，支持中文列名自动映射
-- Snakemake 集成，内嵌工作流文件
-- 通过 [enva](https://github.com/rainoffallingstar/enva) 进行 rattler 优先的环境管理，并兼容历史 conda 环境
-- 主 CLI 为单二进制；工作流运行默认依赖 Snakemake 与 enva（历史 conda 兼容环境也可继续使用）
+```text
+otter → craftmake → enva → 算子 → bamdriver
+```
+
+- `otter`：面向用户的项目、配置、任务和工作流协调入口。
+- `craftmake`：用于替代 Snakemake 的 Go 工作流执行层。
+- `enva`：管理 `otter-core`、`otter-snakemake`、`otter-extra` 环境并隔离命令执行。
+- 算子：`fastqcx`、`xenofilx`、`pairbam`、`seq2mat`、`matsrun`、`qctb`、`methx`。
+- `bamdriver`：共享的底层 BAM 操作层。
+
+`craftmake` 仍在接入迁移中。当前运行时是双轨状态：既有生产流程继续使用 Snakemake，同时推进 `craftmake` 的兼容验证和接入。本文档不声称 Snakemake 已经被完全替换。
+
+## 主要能力
+
+- RRBS、WGBS、RNA-seq、PDX 工作流
+- FASTQ 自动配对、pdata 校验和逐样本接头生成
+- SLURM、SLURM Job Array 与本地执行
+- 后台任务状态和日志恢复
+- Excel/CSV pdata 与中文列名映射
+- 通过 `enva` 进行 rattler 优先的环境管理
+- 专用原生算子，并保留适用的科学格式兼容性
 
 ## 系统要求
 
 - Go 1.24+
-- Snakemake
-- [enva](https://github.com/rainoffallingstar/enva)（推荐）
-- `conda` / `mamba` / `micromamba` 仅用于历史兼容或被接管的环境
+- 当前生产路径需要 Snakemake
+- 迁移和兼容验证使用 `craftmake`
+- [enva](https://github.com/rainoffallingstar/enva)
+- `conda`、`mamba`、`micromamba` 仅用于兼容或接管已有环境
 
 ## 安装
 
-### 快速安装（交互式）
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/rainoffallingstar/otter/main/scripts/install.sh)
+```
+
+从源码构建：
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh)
+git clone --recurse-submodules https://github.com/rainoffallingstar/otter.git
+cd otter
+conda activate go-env
+go build -o otter .
 ```
 
-脚本将从 GitHub Releases 下载预编译二进制文件，并以交互方式完成 conda 环境配置。现在默认会优先从公开镜像仓库 `rainoffallingstar/flightlight` 拉取二进制资产；如果目标版本尚未镜像，则自动回退到 `rainoffallingstar/xdxtools-go`；环境 YAML 也会从同一个已选中的 release 仓库下载。安装开始时会先让你选择中文或英文，也可以用 `--lang en` 或 `--lang zh` 强制指定界面语言。`scripts/setup.sh` 仅用于本地源码构建。当检测到已存在的二进制文件时，安装器只会统一询问一次是否覆盖，后续所有二进制都沿用这次选择。
-
-如果仓库本身是私有的，匿名访问 `raw.githubusercontent.com` 会返回 `404`，而 `wget -qO-` 会把这个错误静默吞掉。此时应改用带认证头的启动命令。如果 release 仓库或 release 资产是私有的，请先导出 `GITHUB_TOKEN`（或 `GH_TOKEN` / `GITHUB_PAT`）；如果是私有或自定义仓库布局，还可以设置 `GITHUB_RELEASES_REPO=<owner>/<repo>` 与 `GITHUB_FALLBACK_RELEASES_REPO=<owner>/<repo>`。在交互模式下，如果 GitHub 访问失败且当前没有配置 token，安装器可以在终端里提示你做隐藏输入，并自动重试一次。
-
-常用选项：
-
-```bash
-# 非交互模式，全部使用默认值
-bash <(curl -fsSL https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh) --non-interactive
-
-# 指定发布版本
-bash <(curl -fsSL https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh) --version v0.3.0
-
-# 私有仓库启动
-export GITHUB_PAT=<your_pat>
-bash <(curl -fsSL -H "Authorization: Bearer ${GITHUB_PAT}" \
-  https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh)
-
-# 私有 release fork
-export GITHUB_PAT=<your_pat>
-export GITHUB_RELEASES_REPO=<owner>/<repo>
-bash <(curl -fsSL -H "Authorization: Bearer ${GITHUB_PAT}" \
-  https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh)
-
-# 跳过 conda 环境创建
-bash <(curl -fsSL https://raw.githubusercontent.com/rainoffallingstar/xdxtools-go/main/scripts/install.sh) --skip-envs
-```
-
-### 从源码构建
-
-```bash
-git clone --recurse-submodules https://github.com/rainoffallingstar/xdxtools-go.git
-cd xdxtools-go
-go build -o xdxtools
-```
-
-## Codex 技能
-
-本仓库自带一个可安装的 Codex skill，目录为 `skills/xdxtools`。该 skill 面向根仓库 `xdxtools` 以及与之配套的子仓库：`enva`、`Paireads`、`bamdriver-go`、`fastqc-rs`、`gomats`、`htseq2matrix-go`、`methrix-cli`、`qctb` 和 `xenofilter-go`。
-
-可在 Codex 环境中使用内置的 skill installer 从 GitHub 安装：
-
-```bash
-python ~/.codex/skills/.system/skill-installer/scripts/install-skill-from-github.py --repo rainoffallingstar/xdxtools-go --path skills/xdxtools
-```
-
-如果你使用的是 fork 或非默认分支，请替换 `--repo`，并按需附加 `--ref <branch-or-tag>`。
-
-安装完成后，重启 Codex，让新 skill 生效。
-
-随后可以在 Codex 提示词中显式调用，例如：
-
-```text
-Use $xdxtools to inspect the root workflow CLI and update the install docs.
-Use $xdxtools to work on qctb without breaking xdxtools submodule boundaries.
-```
+仓库仍处于命名迁移期，部分源码符号、状态文件或旧 release 资产可能保留 `xdxtools`；这些是兼容名，不是当前产品名。
 
 ## 快速上手
 
 ```bash
-# 1. 初始化项目（复制 Snakemake 工作流文件）
-xdxtools init my_project
+otter init my_project
 
-# 2. 扫描 FASTQ，验证样本，生成配置文件
-xdxtools create --fastq /data/fastq --mode RRBS --pdata samples.csv --output my_project/userspace --jobid demo_rrbs
+otter create --fastq /data/fastq --mode RRBS --pdata samples.csv \
+  --output my_project/userspace --jobid demo_rrbs
 
-# 3. 执行工作流（默认后台提交）
-xdxtools run --config my_project/userspace/demo_rrbs/config/config.yaml
+otter run --config my_project/userspace/demo_rrbs/config/config.yaml
 
-# 4. 查看后台任务和日志
-xdxtools task list
-xdxtools task status <task-id>
-xdxtools task logs <task-id> --follow
+otter task list
+otter task status <task-id>
+otter task logs <task-id> --follow
 ```
 
-## 命令速查
+`otter run` 当前仍可调度既有 Snakemake 路径；`craftmake` 是正在迁移接入的 Go 替代执行层，尚未成为唯一生产后端。
 
-| 命令 | 说明 |
-|------|------|
-| `init`   | 将 Snakemake 工作流文件复制到项目目录 |
-| `create` | 扫描 FASTQ，验证样本，生成 config.yaml |
-| `run`    | 执行 Snakemake 工作流（默认后台） |
-| `task`   | 列出、查看日志或停止后台工作流任务 |
-| `status` | 显示指定项目的工作流进度 |
-| `config` | 验证配置文件 |
+## 环境名称
 
-### `run` 常用参数
+| 环境 | 用途 |
+|---|---|
+| `otter-core` | 核心生信运行时与算子 |
+| `otter-snakemake` | 当前 Snakemake 兼容运行时 |
+| `otter-extra` | 额外分析和可视化工具 |
 
-| 参数 | 默认值 | 说明 |
-|------|--------|------|
-| `--engine` | `auto` | 执行引擎：`slurm` / `local` / `auto` |
-| `--slurm-partition` | empty | 可选的 SLURM 分区覆盖 |
-| `--parallel-jobs` | `2` | 最大并发作业数 |
-| `--dry-run` | `false` | 试运行并始终在前台完成验证 |
-| `--foreground` / `-F` | `false` | 不创建后台任务，保持前台阻塞运行 |
-| `--resume` / `-r` | `false` | 从上次完成的步骤恢复 |
+## 算子名称映射
 
-`run` 默认创建独立后台任务，因此 SSH 断开不会终止 xdxtools 协调器。任务记录和完整启动日志默认保存在 `$XDG_STATE_HOME/xdxtools/tasks/`，未设置 `XDG_STATE_HOME` 时使用 `~/.local/state/xdxtools/tasks/`。这提供任务状态和日志重连，但不是可恢复交互终端的 tmux 会话。
+| 当前名称 | 科学角色 | 历史仓库名 |
+|---|---|---|
+| `fastqcx` | FASTQ 质控；保留 FastQC/MultiQC 兼容输出 | `fastqc-rs` |
+| `xenofilx` | PDX 异种移植读段分类 | `xenofilter-go` |
+| `pairbam` | 配对读段 BAM 过滤 | `Paireads` |
+| `seq2mat` | HTSeq 计数转表达矩阵 | `htseq2matrix-go` |
+| `matsrun` | rMATS 编排 | `gomats` |
+| `qctb` | QC 汇总 | 名称不变 |
+| `methx` | 甲基化/HDF5 处理；保留 Methrix 领域术语 | `methrix-cli` |
+| `bamdriver` | 共享 BAM 操作 | `bamdriver-go` |
 
-常用管理命令：
+历史审查和归档文档保留证据产生时的旧名称，不做批量改写。
 
-```bash
-xdxtools task list             # 活跃任务；加 --all 查看历史任务
-xdxtools task status <task-id> # 后台进程、工作流步骤和 SLURM Job ID
-xdxtools task logs <task-id> -f
-xdxtools task stop <task-id>   # 停止 local 进程组或取消已登记的 SLURM 作业
-```
+## 文档入口
 
-使用 `--verbose` 查看详细输出，或使用 `--dry-run` 在不执行的情况下排查问题。
-
-## 工作流模式
-
-| 模式 | 参数 |
-|------|------|
-| RRBS（限制性酶切甲基化测序） | `--mode RRBS` |
-| WGBS（全基因组甲基化测序） | `--mode WGBS` |
-| RNA-seq（转录组测序） | `--mode RNASEQ` |
-| PDX（人源肿瘤异种移植） | `--mode RRBS --species1 human --species2 mouse` |
-
-同时指定 `--species1` 和 `--species2` 时，PDX 模式自动启用。
+- [架构](docs/architecture.md)
+- [安装](docs/installation.md)
+- [构建](docs/build.md)
+- [用户手册](docs/manual/README.md)
+- [子模块指南](docs/submodules-build-guide.md)
+- [当前上下文](docs/active_context.md)
 
 ## 许可证
 

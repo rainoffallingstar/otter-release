@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/xdxtools/xdxtools-go/internal/config"
-	"github.com/xdxtools/xdxtools-go/internal/logger"
+	"github.com/rainoffallingstar/otter/internal/config"
+	"github.com/rainoffallingstar/otter/internal/logger"
 )
 
 // EngineFactory creates engines based on type and configuration
@@ -100,7 +100,7 @@ func DetectEngine() EngineType {
 
 // CreateEngineFromConfig creates an engine from configuration
 // It handles auto-detection if engine type is "auto"
-func CreateEngineFromConfig(cfg *config.XDXToolsConfig) (Engine, error) {
+func CreateEngineFromConfig(cfg *config.OtterConfig) (Engine, error) {
 	factory := &EngineFactory{}
 
 	engineType := EngineType(cfg.Engine.Type)

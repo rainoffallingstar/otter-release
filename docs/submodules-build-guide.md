@@ -1,387 +1,132 @@
-# xdxtools 子仓库编译指南
+# otter 子模块构建指南
 
-本文档记录了 xdxtools 项目所有子仓库的编译过程、依赖要求和安装方法。
+## 边界
 
-## 目录
+`otter` 父仓通过 Git submodule 组合 10 个独立仓库。子模块有各自的历史、测试和发布节奏；父仓文档修改不应进入子模块目录。
 
-- [概述](#概述)
-- [编译环境准备](#编译环境准备)
-- [子仓库列表](#子仓库列表)
-- [编译过程](#编译过程)
-- [环境变量配置](#环境变量配置)
-- [验证安装](#验证安装)
-- [故障排除](#故障排除)
+```text
+otter → craftmake → enva → 算子 → bamdriver
+```
 
----
+`craftmake` 是 Snakemake 的 Go 替代执行层，但当前仍在接入，必须按双轨状态构建和验证。
 
-## 概述
+## 当前子模块
 
-xdxtools 项目包含 8 个子仓库（git submodules），用于不同的生物信息学分析任务：
+| 层级 | 子模块目录 | 语言 | 目标二进制 | 角色 |
+|---|---|---|---|---|
+| 执行 | `craftmake/` | Go | `craftmake` | workflow spec/DAG/local/SLURM |
+| 环境 | `enva/` | Rust | `enva` | rattler-first 环境管理 |
+| 算子 | `fastqcx/` | Rust | `fastqcx` | FASTQ 质控，FastQC/MultiQC 兼容 |
+| 算子 | `xenofilx/` | Go | `xenofilx` | PDX 物种过滤 |
+| 算子 | `pairbam/` | Go | `pairbam` | 配对 BAM 过滤 |
+| 算子 | `seq2mat/` | Go | `seq2mat` | HTSeq count-to-matrix |
+| 算子 | `matsrun/` | Go | `matsrun` | rMATS 编排 |
+| 算子 | `qctb/` | Rust | `qctb` | QC 汇总 |
+| 算子 | `methx/` | Rust | `methx` | 甲基化/HDF5 处理 |
+| 基础 | `bamdriver/` | Go | `bamdriver` | BAM 共享底层能力 |
 
-| 子仓库 | 语言 | 功能 | 二进制文件 |
-|--------|------|------|-----------|
-| enva | Rust | rattler-first 环境管理器 | enva |
-| htseq2matrix-go | Go | HTSeq 表达矩阵转换 | htseq2matrix |
-| methrix-cli | Rust | 甲基化分析 CLI | methrix-cli |
-| xenofilter-go | Go | xenofilter 污染过滤 | xenofilter |
-| Paireads | Go | 配对 reads 处理 | paireads |
-| qctb | Rust | 质量控制工具箱 | qctb |
-| fastqc-rs | Rust | FastQC Rust 实现 | fqc |
-| gomats | Go | rMATS 可变剪接分析 | gomats |
-
----
-
-## 编译环境准备
-
-### 1. Conda 环境创建
-
-项目使用两个 conda 环境分别编译 Rust 和 Go 项目：
-
-#### Rust 编译环境
+## 初始化
 
 ```bash
-# 创建 rust_build 环境（包含 Rust 工具链和 HDF5 库）
-conda create -y -n rust_build rust
+git clone --recurse-submodules https://github.com/rainoffallingstar/otter.git
+cd otter
+```
 
-# 激活环境
+已有 checkout：
+
+```bash
+git submodule sync --recursive
+git submodule update --init --recursive
+git submodule status --recursive
+```
+
+不要在没有审查的情况下运行 `git submodule update --remote --merge`，因为它会改变父仓记录的子模块指针。
+
+## Go 子模块
+
+推荐环境：
+
+```bash
+conda activate go-env
+export CGO_ENABLED=0
+```
+
+对每个 Go 子模块，在其目录内按模块实际入口构建：
+
+```bash
+go test ./...
+go vet ./...
+go build ./...
+```
+
+适用目录：`craftmake/`、`xenofilx/`、`pairbam/`、`seq2mat/`、`matsrun/`、`bamdriver/`。
+
+发布构建应使用该仓库声明的 `cmd/<name>` 或根包入口，不要根据历史仓库名猜测入口。
+
+## Rust 子模块
+
+推荐环境：
+
+```bash
 conda activate rust_build
 ```
 
-**注意**: `rust_build` 环境已包含 HDF5 库，用于编译 methrix-cli。
-
-#### Go 编译环境
+在 `enva/`、`fastqcx/`、`qctb/`、`methx/` 中执行：
 
 ```bash
-# 创建 go-env 环境（推荐）
-conda create -y -n go-env go
-
-# 激活环境
-conda activate go-env
+cargo fmt --check
+cargo check --locked --all-targets
+cargo clippy --locked --all-targets -- -D warnings
+cargo test --locked
+cargo build --locked --release
 ```
 
-### 2. 环境变量配置
-
-将 HDF5 库路径添加到 `~/.bashrc`，使 methrix-cli 可以找到 HDF5 库：
+`methx` 需要 HDF5：
 
 ```bash
-# 添加到 ~/.bashrc
-cat >> ~/.bashrc << 'EOF'
-
-# HDF5 library paths (from rust_build conda environment)
-export HDF5_DIR="/public3/home/scg9946/TTest/soft/MyMiniconda/envs/rust_build"
+export HDF5_DIR="$CONDA_PREFIX"
 export HDF5_INCLUDE_DIR="$HDF5_DIR/include"
 export HDF5_LIB_DIR="$HDF5_DIR/lib"
-export LD_LIBRARY_PATH="$HDF5_DIR/lib:$LD_LIBRARY_PATH"
 export PKG_CONFIG_PATH="$HDF5_DIR/lib/pkgconfig:$PKG_CONFIG_PATH"
-EOF
-
-# 重新加载配置
-source ~/.bashrc
-```
-
----
-
-## 子仓库列表
-
-### Rust 项目（4 个）
-
-| 项目 | 版本 | 编译时间 | 特殊依赖 |
-|------|------|----------|----------|
-| enva | 0.1.0 | ~2 分钟 | 无 |
-| methrix-cli | 0.1.0 | ~2.5 分钟 | HDF5 库 |
-| qctb | 0.1.0 | ~1 分钟 | 无 |
-| fastqc-rs | latest | ~2 分钟 | 无 |
-
-### Go 项目（4 个）
-
-| 项目 | 编译时间 | 特殊依赖 | 编译选项 |
-|------|----------|----------|----------|
-| xenofilter-go | ~30 秒 | 无 | `CGO_ENABLED=0` |
-| Paireads | ~30 秒 | 无 | `CGO_ENABLED=0` |
-| htseq2matrix-go | ~30 秒 | 完整源码 | `CGO_ENABLED=0` |
-| gomats | ~30 秒 | excelize, cobra | `CGO_ENABLED=0` |
-
----
-
-## 编译过程
-
-### 方法 1: 使用统一编译脚本
-
-项目提供了 `scripts/build-all-submodules.sh` 脚本，可以一键编译所有子模块并做必需工具校验：
-
-```bash
-cd /public3/home/scg9946/xdxtools
-bash scripts/build-all-submodules.sh
-```
-
-**脚本功能**:
-- 自动检测 Go 和 Rust 编译环境
-- 使用 conda 环境编译各个项目
-- 将二进制文件安装到 `$HOME/.cargo/bin`
-- 默认严格模式（`STRICT_MODE=1`）：缺任一必需二进制时返回非 0
-
-### 方法 2: 手动编译各个子模块
-
-#### Rust 项目编译
-
-```bash
-# 设置环境变量
-source ~/.bashrc
-
-# enva
-cd enva
-conda run -n rust_build cargo build --release
-cp target/release/enva $HOME/.cargo/bin/
-
-# methrix-cli (需要 HDF5 环境变量)
-cd ../methrix-cli
-conda run -n rust_build cargo build --release
-cp target/release/methrix $HOME/.cargo/bin/methrix-cli
-
-# qctb
-cd ../qctb
-conda run -n rust_build cargo build --release
-cp target/release/qctb $HOME/.cargo/bin/
-
-# fastqc-rs
-cd ../fastqc-rs
-conda run -n rust_build cargo build --release
-cp target/release/fqc $HOME/.cargo/bin/
-```
-
-#### Go 项目编译
-
-```bash
-# 设置 Go 代理（可选，加速依赖下载）
-export GOPROXY=https://goproxy.cn,direct
-export CGO_ENABLED=0
-
-# xenofilter-go
-cd xenofilter-go
-conda run -n go-env go build -o $HOME/.cargo/bin/xenofilter ./cmd/xenofilter
-
-# Paireads
-cd ../Paireads
-conda run -n go-env go build -o $HOME/.cargo/bin/paireads ./cmd/paireads
-
-# htseq2matrix-go
-cd ../htseq2matrix-go
-conda run -n go-env go build -o $HOME/.cargo/bin/htseq2matrix ./cmd/htseq2matrix
-
-# gomats
-cd ../gomats
-conda run -n go-env go build -o $HOME/.cargo/bin/gomats ./cmd/gomats
-```
-
----
-
-## 环境变量配置
-
-### HDF5 库配置
-
-methrix-cli 需要 HDF5 库支持。以下环境变量已添加到 `~/.bashrc`：
-
-```bash
-# HDF5 library paths (from rust_build conda environment)
-export HDF5_DIR="/public3/home/scg9946/TTest/soft/MyMiniconda/envs/rust_build"
-export HDF5_INCLUDE_DIR="$HDF5_DIR/include"
-export HDF5_LIB_DIR="$HDF5_DIR/lib"
 export LD_LIBRARY_PATH="$HDF5_DIR/lib:$LD_LIBRARY_PATH"
-export PKG_CONFIG_PATH="$HDF5_DIR/lib/pkgconfig:$PKG_CONFIG_PATH"
 ```
 
-**验证 HDF5 配置**:
+## 安装结果
+
+建议把二进制安装到用户可写目录：
 
 ```bash
-# 检查环境变量
-echo $HDF5_DIR
-echo $HDF5_INCLUDE_DIR
-echo $HDF5_LIB_DIR
-
-# 检查库文件
-ls -la $HDF5_DIR/lib/libhdf5.so*
-ls -la $HDF5_DIR/include/hdf5.h
+install -d "$HOME/.cargo/bin"
+install -m 755 <built-binary> "$HOME/.cargo/bin/<current-name>"
 ```
 
-### Go 编译选项
-
-Go 项目编译时需要禁用 CGO：
+验证：
 
 ```bash
-export CGO_ENABLED=0
+command -v craftmake enva fastqcx xenofilx pairbam seq2mat matsrun qctb methx bamdriver
 ```
 
-**原因**: conda go-env 环境缺少 C 编译器，但这些 Go 项目都是纯 Go 实现，不需要 CGO。
+## 双轨验证
 
----
+- Snakemake 继续在 `otter-snakemake` 环境中承担当前生产工作流。
+- `craftmake` 构建成功仅证明执行层可编译，不证明已接入 `otter`。
+- 切换前需对相同 fixture 比较任务图、资源参数、失败传播、恢复状态和关键科学产物。
+- `otter-core` 与 `otter-extra` 中的算子解析必须使用当前名称。
 
-## 验证安装
+## 历史映射
 
-### 检查所有二进制文件
+| 当前目录 | 历史目录/仓库名 |
+|---|---|
+| `fastqcx/` | `fastqc-rs/` |
+| `xenofilx/` | `xenofilter-go/` |
+| `pairbam/` | `Paireads/` |
+| `seq2mat/` | `htseq2matrix-go/` |
+| `matsrun/` | `gomats/` |
+| `methx/` | `methrix-cli/` |
+| `bamdriver/` | `bamdriver-go/` |
 
-```bash
-# 检查文件是否存在
-ls -la $HOME/.cargo/bin/ | grep -E "enva|htseq2matrix|xenofilter|paireads|qctb|methrix-cli|fqc|gomats"
+历史审查报告中的旧路径用于定位当时证据，不应被视为当前 checkout 指令。
 
-# 测试命令行调用
-which enva htseq2matrix xenofilter paireads qctb methrix-cli fqc gomats
-```
+## 父仓指针交付
 
-### 版本信息验证
-
-```bash
-# enva
-enva --version
-# 输出: enva 0.1.0
-
-# qctb
-qctb --version
-# 输出: qctb 0.1.0
-
-# htseq2matrix
-htseq2matrix --help
-# 输出: Usage of htseq2matrix...
-
-# xenofilter
-xenofilter --help
-# 输出: Usage 信息
-
-# paireads
-paireads
-# 输出: Usage: paireads <R1.bam> <R2.bam> <output_prefix>
-
-# methrix-cli
-methrix-cli --help
-# 输出: Usage 信息
-
-# gomats
-gomats --help
-# 输出: Usage 信息
-```
-
----
-
-## 故障排除
-
-### 1. Go 编译错误: CGO 相关
-
-**问题**:
-```
-cgo: C compiler "x86_64-conda-linux-gnu-cc" not found
-```
-
-**解决方案**:
-```bash
-export CGO_ENABLED=0
-```
-
-### 2. Go 依赖下载超时
-
-**问题**:
-```
-Get "https://proxy.golang.org/...": context deadline exceeded
-```
-
-**解决方案**:
-```bash
-export GOPROXY=https://goproxy.cn,direct
-```
-
-### 3. methrix-cli 编译失败: HDF5 未找到
-
-**问题**:
-```
-Unable to locate HDF5 root directory and/or headers
-```
-
-**解决方案**:
-```bash
-# 确保 HDF5 环境变量已设置
-source ~/.bashrc
-
-# 验证 HDF5 路径
-ls -la $HDF5_DIR/lib/libhdf5.so*
-ls -la $HDF5_DIR/include/hdf5.h
-```
-
-### 4. htseq2matrix-go 缺少 main.go
-
-**问题**: cmd/htseq2matrix/main.go 不存在
-
-**解决方案**: 使用完整版源码
-```bash
-# 从完整源码复制
-cp -r $HOME/htseq2matrix-go/* /path/to/xdxtools/htseq2matrix-go/
-```
-
----
-
-## 性能参考
-
-各项目在标准服务器上的编译时间（仅供参考）：
-
-| 项目 | 编译时间 | 输出大小 |
-|------|----------|----------|
-| enva | ~2 分钟 | ~5.4 MB |
-| methrix-cli | ~2.5 分钟 | ~3.7 MB |
-| qctb | ~1 分钟 | ~4 MB |
-| fastqc-rs | ~2 分钟 | ~3 MB |
-| xenofilter-go | ~30 秒 | ~2 MB |
-| Paireads | ~30 秒 | ~2 MB |
-| htseq2matrix-go | ~30 秒 | ~3 MB |
-| gomats | ~30 秒 | ~4 MB |
-
----
-
-## 维护建议
-
-### 定期更新子模块
-
-```bash
-# 更新所有子模块到最新版本
-git submodule update --remote --merge
-
-# 或更新特定子模块
-cd <submodule>
-git pull origin main
-```
-
-### 重新编译
-
-```bash
-# 清理旧的编译产物
-cargo clean  # Rust 项目
-go clean    # Go 项目
-
-# 重新编译
-cargo build --release
-go build -o $HOME/.cargo/bin/<binary>
-```
-
----
-
-## 附录
-
-### A. 完整的一键编译脚本
-
-参见 `scripts/build-all-submodules.sh`
-
-### B. 系统信息
-
-- **操作系统**: Linux 3.10.0
-- **Conda 版本**: MyMiniconda
-- **Rust 版本**: 1.83.0 (通过 conda)
-- **Go 版本**: 1.21+ (通过 conda)
-- **HDF5 版本**: 1.10.x (在 rust_build 环境中)
-
-### C. 相关文档
-
-- [CLAUDE.md](../CLAUDE.md) - 项目开发指南
-- [README.md](../README.md) - 项目概述
-- [architecture.md](architecture.md) - 架构设计文档
-
----
-
-**文档版本**: v1.0
-**最后更新**: 2026-02-23
-**维护者**: xdxtools 开发团队
+只有在子模块自身门禁通过、变更已由有权限者提交/推送后，父仓才可更新 gitlink。本文档迁移没有修改任何子模块、gitlink、脚本或 CI，也没有提交或推送。

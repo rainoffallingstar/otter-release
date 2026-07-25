@@ -9,7 +9,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/xdxtools/xdxtools-go/internal/logger"
+	"github.com/rainoffallingstar/otter/internal/logger"
 )
 
 // SystemInfo stores system resource information

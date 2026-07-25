@@ -11,7 +11,7 @@ import (
 
 const (
 	StateFileVersion = "1.0"
-	StateFileName    = ".xdxtools_state.json"
+	StateFileName    = ".otter_state.json"
 )
 
 // StateFile represents the persistent workflow state
@@ -154,7 +154,7 @@ func (s *State) Save() error {
 	if err := os.MkdirAll(stateDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create state directory: %w", err)
 	}
-	temporaryFile, err := os.CreateTemp(stateDir, ".xdxtools-state-*.tmp")
+	temporaryFile, err := os.CreateTemp(stateDir, ".otter-state-*.tmp")
 	if err != nil {
 		return fmt.Errorf("failed to create temporary state file: %w", err)
 	}

@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/xdxtools/xdxtools-go/internal/enva"
-	"github.com/xdxtools/xdxtools-go/internal/logger"
+	"github.com/rainoffallingstar/otter/internal/enva"
+	"github.com/rainoffallingstar/otter/internal/logger"
 )
 
 // LocalEngine represents a local execution engine
@@ -182,7 +182,7 @@ func (e *LocalEngine) Kill() error {
 // SetLogDir is a no-op for local engine (logs handled by logger package)
 func (e *LocalEngine) SetLogDir(dir string) error {
 	// Local engine doesn't need a separate log directory
-	// Logs are handled by the logger package (xdxtools.log)
+	// Logs are handled by the logger package (otter.log)
 	return nil
 }
 

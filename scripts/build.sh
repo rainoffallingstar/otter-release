@@ -5,9 +5,9 @@ VERSION=${1:-"dev"}
 COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-LDFLAGS="-s -w -X github.com/xdxtools/xdxtools-go/cmd.buildVersion=${VERSION}"
-LDFLAGS="$LDFLAGS -X github.com/xdxtools/xdxtools-go/cmd.buildCommit=${COMMIT}"
-LDFLAGS="$LDFLAGS -X github.com/xdxtools/xdxtools-go/cmd.buildDate=${DATE}"
+LDFLAGS="-s -w -X github.com/rainoffallingstar/otter/cmd.buildVersion=${VERSION}"
+LDFLAGS="$LDFLAGS -X github.com/rainoffallingstar/otter/cmd.buildCommit=${COMMIT}"
+LDFLAGS="$LDFLAGS -X github.com/rainoffallingstar/otter/cmd.buildDate=${DATE}"
 
 mkdir -p dist
 
@@ -19,7 +19,7 @@ build() {
 
     [ "$goos" = "windows" ] && ext=".exe"
 
-    local output="dist/xdxtools-${VERSION}-${goos}-${goarch}${ext}"
+    local output="dist/otter-${VERSION}-${goos}-${goarch}${ext}"
     echo "Building for ${goos}/${goarch}..."
 
     CGO_ENABLED=0 GOOS=$goos GOARCH=$goarch go build \

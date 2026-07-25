@@ -2,49 +2,43 @@
 
 ## Purpose
 
-`docs/review/` stores the human-readable release gate checklist and the generated evidence that proves the minimal release regressions still pass.
+`docs/review/` stores release gates, remediation plans, and evidence. Dated reports are historical records and intentionally retain the repository and binary names that were true when the evidence was produced.
 
-## Submodule review program
+## Current component map
 
-The repository contains 9 Git submodules. `bamdriver-go` has completed a systematic review and remediation; the remaining 8 submodules are scheduled for staged review.
+The current parent repository has 10 submodules:
 
-- Plan: [`submodule_review_plan_2026-07-21.md`](submodule_review_plan_2026-07-21.md)
+```text
+craftmake enva fastqcx xenofilx pairbam seq2mat matsrun qctb methx bamdriver
+```
+
+Historical report mapping:
+
+| Current name | Historical report name |
+|---|---|
+| `fastqcx` | `fastqc-rs` |
+| `xenofilx` | `xenofilter-go` |
+| `pairbam` | `Paireads` |
+| `seq2mat` | `htseq2matrix-go` |
+| `matsrun` | `gomats` |
+| `methx` | `methrix-cli` |
+| `bamdriver` | `bamdriver-go` |
+
+`craftmake`, `enva`, and `qctb` retain their names. Preserve FastQC, MultiQC, Methrix, Bismark, HTSeq and rMATS when they refer to external standards, tools or scientific contracts.
+
+## Existing review program
+
+- Review plan: [`submodule_review_plan_2026-07-21.md`](submodule_review_plan_2026-07-21.md)
 - Wave 1 remediation: [`wave1_remediation_plan_2026-07-21.md`](wave1_remediation_plan_2026-07-21.md)
-- Wave 1 reports:
-  - [`xenofilter-go`](submodules/xenofilter-go_review_2026-07-21.md)
-  - [`Paireads`](submodules/Paireads_review_2026-07-21.md)
-- Order: BAM data chain → scientific outputs → runtime/orchestration → cross-repository integration
-- Completion requires code review, regression tests, external compatibility evidence, security/reliability checks, and main-repository integration evidence.
+- Wave 2/3 remediation: [`wave2_wave3_remediation_plan_2026-07-22.md`](wave2_wave3_remediation_plan_2026-07-22.md)
+- Dated submodule reports: [`submodules/`](submodules/)
 
-## Minimal release evidence
+Do not rename or rewrite those dated files in bulk. New reviews should use current component names and may link the historical report that established the baseline.
 
-Public releases now require two committed dry-run records:
+## Execution migration gate
 
-1. RRBS local dry-run
-2. RNASEQ slurm dry-run
+`craftmake` is the Go replacement execution layer for Snakemake, but `otter` integration remains dual-track. A release may only claim complete replacement after RRBS, WGBS, RNA-seq and PDX pass task-graph, resource, recovery and key-output equivalence checks across local/SLURM paths.
 
-Generate them with:
+## Release evidence
 
-```bash
-bash scripts/capture_release_evidence.sh --slurm-partition <partition>
-```
-
-Artifacts written by the script:
-
-- `docs/review/release_evidence_<YYYY-MM-DD>.md`
-- `docs/review/release_evidence_<YYYY-MM-DD>/rrbs_local_dry_run.log`
-- `docs/review/release_evidence_<YYYY-MM-DD>/rnaseq_slurm_dry_run.log`
-- `docs/review/release_evidence_latest.md`
-- `docs/review/release_evidence_latest.env`
-
-## Verification
-
-Before tagging a release, verify the committed evidence bundle:
-
-```bash
-bash scripts/verify_release_evidence.sh
-```
-
-The manual release script always runs this verification and will fail if the latest evidence manifest is missing or either dry-run is not `PASS`.
-
-The GitHub release workflow verifies the committed bundle only when `docs/review/release_evidence_latest.env` is present in the repository. If no bundle has been committed yet, CI logs a warning and skips this gate instead of trying to regenerate SLURM-based evidence on `ubuntu-latest`.
+The existing evidence scripts and dated bundles may still use historical product names because scripts/CI are outside a documentation-only migration. Preserve those artifacts until their implementation migration is separately authorized.

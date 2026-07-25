@@ -4,13 +4,13 @@ import (
 	"os"
 	"testing"
 
-	"github.com/xdxtools/xdxtools-go/internal/config"
+	"github.com/rainoffallingstar/otter/internal/config"
 )
 
 // testPartition returns a SLURM partition name suitable for testing.
-// Defaults to "test" unless XDXTOOLS_TEST_PARTITION is set.
+// Defaults to "test" unless OTTER_TEST_PARTITION is set.
 func testPartition() string {
-	if p := os.Getenv("XDXTOOLS_TEST_PARTITION"); p != "" {
+	if p := os.Getenv("OTTER_TEST_PARTITION"); p != "" {
 		return p
 	}
 	return "test"
@@ -31,12 +31,12 @@ func TestSlurmArrayEngine(t *testing.T) {
 
 	// Create step resource
 	stepResource := &config.StepResource{
-		Cores:      16,
-		Memory:     "32G",
-		Partition:  testPartition(),
-		Threads:    8,
-		JobArray:   true,
-		MaxJobs:    5,
+		Cores:     16,
+		Memory:    "32G",
+		Partition: testPartition(),
+		Threads:   8,
+		JobArray:  true,
+		MaxJobs:   5,
 	}
 
 	// Create SlurmArrayEngine
@@ -100,7 +100,7 @@ func TestEngineFactorySlurmArray(t *testing.T) {
 		Partition: "cpu",
 		Cores:     8,
 		Memory:    "16G",
-		JobName:  "test",
+		JobName:   "test",
 	}
 
 	arrayEngine, err := factory.NewSlurmArrayEngineWithResources(
@@ -163,4 +163,3 @@ func TestLocalEngineDefaultMaxParallel(t *testing.T) {
 		t.Errorf("Expected max parallel to default to 4, got %d", engine.maxParallel)
 	}
 }
-

@@ -3,9 +3,9 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/rainoffallingstar/otter/internal/config"
+	"github.com/rainoffallingstar/otter/internal/logger"
 	"github.com/spf13/cobra"
-	"github.com/xdxtools/xdxtools-go/internal/config"
-	"github.com/xdxtools/xdxtools-go/internal/logger"
 )
 
 var (
@@ -16,14 +16,14 @@ var (
 var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Manage configuration",
-	Long: `Configuration management commands for xdxtools.
+	Long: `Configuration management commands for otter.
 
-Note: Use 'xdxtools create' to generate complete project configurations
+Note: Use 'otter create' to generate complete project configurations
 with sample information, adapters, and directory structure.
 
 Examples:
-  xdxtools config validate --config my_config.yaml
-  xdxtools create --fastq /data --mode RRBS  # Generates full config`,
+  otter config validate --config my_config.yaml
+  otter create --fastq /data --mode RRBS  # Generates full config`,
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Help()
 	},
@@ -38,7 +38,7 @@ This command checks if a configuration file is properly formatted
 and contains all required fields for workflow execution.
 
 Examples:
-  xdxtools config validate --config my_config.yaml`,
+  otter config validate --config my_config.yaml`,
 	RunE: runConfigValidate,
 }
 
@@ -47,7 +47,7 @@ func init() {
 	configCmd.AddCommand(validateCmd)
 
 	// Flags for validate command
-	validateCmd.Flags().StringVarP(&validateConfigFile, "config", "c", "config.yaml", "Configuration file to validate")
+	validateCmd.Flags().StringVarP(&validateConfigFile, "config", "c", "otter.yaml", "Configuration file to validate")
 }
 
 func runConfigValidate(cmd *cobra.Command, args []string) error {

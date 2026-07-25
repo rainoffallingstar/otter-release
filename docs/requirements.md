@@ -1,130 +1,88 @@
-# 需求文档 (Requirements)
+# otter 需求文档
 
-## 项目概述
+## 产品目标
 
-将现有 xdxtools R 包重构为 Go 技术栈的命令行工具，专注于生物信息学工作流管理，支持 RRBS、WGBS、RNA-seq 和 PDX 流程，目标是简化部署和运维。
+`otter` 将 RRBS、WGBS、RNA-seq 和 PDX 分析统一为可配置、可恢复、可在 local/SLURM 运行的 CLI 工作流。主仓是 `rainoffallingstar/otter`。
+
+目标层级：
+
+```text
+otter → craftmake → enva → 算子 → bamdriver
+```
 
 ## 功能需求
 
-### 1. 工作流管理
-- **RRBS** (Reduced Representation Bisulfite Sequencing) - 3步流程
-- **WGBS** (Whole Genome Bisulfite Sequencing) - 3步流程
-- **RNA-seq** (RNA Sequencing) - 2步流程
-- **PDX** (Patient-Derived Xenograft) - 自动识别双物种，3步流程
+### 1. 协调层：otter
 
-### 2. 配置管理
-- 支持 YAML/TOML/JSON 配置文件
-- 环境变量覆盖配置
-- 50+ 参数集中管理
-- 配置文件验证和智能提示
+- 提供 `init`、`create`、`run`、`task`、`status`、`config` 命令。
+- 扫描配对 FASTQ，解析 Excel/CSV pdata，生成并验证 `OtterConfig`。
+- 支持 RRBS、WGBS、RNA-seq 和通过第二物种启用的 PDX。
+- 支持后台任务、日志、停止、状态恢复和 dry-run。
+- 源码、CLI、默认配置与状态路径直接使用 `otter`/`OtterConfig`，不提供旧产品名兼容别名。
 
-### 3. 输入处理
-- **FASTQ 文件管理**
-  - 自动识别配对样本（R1/R2）
-  - 可配置后缀（`_R1.fastq.gz` → `_R2.fastq.gz`）
-  - 支持压缩/非压缩文件
-  - 灵活命名约定（`_1/_2`, `_fwd/_rev`）
-- **pdata 表格解析**
-  - 支持 Excel (.xlsx) 和 CSV 格式
-  - 验证样本 ID 匹配
-  - 自动生成表型数据
+### 2. 执行层：craftmake
 
-### 4. 执行引擎
-- **Slurm 集群** - Job Array 执行
-- **SLURM Job Array** - 并行样本处理
-- **本地执行** - 直接运行 Snakemake
-- **统一接口** - 引擎切换无缝
+- 作为 Snakemake 的 Go 替代执行层，提供 typed workflow spec、DAG、local 和 SLURM 后端。
+- 在接入完成前与 Snakemake 双轨运行。
+- 对现有 workflow 的任务依赖、资源、参数引用、失败传播和恢复语义提供等价验证。
+- 未完成四种模式集成门禁前，Snakemake 仍是生产兼容路径。
 
-### 5. 基因组构建
-- **Bismark 索引** - 甲基化分析
-- **STAR 索引** - RNA-seq 比对
-- **引擎调用** - 使用统一执行引擎
-- **多物种支持** - PDX 模式自动识别
+### 3. 环境层：enva
 
-### 6. 外部脚本调用
-- **R 脚本执行** - 通过 Rscript 调用
-- **Python 脚本执行** - 直接运行
-- **Conda 环境隔离** - 每个工具独立环境
-- **参数传递** - 灵活的参数映射
+- rattler-first 创建、发现、运行、安装、接管和删除环境。
+- 预定义环境统一为 `otter-core`、`otter-snakemake`、`otter-extra`。
+- conda/mamba/micromamba 只作为兼容发现或显式接管路径。
+- 名称歧义、路径越界和不受支持操作必须 fail closed。
 
-### 7. 用户界面
-- **CLI 命令行工具**
-  - `init` - 项目初始化
-  - `run` - 执行工作流
-  - `config` - 配置管理
-- **终端输出** - 结构化日志与状态输出
-  - 实时进度与错误信息
-  - 适合 CLI/批处理环境
+### 4. 算子层
 
-### 8. 结果处理
-- **结果聚合** - 自动打包结果
-- **日志管理** - 结构化日志输出
-- **状态追踪** - 工作流状态记录
+| 算子 | 需求 |
+|---|---|
+| `fastqcx` | FASTQ 质控；保留 FastQC/MultiQC 可消费格式 |
+| `xenofilx` | PDX graft/host 读段分类 |
+| `pairbam` | 保留完整配对 BAM 读段 |
+| `seq2mat` | 严格解析 HTSeq 计数并生成可追溯矩阵 |
+| `matsrun` | 安全编排 rMATS 对比任务 |
+| `qctb` | 为 BS-seq、RNA-seq、PDX 等模式生成版本化 QC 结果 |
+| `methx` | 生成和验证原生甲基化/HDF5 产物，并准确声明 Methrix 兼容边界 |
+
+### 5. BAM 基础层
+
+- `bamdriver` 提供可复用的 BAM 读取、写入、过滤和相关低层操作。
+- 上层算子不得各自复制不一致的 BAM 边界逻辑。
 
 ## 非功能需求
 
-### 性能
-- 启动时间 < 5秒
-- 内存使用 < 100MB
-- 并行处理支持
+### 可重复性
 
-### 可用性
-- 跨平台支持 (Linux/Windows/macOS)
-- 主 CLI 可单二进制部署
-- 运行仍依赖 Snakemake 与 Conda/Enva 环境
+- 配置、环境、算子版本和产物 schema 可追溯。
+- 产物优先通过 staging、验证和原子发布生成。
+- 外部标准名和科学语义不得因产品重命名而改变。
 
-### 可维护性
-- 模块化设计
-- 统一引擎接口
-- 配置集中管理
+### 性能与执行
 
-### 兼容性
-- 兼容现有 Snakemake 文件
-- 保持参数名称一致性
-- 平滑迁移路径
+- 主 CLI 保持单二进制部署能力。
+- 支持 local 与 SLURM 并发；资源覆盖必须显式且可验证。
+- 大 FASTQ、BAM、count 和 HDF5 数据链需要受控内存与确定性输出。
 
-## 约束与假设
+### 兼容与迁移
 
-### 技术约束
-- 基于 Go 1.24+
-- 使用 Snakemake 工作流引擎
-- 依赖 Conda 环境管理
-- 支持 Python 3.8+ 和 R 4.0+
+- 迁移期保留 Snakemake 与 `otter-snakemake` 执行路径；产品和算子旧命令名不提供兼容别名。
+- `craftmake` 替换完成必须由测试证据定义，而不是由文档声明。
+- 历史归档和日期化审查报告不得批量重写。
 
-### 输入约束
-- FASTQ 文件需遵循命名规范
-- pdata 文件需包含必要列
-- 参考基因组需预构建或自动下载
+## 技术约束
 
-### 运行环境
-- 需要安装 Snakemake
-- Slurm 模式需 Slurm 集群
-- 本地模式需 worker pool 并行
-
-## 关键用例
-
-### 用例 1: 项目初始化
-```
-用户: xdxtools init my_project
-系统: 创建项目目录 → 提取 Snakemake 文件 → 生成资产清单
-```
-
-### 用例 2: 配置生成
-```
-用户: xdxtools create --fastq ./fastq --pdata samples.csv --mode WGBS --output my_project/userspace
-系统: 扫描 FASTQ/pdata → 生成默认配置 → 保存配置文件
-```
-
-### 用例 3: 工作流执行
-```
-用户: xdxtools run --config config.yaml --engine slurm
-系统: 验证配置 → 执行 Snakemake → 输出日志与状态
-```
+- 父仓 Go 1.24+。
+- Rust 算子使用锁定依赖并通过 fmt/check/clippy/test。
+- Go 算子通过 test/vet，适用时包含 race/static build。
+- HDF5、Bismark、HTSeq、FastQC、MultiQC、Methrix、rMATS 等外部契约按实际集成保留。
 
 ## 验收标准
 
-- [ ] 支持所有 4 种工作流模式
-- [ ] 配置文件支持 3 种格式
-- [ ] 执行引擎支持 2 种环境（Slurm/Local）
-- [ ] 单二进制 < 20MB
-- [ ] 文档完整且示例丰富
+- [ ] `otter` 文档和发布入口统一指向 `rainoffallingstar/otter`。
+- [ ] 三个环境均使用 `otter-*` 名称并通过干净环境验证。
+- [ ] 新子模块名在当前文档、安装清单和构建清单一致。
+- [ ] RRBS/WGBS/RNA-seq/PDX 在当前 Snakemake 路径均通过 smoke test。
+- [ ] craftmake 双轨路径通过任务图、资源、恢复和关键产物等价测试。
+- [ ] 满足上述门禁后，才可移除 Snakemake 兼容路径。

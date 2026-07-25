@@ -3,18 +3,18 @@ package cmd
 import (
 	"testing"
 
-	"github.com/xdxtools/xdxtools-go/internal/config"
+	"github.com/rainoffallingstar/otter/internal/config"
 )
 
 func TestShouldPreflightRNAsplicing(t *testing.T) {
 	tests := []struct {
 		name string
-		cfg  config.XDXToolsConfig
+		cfg  config.OtterConfig
 		want bool
 	}{
 		{
 			name: "rnaseq with enough groups",
-			cfg: config.XDXToolsConfig{
+			cfg: config.OtterConfig{
 				Workflow: config.WorkflowConfig{Mode: "RNASEQ"},
 				Metadata: config.MetadataConfig{GroupLevels: 2},
 			},
@@ -22,7 +22,7 @@ func TestShouldPreflightRNAsplicing(t *testing.T) {
 		},
 		{
 			name: "rnaseq with insufficient groups",
-			cfg: config.XDXToolsConfig{
+			cfg: config.OtterConfig{
 				Workflow: config.WorkflowConfig{Mode: "RNASEQ"},
 				Metadata: config.MetadataConfig{GroupLevels: 1},
 			},
@@ -30,7 +30,7 @@ func TestShouldPreflightRNAsplicing(t *testing.T) {
 		},
 		{
 			name: "rrbs does not need rna preflight",
-			cfg: config.XDXToolsConfig{
+			cfg: config.OtterConfig{
 				Workflow: config.WorkflowConfig{Mode: "RRBS"},
 				Metadata: config.MetadataConfig{GroupLevels: 3},
 			},

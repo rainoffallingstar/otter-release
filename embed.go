@@ -3,7 +3,7 @@ package main
 import (
 	"embed"
 
-	"github.com/xdxtools/xdxtools-go/internal/assets"
+	"github.com/rainoffallingstar/otter/internal/assets"
 )
 
 //go:embed inst/Rscripts/* inst/snakefiles/* inst/rules/* inst/rules_legacy/* inst/envs/* inst/data/*

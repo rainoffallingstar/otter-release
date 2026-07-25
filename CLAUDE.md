@@ -1,253 +1,83 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file guides work in the `otter` parent repository.
 
-## Project Overview
+## Project overview
 
-xdxtools is a bioinformatics workflow management CLI for RRBS, WGBS, RNA-seq, and PDX analysis, rewritten in Go from an R package. It orchestrates Snakemake-based workflows with support for SLURM job arrays and local parallel execution.
+`otter` is a Go bioinformatics workflow CLI for RRBS, WGBS, RNA-seq, and PDX analysis. The canonical GitHub repository is `rainoffallingstar/otter`.
 
-## Build & Test Commands
+The product hierarchy is:
+
+```text
+otter → craftmake → enva → operators → bamdriver
+```
+
+`craftmake` is the Go replacement execution layer for Snakemake, but integration into `otter` is still migrating. Keep documentation and implementation accurate about the dual-track state: existing production workflows use Snakemake while `craftmake` adoption is validated. Do not claim the replacement is complete.
+
+## Naming contract
+
+| Current product | Historical name |
+|---|---|
+| `otter` | `xdxtools` / `xdxtools-go` |
+| `fastqcx` | `fastqc-rs` |
+| `xenofilx` | `xenofilter-go` |
+| `pairbam` | `Paireads` |
+| `seq2mat` | `htseq2matrix-go` |
+| `matsrun` | `gomats` |
+| `methx` | `methrix-cli` |
+| `bamdriver` | `bamdriver-go` |
+
+`craftmake`, `enva`, and `qctb` keep their names. Preserve external standards and scientific terms such as FASTQ, FastQC, MultiQC, Methrix, Bismark, HTSeq, and rMATS.
+
+Current submodule directories are `craftmake/`, `enva/`, `fastqcx/`, `xenofilx/`, `pairbam/`, `seq2mat/`, `matsrun/`, `qctb/`, `methx/`, and `bamdriver/`. Treat each as an independent repository.
+
+## Parent repository scope
+
+- Go CLI: `main.go`, `cmd/`, `internal/`, `pkg/`
+- Embedded runtime assets: `inst/`
+- Tests: `testdata/` and `*_test.go`
+- Current documentation: `README.md`, `README_zh.md`, `CLAUDE.md`, `docs/`
+- Historical evidence: `docs/archive/` and dated files under `docs/review/`
+
+Do not rewrite archived or dated review evidence merely to apply current branding. Add mappings in current indexes instead.
+
+## Build and validation
 
 ```bash
-# Build
-go build -o xdxtools
-
-# Static build (for distribution)
-CGO_ENABLED=0 go build -ldflags="-s -w" -o target/release/xdxtools-linux-amd64
-
-# Run all tests
-go test ./...
-
-# Run specific test
-go test -v ./internal/input -run TestAdapterGenerator
-
-# Run with coverage
-go test -cover ./...
+conda activate go-env
+go build -o otter .
+go test -v ./...
+go vet ./...
 ```
 
-## Git Submodules
+The root command and type names in the current source snapshot may still be `xdxtools` and `XDXToolsConfig`. The documentation contract names the product `otter` and the global configuration `OtterConfig`; until code migration is authorized, record the old symbols as compatibility aliases rather than silently claiming code has already changed.
 
-This project uses 8 git submodules:
+For Rust submodules use `conda activate rust_build`. Do not modify a submodule while handling a parent-documentation-only task.
 
-| Submodule | Path | Branch | Description | Binary |
-|-----------|------|--------|-------------|--------|
-| **enva** | enva/ | master | Lightweight micromamba environment manager (2-5x faster than conda) | `enva` |
-| **xenofilter-go** | xenofilter-go/ | master | Xenofilter filter for contamination removal | `xenofilter` |
-| **Paireads** | Paireads/ | master | Paired-end reads processing and analysis | `paireads` |
-| **htseq2matrix-go** | htseq2matrix-go/ | master | Convert HTSeq counts to expression matrix | `htseq2matrix` |
-| **methrix-cli** | methrix-cli/ | main | Methylation analysis and visualization CLI | `methrix-cli` |
-| **qctb** | qctb/ | main | Quality control toolbox for bioinformatics | `qctb` |
-| **fastqc-rs** | fastqc-rs/ | master | Rust-based FastQC replacement, outputs fastqc_data.txt with Seqkit Statistics | `fqc` |
-| **gomats** | gomats/ | master | Go rMATS orchestrator for RNA splicing analysis | `gomats` |
+## Runtime environments
 
-```bash
-# Clone with submodules (recommended)
-git clone --recurse-submodules https://github.com/rainoffallingstar/xdxtools-go.git
+- `otter-core`: core bioinformatics runtime and operators
+- `otter-snakemake`: Snakemake compatibility runtime during dual-track migration
+- `otter-extra`: additional analysis and visualization tools
 
-# Or initialize after cloning
-git submodule update --init --recursive
+## CLI flow
 
-# Build all submodules (requires conda/micromamba)
-cd <submodule> && conda run -n <submodule>-build go build -o $HOME/.cargo/bin/<binary>
-
-# Or use the build script
-bash scripts/build-all-submodules.sh
+```text
+otter init → otter create → otter run → otter task/status
 ```
 
-### Build Environments Required
-- **Rust projects**: Use conda environment `rust_build` (or system cargo)
-- **Go projects**: Use conda environment `go-build` with `CGO_ENABLED=0`
+The logical data flow is:
 
-### Successfully Compiled Binaries
-The following submodules have been compiled and installed to `$HOME/.cargo/bin`:
-- `enva` - micromamba environment manager (v0.1.0)
-- `htseq2matrix` - HTSeq expression matrix converter
-- `methrix-cli` - Methylation analysis and visualization CLI
-- `xenofilter` - Xenofilter for contamination removal
-- `paireads` - Paired-end reads processing
-- `qctb` - Quality control toolbox (v0.1.0)
-- `gomats` - rMATS orchestrator for RNA splicing analysis
-
-### HDF5 Environment Variables
-HDF5 library paths have been added to `~/.bashrc` for methrix-cli compilation and runtime:
-```bash
-export HDF5_DIR="/public3/home/scg9946/TTest/soft/MyMiniconda/envs/rust_build"
-export HDF5_INCLUDE_DIR="$HDF5_DIR/include"
-export HDF5_LIB_DIR="$HDF5_DIR/lib"
-export LD_LIBRARY_PATH="$HDF5_DIR/lib:$LD_LIBRARY_PATH"
-export PKG_CONFIG_PATH="$HDF5_DIR/lib/pkgconfig:$PKG_CONFIG_PATH"
+```text
+FASTQ/pdata → OtterConfig → craftmake or Snakemake compatibility path → enva → operators → bamdriver
 ```
-
-### Notes
-- All 8 submodules successfully compiled and installed
-- `htseq2matrix` was compiled from complete source code provided by user
-- `methrix-cli` requires HDF5 libraries (now configured via environment variables)
-- `gomats` replaces the R-based RNA_Splicing.R script, eliminating nested enva calls
-
-## Three-Command Workflow
-
-```bash
-# 1. Initialize project (copies Snakemake files, R scripts, rules)
-xdxtools init my_project
-
-# 2. Create analysis (scans FASTQ, validates samples, generates config)
-xdxtools create --fastq /data/fastq --mode RRBS --pdata samples.csv
-
-# 3. Execute workflow
-xdxtools run --config userspace/my_project/config/config.yaml --engine slurm
-```
-
-## CLI Commands
-
-| Command | Purpose |
-|---------|---------|
-| `init` | Install Snakemake workflow files to project directory |
-| `create` | Scan FASTQ, validate samples, generate config.yaml |
-| `run` | Execute Snakemake workflow |
-| `status` | Display workflow status and progress |
-| `config` | Validate configuration files |
-
-### Key Run Flags
-
-- `--engine`: Execution engine (auto/slurm/local)
-- `--parallel-jobs`: Unified parallelization control (1 = sequential, >1 = parallel)
-- `--dry-run`: Test configuration without executing
-- `--resume/-r`: Resume from last completed step
-- `--slurm-partition`: SLURM partition for all steps
-
-## Architecture
-
-### CLI Layer (cmd/)
-Cobra-based commands: `init`, `create`, `run`, `config`, `status`
-
-### Core Modules (internal/)
-
-| Module | Purpose | Key Files |
-|--------|---------|-----------|
-| **config** | YAML config loading, validation, generation | `config.go`, `generator.go`, `defaults.go` |
-| **engine** | Execution backends (Slurm, SlurmArray, Local) | `slurm.go`, `slurm_array.go`, `local.go`, `factory.go` |
-| **input** | FASTQ scanning, pdata parsing, adapter generation | `fastq.go`, `pdata.go`, `adapter.go` |
-| **workflow** | Directory structure, Snakemake integration | `manager.go`, `snakemake.go` |
-| **assets** | Embedded resources (Snakemake files, R scripts) | Uses Go `embed` package |
-
-### Engine Types
-
-Three execution engines are available (defined in `internal/engine/types.go`):
-- `EngineSlurm` - Submit jobs to SLURM cluster
-- `EngineSlurmArray` - Use SLURM Job Array for parallel sample processing
-- `EngineLocal` - Run locally with worker pool
-
-Use `engine.CreateEngineFromConfig(cfg)` to create the appropriate engine.
-
-### Data Flow
-```
-CLI Command → Config Loading → Input Processing → Engine Selection → Snakemake Execution
-```
-
-### Engine Factory Pattern
-```go
-engine.CreateEngineFromConfig(cfg) // Returns SlurmEngine, SlurmArrayEngine, or LocalEngine
-```
-
-## Key Implementation Details
-
-### Workflow Mode Mapping
-- RRBS/WGBS/BSSEQ → "BeaverBS" (3 steps)
-- RNASEQ → "BeaverRNA" (2 steps)
-- PDX mode → "BeaverPDX" / "BeaverRNASEQPDX" (auto-enabled when species2 is set)
-
-### Parallelization Strategy
-- **< 5 samples**: Sequential execution
-- **>= 5 samples**: SLURM Job Array or local worker pool
-- Steps 2 & 3 use single-sample mode (`--config "SIDs=[sample]"`)
-- Step 1 & checkers use all-samples mode
-
-### Adapter Generation
-- Reads `inline_barcode_sequence` from pdata
-- Computes reverse complement
-- RRBS: adds "TGA" (R1) / "A" (R2) prefix
-- WGBS: no prefix added
-- Empty barcode → "NO_ADAPTER_CAL_USE_DEFAULT"
-
-### Group Levels
-- Counts unique values in `sample_group` or `condition` column
-- Priority: `sample_group` > `condition`
-
-### Chinese Column Name Support
-Automatically maps Chinese columns to English:
-- "样本编号" / "样本ID" → `sampleid`
-- "条件" → `condition`
-- "样本分组" / "分组" → `sample_group`
-
-## Embedded Resources
-
-Located in `inst/`:
-- `Rscripts/` - R/Python scripts for Snakemake rules
-- `root_rules/` & `rootless_rules/` - Snakemake rule files
-- `snakefiles/` - Main Snakemake workflow files
-- `envs/` - Conda environment definitions
-
-Copied to project during `xdxtools init`.
-
-## Key Interfaces
-
-### Engine Interface
-```go
-// internal/engine/engine.go
-type Engine interface {
-    Execute(cmd []string) error
-    ExecuteWithOutput(cmd []string) (string, error)
-    GetName() EngineType
-    GetStatus() *Status
-    Wait() error
-    Kill() error
-    SetLogDir(dir string) error
-}
-```
-
-### Status States
-```go
-const (
-    StatusPending   = "PENDING"
-    StatusRunning   = "RUNNING"
-    StatusCompleted = "COMPLETED"
-    StatusFailed    = "FAILED"
-    StatusKilled    = "KILLED"
-)
-```
-
-### Key Configuration Types
-```go
-// internal/config/config.go
-type XDXToolsConfig struct {
-    Workflow      WorkflowConfig
-    Input         InputConfig
-    Output        OutputConfig
-    Reference     ReferenceConfig
-    Engine        EngineConfig
-}
-
-type WorkflowConfig struct {
-    Mode      string   // RRBS, WGBS, RNASEQ
-    Species   SpeciesConfig
-    Adapters  AdapterConfig
-    Samples   []SampleConfig
-}
-```
-
-## Test Data
-
-Centralized in `testdata/`:
-- `fastq/` - Sample FASTQ files
-- `pdata/` - Phenotype data (CSV/Excel)
-- `configs/` - Example configurations
-- `e2e/` - End-to-end test fixtures
 
 ## Conventions
 
-- Go 1.21+
-- YAML configuration with struct tags
-- FASTQ naming: `*_R1.fastq.gz` / `*_R2.fastq.gz` (or `*_1.fastq.gz` / `*_2.fastq.gz`)
-- Project output: `userspace/{jobid}/`
-- Job ID: 40-character hexadecimal string (auto-generated)
-- Excel (.xlsx/.xls) pdata files supported natively
+- Go 1.24+
+- Standard Go formatting and focused packages
+- Stable explicit CLI flags
+- Table-driven tests for parser and validator logic
+- Test local and SLURM paths when execution changes
+- Conventional Commit style when a commit is explicitly requested
+- Never commit or push without explicit authorization

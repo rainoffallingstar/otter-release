@@ -74,7 +74,7 @@ else
 fi
 
 echo "======================================"
-echo "Building all xdxtools submodules"
+echo "Building all otter submodules"
 echo "======================================"
 echo "Go: ${GO_SOURCE}"
 echo "Rust: ${RUST_SOURCE}"
@@ -91,8 +91,8 @@ build_go() {
   local ldflags
 
   echo "Building ${name}..."
-  if [ "${dir}" = "htseq2matrix-go" ]; then
-    bash scripts/ensure_htseq2matrix_entrypoint.sh "${dir}"
+  if [ "${dir}" = "seq2mat" ]; then
+    bash scripts/ensure_seq2mat_entrypoint.sh "${dir}"
   fi
 
   version_value="$(git -C "${dir}" describe --tags --abbrev=7 --dirty 2>/dev/null || true)"
@@ -118,7 +118,7 @@ build_rust() {
   local source_binary="${4:-$3}"
   local cargo_args=()
 
-  if [ "${dir}" = "methrix-cli" ]; then
+  if [ "${dir}" = "methx" ]; then
     cargo_args+=(--features download)
   fi
 
@@ -133,22 +133,22 @@ build_rust() {
 }
 
 # Go projects
-build_go "xenofilter-go" "xenofilter-go" "xenofilter" "./cmd/xenofilter" "github.com/rainoffallingstar/xenofilter-go/pkg/cli.Version"
-build_go "Paireads" "Paireads" "paireads" "./cmd/paireads" "main.Version"
-build_go "htseq2matrix-go" "htseq2matrix-go" "htseq2matrix" "./cmd/htseq2matrix" "main.Version"
-build_go "gomats" "gomats" "gomats" "./cmd/gomats" "github.com/rainoffallingstar/gomats/pkg/cli.Version"
+build_go "xenofilx" "xenofilx" "xenofilx" "./cmd/xenofilx" "github.com/rainoffallingstar/xenofilx/pkg/cli.Version"
+build_go "pairbam" "pairbam" "pairbam" "./cmd/pairbam" "main.Version"
+build_go "seq2mat" "seq2mat" "seq2mat" "./cmd/seq2mat" "main.Version"
+build_go "matsrun" "matsrun" "matsrun" "./cmd/matsrun" "github.com/rainoffallingstar/matsrun/pkg/cli.Version"
 
 # Rust projects
 build_rust "enva" "enva" "enva"
-build_rust "fastqc-rs" "fastqc-rs" "fqc"
-build_rust "methrix-cli" "methrix-cli" "methrix-cli" "methrix"
+build_rust "fastqcx" "fastqcx" "fastqcx"
+build_rust "methx" "methx" "methx"
 build_rust "qctb" "qctb" "qctb"
 
 echo "======================================"
 echo "Verifying installations"
 echo "======================================"
 
-required_bins=(enva fqc xenofilter paireads htseq2matrix methrix-cli qctb gomats)
+required_bins=(enva fastqcx xenofilx pairbam seq2mat methx qctb matsrun)
 version_re='([0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?|[0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[0-9]+|daily-[0-9]{8})'
 missing_bins=()
 invalid_versions=()

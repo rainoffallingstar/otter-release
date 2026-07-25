@@ -7,14 +7,18 @@
 
 ---
 
+## 当前执行层说明
+
+`craftmake` 是 Snakemake 的 Go 替代执行层，但尚在接入。下面的 `otter run` 示例当前走既有 Snakemake 兼容路径；只有完成等价性门禁后才会切换为 craftmake 单轨。
+
 ## 🗺️ 三命令工作流全貌
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                  xdxtools 三命令工作流                    │
+│                  otter 三命令工作流                    │
 └─────────────────────────────────────────────────────────┘
 
-  xdxtools init      →    xdxtools create    →    xdxtools run
+  otter init      →    otter create    →    otter run
        │                        │                       │
        ▼                        ▼                       ▼
   建立项目骨架            扫描数据生成配置           提交分析任务
@@ -29,7 +33,7 @@
 ## 🏗️ Step 1：初始化项目
 
 ```bash
-xdxtools init my_project
+otter init my_project
 ```
 
 这条命令会在当前目录下创建 `my_project/` 项目目录，并复制分析所需的流程资产。
@@ -53,14 +57,14 @@ my_project/
 | 参数 | 说明 | 示例 |
 |------|------|------|
 | `<项目名>` | 项目名称（必填） | `my_rrbs_project` |
-| `--legacy` | 使用旧版 rules 目录布局 | `xdxtools init my_project --legacy` |
+| `--legacy` | 使用旧版 rules 目录布局 | `otter init my_project --legacy` |
 
 ---
 
 ## 🔍 Step 2：创建分析配置
 
 ```bash
-xdxtools create --fastq /path/to/fastq --mode RRBS --pdata samples.xlsx --output my_project/userspace --jobid demo_rrbs
+otter create --fastq /path/to/fastq --mode RRBS --pdata samples.xlsx --output my_project/userspace --jobid demo_rrbs
 ```
 
 这条命令会：
@@ -75,7 +79,7 @@ xdxtools create --fastq /path/to/fastq --mode RRBS --pdata samples.xlsx --output
 **RRBS（限制性甲基化测序）**：
 
 ```bash
-xdxtools create \
+otter create \
     --fastq ./fastq \
     --mode RRBS \
     --pdata samples.xlsx \
@@ -87,7 +91,7 @@ xdxtools create \
 **WGBS（全基因组甲基化测序）**：
 
 ```bash
-xdxtools create \
+otter create \
     --fastq ./fastq \
     --mode WGBS \
     --pdata samples.xlsx \
@@ -99,7 +103,7 @@ xdxtools create \
 **RNA-seq（转录组测序）**：
 
 ```bash
-xdxtools create \
+otter create \
     --fastq ./fastq \
     --mode RNASEQ \
     --pdata samples.xlsx \
@@ -113,7 +117,7 @@ xdxtools create \
 如果你的样本来自 PDX（人源肿瘤异种移植）模型，需要额外指定第二个物种：
 
 ```bash
-xdxtools create \
+otter create \
     --fastq ./fastq \
     --mode RRBS \
     --pdata samples.xlsx \
@@ -142,7 +146,7 @@ xdxtools create \
 ## ▶️ Step 3：运行分析
 
 ```bash
-xdxtools run --config my_project/userspace/demo_rrbs/config/config.yaml
+otter run --config my_project/userspace/demo_rrbs/config/config.yaml
 ```
 
 > 如果你没有显式设置 `--jobid demo_rrbs`，请将这里替换为实际输出的 Job ID。
@@ -150,7 +154,7 @@ xdxtools run --config my_project/userspace/demo_rrbs/config/config.yaml
 ### 本地运行（适合少量样本或测试）
 
 ```bash
-xdxtools run \
+otter run \
     --config my_project/userspace/<jobid>/config/config.yaml \
     --engine local \
     --parallel-jobs 4
@@ -159,7 +163,7 @@ xdxtools run \
 ### SLURM 集群运行（适合大批量样本，推荐）
 
 ```bash
-xdxtools run \
+otter run \
     --config my_project/userspace/<jobid>/config/config.yaml \
     --engine slurm \
     --slurm-partition your_partition \
@@ -183,7 +187,7 @@ xdxtools run \
 
 ```bash
 # 先用 --dry-run 验证配置，不会真正提交任务
-xdxtools run \
+otter run \
     --config my_project/userspace/<jobid>/config/config.yaml \
     --dry-run
 ```
@@ -193,7 +197,7 @@ xdxtools run \
 ## 📡 Step 4：查看运行进度
 
 ```bash
-xdxtools status my_project/userspace/<jobid>
+otter status my_project/userspace/<jobid>
 ```
 
 输出示例：
@@ -225,21 +229,21 @@ Progress: 1 completed, 1 running, 1 pending
 
 ```bash
 # ============================================
-# xdxtools RRBS 完整分析示例
+# otter RRBS 完整分析示例
 # ============================================
 
 # 1. 进入你的工作目录
 cd /data/my_analysis
 
 # 2. 初始化项目（"rrbs_2024" 是你给这次分析起的名字）
-xdxtools init rrbs_2024
+otter init rrbs_2024
 
 # 3. 创建分析配置
 #    --fastq: 你的 FASTQ 文件目录
 #    --mode: 分析类型（RRBS/WGBS/RNASEQ）
 #    --pdata: 样本信息表
 #    --species1: 参考基因组（hg38/hg19/mm10）
-xdxtools create \
+otter create \
     --fastq ./fastq \
     --mode RRBS \
     --pdata samples.xlsx \
@@ -251,19 +255,19 @@ xdxtools create \
 ls rrbs_2024/userspace/demo_rrbs/config/
 
 # 5. 先做干跑测试（推荐）
-xdxtools run \
+otter run \
     --config rrbs_2024/userspace/demo_rrbs/config/config.yaml \
     --dry-run
 
 # 6. 正式运行（SLURM 集群）
-xdxtools run \
+otter run \
     --config rrbs_2024/userspace/demo_rrbs/config/config.yaml \
     --engine slurm \
     --slurm-partition normal \
     --parallel-jobs 8
 
 # 7. 查看进度
-xdxtools status rrbs_2024/userspace/demo_rrbs
+otter status rrbs_2024/userspace/demo_rrbs
 ```
 
 > **提示：** 如果你没有显式设置 `--jobid demo_rrbs`，请将示例中的 `demo_rrbs` 替换为实际输出的 Job ID；`normal` 需要替换为你集群的分区名。

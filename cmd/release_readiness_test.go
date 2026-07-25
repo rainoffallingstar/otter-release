@@ -6,12 +6,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/xdxtools/xdxtools-go/internal/config"
+	"github.com/rainoffallingstar/otter/internal/config"
 )
 
 func TestDiscoverProjectDirFromConfigUsesAncestorManifest(t *testing.T) {
 	projectDir := t.TempDir()
-	manifestPath := filepath.Join(projectDir, ".xdxtools", "assets.manifest.json")
+	manifestPath := filepath.Join(projectDir, ".otter", "assets.manifest.json")
 	if err := os.MkdirAll(filepath.Dir(manifestPath), 0o755); err != nil {
 		t.Fatalf("mkdir manifest dir: %v", err)
 	}

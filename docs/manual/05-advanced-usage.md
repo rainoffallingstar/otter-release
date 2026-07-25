@@ -14,10 +14,10 @@
 
 ```bash
 # 单物种
-xdxtools create --fastq ./fastq --mode RRBS --pdata samples.xlsx --species1 hg38
+otter create --fastq ./fastq --mode RRBS --pdata samples.xlsx --species1 hg38
 
 # 双物种（PDX）
-xdxtools create --fastq ./fastq --mode RRBS --pdata samples.xlsx --species1 hg38 --species2 mm10
+otter create --fastq ./fastq --mode RRBS --pdata samples.xlsx --species1 hg38 --species2 mm10
 ```
 
 ---
@@ -32,7 +32,7 @@ xdxtools create --fastq ./fastq --mode RRBS --pdata samples.xlsx --species1 hg38
 ### RRBS/WGBS：覆盖默认 FASTA 与索引
 
 ```bash
-xdxtools create \
+otter create \
   --fastq ./fastq \
   --pdata samples.xlsx \
   --mode RRBS \
@@ -46,7 +46,7 @@ xdxtools create \
 ### RNA-seq：覆盖 GTF 与 STAR 索引（含 PDX）
 
 ```bash
-xdxtools create \
+otter create \
   --fastq ./fastq \
   --pdata samples.xlsx \
   --mode RNASEQ \
@@ -85,7 +85,7 @@ xdxtools create \
 - 需要稳定重跑（固定 jobid）
 
 ```bash
-xdxtools create \
+otter create \
   --fastq ./raw_fastq \
   --mode WGBS \
   --pdata samples.xlsx \
@@ -103,7 +103,7 @@ xdxtools create \
 
 ## 场景 3：SLURM 资源精细覆盖（run，高级）
 
-xdxtools 支持三层资源覆盖：
+otter 支持三层资源覆盖：
 1. 全局：`--slurm-partition` / `--slurm-cores` / `--slurm-memory`
 2. 分步骤：`--step1-*`、`--step2-*`、`--step3-*`
 3. checker 步骤：`--step2-checker-*`、`--step3-checker-*`
@@ -111,7 +111,7 @@ xdxtools 支持三层资源覆盖：
 ### 全局资源 + 动态负载控制
 
 ```bash
-xdxtools run \
+otter run \
   --config my_project/userspace/<jobid>/config/config.yaml \
   --engine slurm \
   --slurm-partition normal \
@@ -124,7 +124,7 @@ xdxtools run \
 ### 分步骤覆盖（step2 大内存）
 
 ```bash
-xdxtools run \
+otter run \
   --config my_project/userspace/<jobid>/config/config.yaml \
   --engine slurm \
   --step1-cores 8 --step1-memory 32G --step1-partition normal \
@@ -158,13 +158,13 @@ xdxtools run \
 
 ```bash
 # 仅压缩未压缩 FASTQ
-xdxtools run --config my_project/userspace/<jobid>/config/config.yaml --compress-fastq
+otter run --config my_project/userspace/<jobid>/config/config.yaml --compress-fastq
 
 # 将 FASTQ 复制到项目目录（保留原始数据）
-xdxtools run --config my_project/userspace/<jobid>/config/config.yaml --copy-fastq
+otter run --config my_project/userspace/<jobid>/config/config.yaml --copy-fastq
 
 # 将 FASTQ 移动到项目目录（原目录会变更）
-xdxtools run --config my_project/userspace/<jobid>/config/config.yaml --move-fastq
+otter run --config my_project/userspace/<jobid>/config/config.yaml --move-fastq
 ```
 
 说明：
@@ -175,17 +175,19 @@ xdxtools run --config my_project/userspace/<jobid>/config/config.yaml --move-fas
 
 ```bash
 # 提交前检查（不执行）
-xdxtools run --config my_project/userspace/<jobid>/config/config.yaml --dry-run
+otter run --config my_project/userspace/<jobid>/config/config.yaml --dry-run
 
 # 从中断点恢复
-xdxtools run --config my_project/userspace/<jobid>/config/config.yaml --resume
+otter run --config my_project/userspace/<jobid>/config/config.yaml --resume
 ```
 
-状态文件位置：
+状态文件位置在当前源码中仍可能是兼容名：
 
 ```
 my_project/userspace/<jobid>/.xdxtools_state.json
 ```
+
+代码命名迁移完成后才会统一为 `.otter_state.json`；不要在现有项目中手工改名。
 
 ---
 
@@ -223,7 +225,7 @@ engine:
 在运行之前，可以先验证配置文件是否正确：
 
 ```bash
-xdxtools config validate --config my_project/userspace/<jobid>/config/config.yaml
+otter config validate --config my_project/userspace/<jobid>/config/config.yaml
 ```
 
 ---

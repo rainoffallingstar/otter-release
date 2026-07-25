@@ -1,9 +1,9 @@
-# xdxtools Analysis Project Configuration
-# Generated automatically by: xdxtools create
+# otter Analysis Project Configuration
+# Generated automatically by: otter create
 #
 # This file uses nested structure for rootless_rules compatibility.
 # Edit this file to customize your analysis parameters.
-# Then run: xdxtools run --config <this-file>
+# Then run: otter run --config <this-file>
 #
 
 SIDs:

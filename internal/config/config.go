@@ -1,7 +1,7 @@
 package config
 
-// XDXToolsConfig represents the complete xdxtools configuration
-type XDXToolsConfig struct {
+// OtterConfig represents the complete otter configuration
+type OtterConfig struct {
 	Workflow      WorkflowConfig        `mapstructure:"workflow"`
 	Input         InputConfig           `mapstructure:"input"`
 	Output        OutputConfig          `mapstructure:"output"`
@@ -187,7 +187,7 @@ type EngineConfig struct {
 	Slurm       SlurmConfig `mapstructure:"slurm,omitempty"`
 	Local       LocalConfig `mapstructure:"local,omitempty"`
 	CondaEnv    string      `mapstructure:"conda_env,omitempty"`    // Conda environment for Snakemake
-	FallbackEnv string      `mapstructure:"fallback_env,omitempty"` // Fallback environment (default: xdxtools-snakemake)
+	FallbackEnv string      `mapstructure:"fallback_env,omitempty"` // Fallback environment (default: otter-snakemake)
 	NoFallback  bool        `mapstructure:"no_fallback,omitempty"`  // Disable automatic fallback
 }
 

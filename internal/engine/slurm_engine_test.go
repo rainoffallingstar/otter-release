@@ -3,7 +3,7 @@ package engine
 import (
 	"testing"
 
-	"github.com/xdxtools/xdxtools-go/internal/logger"
+	"github.com/rainoffallingstar/otter/internal/logger"
 )
 
 func init() {

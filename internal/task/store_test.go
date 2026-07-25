@@ -9,7 +9,7 @@ import (
 
 func TestStoreCreateLoadAndUpdate(t *testing.T) {
 	store := NewStore(filepath.Join(t.TempDir(), "tasks"))
-	record := NewRecord("task-1", "/project", "/project/config.yaml", "local", []string{"xdxtools", "run"})
+	record := NewRecord("task-1", "/project", "/project/config.yaml", "local", []string{"otter", "run"})
 
 	if err := store.Create(record); err != nil {
 		t.Fatalf("Create() error = %v", err)

@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/360EntSecGroup-Skylar/excelize"
-	"github.com/xdxtools/xdxtools-go/internal/logger"
+	"github.com/rainoffallingstar/otter/internal/logger"
 )
 
 // PDataParser parses phenotype data files (CSV/Excel)

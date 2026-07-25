@@ -7,7 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/xdxtools/xdxtools-go/cmd"
+	"github.com/rainoffallingstar/otter/cmd"
 )
 
 func main() {

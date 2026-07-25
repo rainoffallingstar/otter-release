@@ -12,6 +12,6 @@ rule multiqc2summary:
   threads:4
   shell:
     """
-    enva run xdxtools-core -- multiqc {params.readir} -o {params.outdir} -f
+    enva run otter-core -- multiqc {params.readir} -o {params.outdir} -f
     
     """

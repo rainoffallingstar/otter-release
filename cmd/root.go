@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/rainoffallingstar/otter/internal/logger"
 	"github.com/spf13/cobra"
-	"github.com/xdxtools/xdxtools-go/internal/logger"
 )
 
 var (
@@ -23,9 +23,9 @@ var (
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "xdxtools",
+	Use:   "otter",
 	Short: "Bioinformatics workflow management tool",
-	Long: `xdxtools is a bioinformatics workflow management tool for RRBS, WGBS, RNA-seq, and PDX analysis.
+	Long: `otter is a bioinformatics workflow management tool for RRBS, WGBS, RNA-seq, and PDX analysis.
 It integrates with Snakemake and supports Slurm and local execution environments.`,
 	Version: fmt.Sprintf("%s+%s (%s)", buildVersion, buildCommit, buildDate),
 }
@@ -46,7 +46,7 @@ func init() {
 	cobra.OnInitialize(initConfig)
 
 	// Global flags
-	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is xdxtools.yaml)")
+	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is otter.yaml)")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
 	rootCmd.PersistentFlags().BoolVar(&userLevel, "user-level", false, "run at user level (for PDX)")
 }

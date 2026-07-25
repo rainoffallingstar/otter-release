@@ -1,30 +1,30 @@
 [submodule "enva"]
 	path = enva
 	url = https://github.com/rainoffallingstar/enva.git
-[submodule "xenofilter-go"]
-	path = xenofilter-go
-	url = https://github.com/rainoffallingstar/xenofilter-go
-[submodule "Paireads"]
-	path = Paireads
-	url = https://github.com/rainoffallingstar/Paireads
-[submodule "htseq2matrix-go"]
-	path = htseq2matrix-go
-	url = https://github.com/rainoffallingstar/htseq2matrix-go
-[submodule "methrix-cli"]
-	path = methrix-cli
-	url = https://github.com/rainoffallingstar/methrix-cli
+[submodule "xenofilx"]
+	path = xenofilx
+	url = https://github.com/rainoffallingstar/xenofilx.git
+[submodule "pairbam"]
+	path = pairbam
+	url = https://github.com/rainoffallingstar/pairbam.git
+[submodule "seq2mat"]
+	path = seq2mat
+	url = https://github.com/rainoffallingstar/seq2mat.git
+[submodule "methx"]
+	path = methx
+	url = https://github.com/rainoffallingstar/methx.git
 [submodule "qctb"]
 	path = qctb
-	url = https://github.com/rainoffallingstar/qctb
-[submodule "fastqc-rs"]
-	path = fastqc-rs
-	url = https://github.com/rainoffallingstar/fastqc-rs
-[submodule "gomats"]
-	path = gomats
-	url = https://github.com/rainoffallingstar/gomats
-[submodule "bamdriver-go"]
-	path = bamdriver-go
-	url = https://github.com/rainoffallingstar/bamdriver-go.git
+	url = https://github.com/rainoffallingstar/qctb.git
+[submodule "fastqcx"]
+	path = fastqcx
+	url = https://github.com/rainoffallingstar/fastqcx.git
+[submodule "matsrun"]
+	path = matsrun
+	url = https://github.com/rainoffallingstar/matsrun.git
+[submodule "bamdriver"]
+	path = bamdriver
+	url = https://github.com/rainoffallingstar/bamdriver.git
 [submodule "craftmake"]
 	path = craftmake
 	url = https://github.com/rainoffallingstar/craftmake.git

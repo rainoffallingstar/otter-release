@@ -6,8 +6,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/rainoffallingstar/otter/internal/workflow"
 	"github.com/spf13/cobra"
-	"github.com/xdxtools/xdxtools-go/internal/workflow"
 )
 
 // statusCmd represents the status command
@@ -17,7 +17,7 @@ var statusCmd = &cobra.Command{
 	Long: `Display the status of a running or completed workflow.
 
 If no directory is specified, checks the current directory.
-The status is read from the .xdxtools_state.json file.`,
+The status is read from the .otter_state.json file.`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runStatus,
 }
@@ -44,7 +44,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	// Check if state file exists
 	if !state.Exists() {
 		fmt.Println("No workflow state found")
-		fmt.Println("Run 'xdxtools run' to start a new workflow")
+		fmt.Println("Run 'otter run' to start a new workflow")
 		return nil
 	}
 
@@ -147,7 +147,7 @@ func printWorkflowStatusTo(output io.Writer, state *workflow.State) {
 			if step.Status == "running" {
 				fmt.Fprintf(output, "\nCurrently running: Step %d (%s)\n", step.Step, step.Name)
 				fmt.Fprintln(output, "To resume after interruption, use:")
-				fmt.Fprintln(output, "  xdxtools run --config config.yaml --resume")
+				fmt.Fprintln(output, "  otter run --config otter.yaml --resume")
 				break
 			}
 		}

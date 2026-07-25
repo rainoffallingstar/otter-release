@@ -1,4 +1,4 @@
-module github.com/xdxtools/xdxtools-go
+module github.com/rainoffallingstar/otter
 
 go 1.24.0
 

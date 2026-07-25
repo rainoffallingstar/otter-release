@@ -25,14 +25,14 @@ func TestValidateEnvironment(t *testing.T) {
 		}
 	})
 
-	// Test 3: Check xdxtools-snakemake environment
+	// Test 3: Check otter-snakemake environment
 	t.Run("XdxtoolsSnakemake", func(t *testing.T) {
-		err := ValidateEnvironment("xdxtools-snakemake")
+		err := ValidateEnvironment("otter-snakemake")
 		if err != nil {
-			fmt.Printf("⚠ xdxtools-snakemake validation failed: %v\n", err)
+			fmt.Printf("⚠ otter-snakemake validation failed: %v\n", err)
 			fmt.Println("  Note: This is expected if the environment is not installed")
 		} else {
-			fmt.Println("✓ xdxtools-snakemake environment is valid")
+			fmt.Println("✓ otter-snakemake environment is valid")
 		}
 	})
 

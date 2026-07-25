@@ -16,11 +16,11 @@ rule bsmap2sort4homo:
   threads: 8
   shell:
     """
-    enva run xdxtools-core -- bismark --genome {params.genomeFile} --nucleotide_coverage --parallel {threads} -1 {input.trim_R1} -2 {input.trim_R2} -o {params.bsmapDir_species}  --temp_dir {params.bamTmp}
+    enva run otter-core -- bismark --genome {params.genomeFile} --nucleotide_coverage --parallel {threads} -1 {input.trim_R1} -2 {input.trim_R2} -o {params.bsmapDir_species}  --temp_dir {params.bamTmp}
     
-    enva run xdxtools-core -- samtools sort -@ {threads} -o {params.bam_sorted} {params.bam_aligned}
+    enva run otter-core -- samtools sort -@ {threads} -o {params.bam_sorted} {params.bam_aligned}
     
-    enva run xdxtools-core -- samtools index -@ {threads} -b {params.bam_sorted}
+    enva run otter-core -- samtools index -@ {threads} -b {params.bam_sorted}
     
     #rm -f {params.bam_aligned}
     

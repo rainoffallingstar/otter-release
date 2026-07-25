@@ -6,9 +6,9 @@ import (
 	"os"
 	"path/filepath"
 
+	assetspkg "github.com/rainoffallingstar/otter/internal/assets"
+	"github.com/rainoffallingstar/otter/internal/logger"
 	"github.com/spf13/cobra"
-	assetspkg "github.com/xdxtools/xdxtools-go/internal/assets"
-	"github.com/xdxtools/xdxtools-go/internal/logger"
 )
 
 var (

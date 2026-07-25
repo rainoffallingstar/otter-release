@@ -6,9 +6,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestXDXToolsConfig_Structure(t *testing.T) {
+func TestOtterConfig_Structure(t *testing.T) {
 	// 测试配置结构体的基本字段存在性
-	cfg := XDXToolsConfig{
+	cfg := OtterConfig{
 		Workflow: WorkflowConfig{
 			Mode:   "RRBS",
 			UserID: "test_user",
@@ -49,7 +49,7 @@ func TestXDXToolsConfig_Structure(t *testing.T) {
 }
 
 func TestNestedConfig_Marshaling(t *testing.T) {
-	cfg := XDXToolsConfig{
+	cfg := OtterConfig{
 		Workflow: WorkflowConfig{
 			Mode:   "WGBS",
 			UserID: "user123",
@@ -356,7 +356,7 @@ func TestEngineConfig_Slurm(t *testing.T) {
 			Partition:  "compute",
 			Cores:      8,
 			Memory:     "32GB",
-			JobName:    "xdxtools_job",
+			JobName:    "otter_job",
 			MaxRetries: 3,
 		},
 	}

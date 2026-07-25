@@ -1,14 +1,14 @@
 rule rnaseq_step1_checker :
   message:"Checking step1 of RNAseq ..."
   input:
-    expand(os.path.join(config["directories"]["qc"]["before"], "{sample}_R1_fqc", "fastqc_data.txt"), sample=config["metadata"]["sample_ids"]),
-    expand(os.path.join(config["directories"]["qc"]["before"], "{sample}_R2_fqc", "fastqc_data.txt"), sample=config["metadata"]["sample_ids"]),
+    expand(os.path.join(config["directories"]["qc"]["before"], "{sample}_R1_fastqcx", "fastqc_data.txt"), sample=config["metadata"]["sample_ids"]),
+    expand(os.path.join(config["directories"]["qc"]["before"], "{sample}_R2_fastqcx", "fastqc_data.txt"), sample=config["metadata"]["sample_ids"]),
     expand(os.path.join(config["output"]["trim_dir"], "{sample}_val_1.fq.gz"),sample = config["metadata"]["sample_ids"]),
     expand(os.path.join(config["output"]["trim_dir"], "{sample}_val_2.fq.gz"),sample = config["metadata"]["sample_ids"]),
     expand(os.path.join(config["output"]["trim_dir"], "{sample}_R1.fastq.gz_trimming_report.txt"),sample = config["metadata"]["sample_ids"]),
     expand(os.path.join(config["output"]["trim_dir"], "{sample}_R2.fastq.gz_trimming_report.txt"),sample = config["metadata"]["sample_ids"]),
-    expand(os.path.join(config["directories"]["qc"]["after"], "{sample}_val_1_fqc", "fastqc_data.txt"), sample=config["metadata"]["sample_ids"]),
-    expand(os.path.join(config["directories"]["qc"]["after"], "{sample}_val_2_fqc", "fastqc_data.txt"), sample=config["metadata"]["sample_ids"])
+    expand(os.path.join(config["directories"]["qc"]["after"], "{sample}_val_1_fastqcx", "fastqc_data.txt"), sample=config["metadata"]["sample_ids"]),
+    expand(os.path.join(config["directories"]["qc"]["after"], "{sample}_val_2_fastqcx", "fastqc_data.txt"), sample=config["metadata"]["sample_ids"])
   output:
     os.path.join(config["directories"]["sid_log"], "step1_success.txt")
   params:

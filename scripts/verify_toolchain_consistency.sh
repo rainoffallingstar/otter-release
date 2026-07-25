@@ -9,13 +9,13 @@ BUILD_SCRIPT="${ROOT_DIR}/scripts/build-all-submodules.sh"
 
 KNOWN_EXTERNAL_CMDS=(
   enva
-  fqc
-  xenofilter
-  paireads
-  htseq2matrix
-  methrix-cli
+  fastqcx
+  xenofilx
+  pairbam
+  seq2mat
+  methx
   qctb
-  gomats
+  matsrun
 )
 
 if [ ! -d "${RULES_DIR}" ]; then

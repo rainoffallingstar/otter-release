@@ -9,13 +9,13 @@ BIN_DIR="${1:-$HOME/.cargo/bin}"
 # version_prefix: the name the binary reports in --version output
 required_bins=(
   "enva|enva"
-  "fqc|fqc"
-  "xenofilter|xenofilter"
-  "paireads|paireads"
-  "htseq2matrix|htseq2matrix"
-  "methrix|methrix-cli"
+  "fastqcx|fastqcx"
+  "xenofilx|xenofilx"
+  "pairbam|pairbam"
+  "seq2mat|seq2mat"
+  "methx|methx"
   "qctb|qctb"
-  "gomats|gomats"
+  "matsrun|matsrun"
 )
 version_re='([0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?|[0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[0-9]+|daily-[0-9]{8})'
 

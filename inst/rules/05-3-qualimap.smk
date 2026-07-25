@@ -13,5 +13,5 @@ rule qualimap:
   shell:
     """
     export JAVA_OPTS="-Djava.awt.headless=true"
-    enva run xdxtools-core -- qualimap bamqc -bam {input.sample_bam} -outdir {params.outdir_qualimap} -outformat PDF:HTML  --java-mem-size={params.java_mem}
+    enva run otter-core -- qualimap bamqc -bam {input.sample_bam} -outdir {params.outdir_qualimap} -outformat PDF:HTML  --java-mem-size={params.java_mem}
     """

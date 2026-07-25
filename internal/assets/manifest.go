@@ -13,12 +13,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/xdxtools/xdxtools-go/internal/logger"
+	"github.com/rainoffallingstar/otter/internal/logger"
 )
 
 const (
 	manifestSchemaVersion = 1
-	manifestRelPath       = ".xdxtools/assets.manifest.json"
+	manifestRelPath       = ".otter/assets.manifest.json"
 )
 
 type Manifest struct {

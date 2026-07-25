@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	EnvironmentTaskID       = "XDXTOOLS_TASK_ID"
-	EnvironmentTaskStateDir = "XDXTOOLS_TASK_STATE_DIR"
+	EnvironmentTaskID       = "OTTER_TASK_ID"
+	EnvironmentTaskStateDir = "OTTER_TASK_STATE_DIR"
 
 	StatusQueued      = "queued"
 	StatusRunning     = "running"
@@ -77,14 +77,14 @@ func DefaultStateDir() (string, error) {
 	}
 
 	if xdgStateHome := strings.TrimSpace(os.Getenv("XDG_STATE_HOME")); xdgStateHome != "" {
-		return filepath.Join(xdgStateHome, "xdxtools", "tasks"), nil
+		return filepath.Join(xdgStateHome, "otter", "tasks"), nil
 	}
 
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("resolve home directory: %w", err)
 	}
-	return filepath.Join(homeDir, ".local", "state", "xdxtools", "tasks"), nil
+	return filepath.Join(homeDir, ".local", "state", "otter", "tasks"), nil
 }
 
 func GenerateID() (string, error) {

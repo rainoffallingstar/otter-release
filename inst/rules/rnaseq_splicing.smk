@@ -29,8 +29,8 @@ rule rnaseq_splicing:
         if config["metadata"]["group_levels"] >= 2:
             shell(
                 """
-                enva run xdxtools-core -- \
-                  gomats run \
+                enva run otter-core -- \
+                  matsrun run \
                   --root {params.run_dir:q} \
                   --threads {threads} \
                   --pdata {input.pdata:q} \

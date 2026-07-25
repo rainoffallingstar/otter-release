@@ -3,11 +3,11 @@ package workflow
 import (
 	"testing"
 
-	"github.com/xdxtools/xdxtools-go/internal/config"
+	"github.com/rainoffallingstar/otter/internal/config"
 )
 
 func TestManagerSetSamples(t *testing.T) {
-	cfg := &config.XDXToolsConfig{
+	cfg := &config.OtterConfig{
 		Workflow: config.WorkflowConfig{
 			Mode: "RRBS",
 		},
@@ -25,7 +25,7 @@ func TestManagerSetSamples(t *testing.T) {
 }
 
 func TestManagerSetStepResources(t *testing.T) {
-	cfg := &config.XDXToolsConfig{
+	cfg := &config.OtterConfig{
 		Workflow: config.WorkflowConfig{
 			Mode: "RRBS",
 		},
@@ -48,7 +48,7 @@ func TestManagerSetStepResources(t *testing.T) {
 }
 
 func TestManagerGetStepResource(t *testing.T) {
-	cfg := &config.XDXToolsConfig{
+	cfg := &config.OtterConfig{
 		Workflow: config.WorkflowConfig{
 			Mode: "RRBS",
 		},
@@ -86,7 +86,7 @@ func TestManagerGetStepResource(t *testing.T) {
 }
 
 func TestManagerIntelligentStrategy(t *testing.T) {
-	cfg := &config.XDXToolsConfig{
+	cfg := &config.OtterConfig{
 		Workflow: config.WorkflowConfig{
 			Mode: "RRBS",
 		},
@@ -120,7 +120,7 @@ func TestManagerIntelligentStrategy(t *testing.T) {
 }
 
 func TestManagerShouldUseSingleSampleMode(t *testing.T) {
-	cfg := &config.XDXToolsConfig{
+	cfg := &config.OtterConfig{
 		Workflow: config.WorkflowConfig{
 			Mode: "RRBS",
 		},
@@ -152,7 +152,7 @@ func TestManagerShouldUseSingleSampleMode(t *testing.T) {
 }
 
 func TestManagerCheckerInheritance(t *testing.T) {
-	cfg := &config.XDXToolsConfig{
+	cfg := &config.OtterConfig{
 		Workflow: config.WorkflowConfig{
 			Mode: "RRBS",
 		},

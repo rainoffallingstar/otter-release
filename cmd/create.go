@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/rainoffallingstar/otter/internal/config"
+	"github.com/rainoffallingstar/otter/internal/input"
+	"github.com/rainoffallingstar/otter/internal/logger"
 	"github.com/spf13/cobra"
-	"github.com/xdxtools/xdxtools-go/internal/config"
-	"github.com/xdxtools/xdxtools-go/internal/input"
-	"github.com/xdxtools/xdxtools-go/internal/logger"
 	"gopkg.in/yaml.v3"
 )
 
@@ -119,12 +119,12 @@ This command performs the following steps:
 3. Loads and validates pdata if provided
 4. Generates a unique job ID (or uses user-specified one)
 5. Creates project directory structure in userspace/{jobid}/
-6. Generates config.yaml for the workflow
+6. Generates otter.yaml for the workflow
 
 Examples:
-  xdxtools create --fastq /data/fastq --mode RRBS
-  xdxtools create --fastq /data/fastq --pdata samples.xlsx --mode WGBS
-  xdxtools create --fastq /data/fastq --mode RNASEQ --species1 human --species2 mouse`,
+  otter create --fastq /data/fastq --mode RRBS
+  otter create --fastq /data/fastq --pdata samples.xlsx --mode WGBS
+  otter create --fastq /data/fastq --mode RNASEQ --species1 human --species2 mouse`,
 	RunE: runCreate,
 }
 
@@ -311,8 +311,8 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	}
 	logger.Infof("Generated adapters for %d samples", len(sampleNames))
 
-	// 11. Generate config.yaml
-	configPath := filepath.Join(projectDir, "config", "config.yaml")
+	// 11. Generate otter.yaml
+	configPath := filepath.Join(projectDir, "config", "otter.yaml")
 	if err := generateProjectConfig(configPath, modeStr, createSpecies1, createSpecies2,
 		createFastqDir, createPdataFile, sampleNames, projectDir, adapter1, adapter2, pdata, jobID); err != nil {
 		return fmt.Errorf("failed to generate config: %w", err)
@@ -344,7 +344,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	}
 	logger.Info("")
 	logger.Info("Next step:")
-	logger.Infof("  xdxtools run --config %s", configPath)
+	logger.Infof("  otter run --config %s", configPath)
 
 	return nil
 }
@@ -550,7 +550,7 @@ func calculateGroupLevels(pdata *input.PData, samples []string) int {
 	return groupCount
 }
 
-// generateProjectConfig generates the config.yaml file with pure nested structure
+// generateProjectConfig generates the otter.yaml file with pure nested structure
 func generateProjectConfig(configPath, mode, species1, species2,
 	fastqDir, pdataFile string, samples []string, projectDir string,
 	adapter1, adapter2 []string, pdata *input.PData, jobID string) error {
@@ -653,7 +653,7 @@ func generateProjectConfig(configPath, mode, species1, species2,
 	}
 
 	// Build the nested configuration structure
-	cfg := config.XDXToolsConfig{
+	cfg := config.OtterConfig{
 		Workflow: config.WorkflowConfig{
 			Mode:   mode,
 			UserID: jobID,
@@ -908,12 +908,12 @@ func generateProjectConfig(configPath, mode, species1, species2,
 	}
 
 	// Add header comment
-	header := `# xdxtools Analysis Project Configuration
-# Generated automatically by: xdxtools create
+	header := `# otter Analysis Project Configuration
+# Generated automatically by: otter create
 #
 # This file uses nested structure for rootless_rules compatibility.
 # Edit this file to customize your analysis parameters.
-# Then run: xdxtools run --config <this-file>
+# Then run: otter run --config <this-file>
 #
 
 `

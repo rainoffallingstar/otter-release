@@ -2,11 +2,11 @@
 set -e
 
 INSTALL_DIR="$HOME/.cargo/bin"
-RUNTIME_DIR="$HOME/xdxtools-runtime"
+RUNTIME_DIR="$HOME/otter-runtime"
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 echo "======================================"
-echo "xdxtools Build and Installation Script"
+echo "otter Build and Installation Script"
 echo "======================================"
 echo ""
 
@@ -71,13 +71,13 @@ if [ "$SKIP_BUILD" = false ]; then
     echo "=== Step 1: Build and Install Binaries ==="
 
     if [ "$DRY_RUN" = false ]; then
-        # Build xdxtools
-        echo "Building xdxtools..."
+        # Build otter
+        echo "Building otter..."
         cd "$PROJECT_ROOT"
-        CGO_ENABLED=0 go build -ldflags="-s -w" -o xdxtools .
+        CGO_ENABLED=0 go build -ldflags="-s -w" -o otter .
         mkdir -p "$INSTALL_DIR"
-        cp xdxtools "$INSTALL_DIR/"
-        echo "✓ xdxtools installed to $INSTALL_DIR/"
+        cp otter "$INSTALL_DIR/"
+        echo "✓ otter installed to $INSTALL_DIR/"
 
         # Build enva
         if [ -f "$PROJECT_ROOT/enva/Cargo.toml" ]; then
@@ -89,7 +89,7 @@ if [ "$SKIP_BUILD" = false ]; then
         fi
     else
         echo "[DRY RUN] Would build and install:"
-        echo "  - xdxtools → $INSTALL_DIR/xdxtools"
+        echo "  - otter → $INSTALL_DIR/otter"
         echo "  - enva → $INSTALL_DIR/enva"
     fi
 
@@ -110,11 +110,11 @@ if [ "$SKIP_INIT" = false ]; then
         cd "$RUNTIME_DIR"
 
         # Check if already initialized
-        if [ -f "config/config.yaml" ] || [ -d "rules" ]; then
+        if [ -f "config/otter.yaml" ] || [ -d "rules" ]; then
             echo "⚠ Runtime directory already initialized"
             echo "  To re-initialize, remove $RUNTIME_DIR and run again"
         else
-            "$PROJECT_ROOT/xdxtools" init .
+            "$PROJECT_ROOT/otter" init .
             echo "✓ Runtime directory initialized at $RUNTIME_DIR/"
         fi
     else
@@ -165,8 +165,8 @@ fi
 # ============================================================================
 if [ "$SKIP_R_PACKAGES" = false ]; then
     echo "=== Step 4: Skipped (R packages no longer required) ==="
-    echo "  - gomats 替代 RNA_Splicing.R"
-    echo "  - htseq2matrix-go 替代 htseq2matrix.R"
+    echo "  - matsrun 替代 RNA_Splicing.R"
+    echo "  - seq2mat 替代 seq2mat.R"
     echo ""
 else
     echo "=== Step 4: Skipped (--skip-r-packages) ==="
@@ -185,9 +185,9 @@ echo "Runtime directory: $RUNTIME_DIR"
 echo ""
 
 # Check if binaries are in PATH
-if [ -f "$INSTALL_DIR/xdxtools" ]; then
-    if command -v xdxtools &> /dev/null; then
-        echo "✓ xdxtools is in PATH"
+if [ -f "$INSTALL_DIR/otter" ]; then
+    if command -v otter &> /dev/null; then
+        echo "✓ otter is in PATH"
     else
         echo "⚠ Add to PATH: export PATH=\"\$PATH:$INSTALL_DIR\""
     fi
@@ -208,11 +208,11 @@ echo "  1. Add binaries to PATH (if not already):"
 echo "     export PATH=\"\$PATH:$INSTALL_DIR\""
 echo ""
 echo "  2. Verify installation:"
-echo "     xdxtools --version"
+echo "     otter --version"
 echo "     enva --version"
 echo ""
 echo "  3. Create a new analysis:"
 echo "     cd $RUNTIME_DIR"
-echo "     xdxtools create --fastq /path/to/fastq --pdata samples.csv --output ./userspace --jobid demo_run"
-echo "     xdxtools run --config ./userspace/demo_run/config/config.yaml --dry-run"
+echo "     otter create --fastq /path/to/fastq --pdata samples.csv --output ./userspace --jobid demo_run"
+echo "     otter run --config ./userspace/demo_run/config/otter.yaml --dry-run"
 echo ""

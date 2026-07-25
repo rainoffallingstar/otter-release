@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/xdxtools/xdxtools-go/internal/engine"
-	"github.com/xdxtools/xdxtools-go/internal/logger"
+	"github.com/rainoffallingstar/otter/internal/engine"
+	"github.com/rainoffallingstar/otter/internal/logger"
 )
 
 func init() {
@@ -16,13 +16,13 @@ func init() {
 // mockEngine is a no-op engine for testing command construction.
 type mockEngine struct{}
 
-func (m *mockEngine) Execute(cmd []string) error   { return nil }
+func (m *mockEngine) Execute(cmd []string) error                     { return nil }
 func (m *mockEngine) ExecuteWithOutput(cmd []string) (string, error) { return "", nil }
-func (m *mockEngine) GetName() engine.EngineType    { return engine.EngineLocal }
-func (m *mockEngine) GetStatus() *engine.Status     { return &engine.Status{} }
-func (m *mockEngine) Wait() error                   { return nil }
-func (m *mockEngine) Kill() error                   { return nil }
-func (m *mockEngine) SetLogDir(dir string) error    { return nil }
+func (m *mockEngine) GetName() engine.EngineType                     { return engine.EngineLocal }
+func (m *mockEngine) GetStatus() *engine.Status                      { return &engine.Status{} }
+func (m *mockEngine) Wait() error                                    { return nil }
+func (m *mockEngine) Kill() error                                    { return nil }
+func (m *mockEngine) SetLogDir(dir string) error                     { return nil }
 
 func TestBuildCommand_EnvaAvailable(t *testing.T) {
 	// When enva is on PATH, buildCommand should produce enva run ... format.

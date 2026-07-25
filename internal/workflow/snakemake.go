@@ -6,33 +6,33 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/xdxtools/xdxtools-go/internal/enva"
-	"github.com/xdxtools/xdxtools-go/internal/logger"
+	"github.com/rainoffallingstar/otter/internal/enva"
+	"github.com/rainoffallingstar/otter/internal/logger"
 )
 
-const DefaultFallbackEnv = "xdxtools-snakemake"
+const DefaultFallbackEnv = "otter-snakemake"
 
 // SnakemakeExecutor executes Snakemake workflows
 type SnakemakeExecutor struct {
-	WorkflowIdx  string
-	Step         int
-	ConfigFile   string
-	Options      *WorkflowOptions
-	CondaEnv     string // Conda environment for Snakemake
-	FallbackEnv  string // Fallback environment (default: xdxtools-snakemake)
-	NoFallback   bool   // Disable automatic fallback
+	WorkflowIdx string
+	Step        int
+	ConfigFile  string
+	Options     *WorkflowOptions
+	CondaEnv    string // Conda environment for Snakemake
+	FallbackEnv string // Fallback environment (default: otter-snakemake)
+	NoFallback  bool   // Disable automatic fallback
 }
 
 // NewSnakemakeExecutor creates a new Snakemake executor
 func NewSnakemakeExecutor(workflowIdx string, step int, configFile string, options *WorkflowOptions, condaEnv string) *SnakemakeExecutor {
 	return &SnakemakeExecutor{
-		WorkflowIdx:  workflowIdx,
-		Step:         step,
-		ConfigFile:   configFile,
-		Options:      options,
-		CondaEnv:     condaEnv,
-		FallbackEnv:  DefaultFallbackEnv,
-		NoFallback:   false,
+		WorkflowIdx: workflowIdx,
+		Step:        step,
+		ConfigFile:  configFile,
+		Options:     options,
+		CondaEnv:    condaEnv,
+		FallbackEnv: DefaultFallbackEnv,
+		NoFallback:  false,
 	}
 }
 
@@ -133,7 +133,7 @@ func (e *SnakemakeExecutor) BuildCommand() []string {
 	if e.Options.Snakefile != "" {
 		snakefile = e.Options.Snakefile
 	}
-	// Resolve snakemake file path (check current dir and xdxtools-project/)
+	// Resolve snakemake file path (check current dir and otter-project/)
 	snakefile = e.resolveSnakefilePath(snakefile)
 	cmd = append(cmd, "--snakefile", snakefile)
 
@@ -176,7 +176,7 @@ func (e *SnakemakeExecutor) GetSnakefilePath() string {
 }
 
 // resolveSnakefilePath finds the snakemake file by checking multiple locations
-// It checks: 1) current directory, 2) xdxtools-project/ subdirectory
+// It checks: 1) current directory, 2) otter-project/ subdirectory
 func (e *SnakemakeExecutor) resolveSnakefilePath(snakefile string) string {
 	// If it's an absolute path, return as-is
 	if filepath.IsAbs(snakefile) {
@@ -189,14 +189,14 @@ func (e *SnakemakeExecutor) resolveSnakefilePath(snakefile string) string {
 		return snakefile
 	}
 
-	// Check xdxtools-project subdirectory
-	projectPath := filepath.Join("xdxtools-project", snakefile)
+	// Check otter-project subdirectory
+	projectPath := filepath.Join("otter-project", snakefile)
 	if _, err := os.Stat(projectPath); err == nil {
-		logger.Debugf("Found snakemake file in xdxtools-project/: %s", projectPath)
+		logger.Debugf("Found snakemake file in otter-project/: %s", projectPath)
 		return projectPath
 	}
 
 	// Fallback to original path (will cause error if not found)
-	logger.Warnf("Snakemake file not found in current directory or xdxtools-project/, using: %s", snakefile)
+	logger.Warnf("Snakemake file not found in current directory or otter-project/, using: %s", snakefile)
 	return snakefile
 }

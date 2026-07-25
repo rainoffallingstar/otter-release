@@ -16,7 +16,7 @@ rule bismarkreport:
   threads:10
   shell:
     """
-    enva run xdxtools-core -- bismark2report --dir {params.outDir} \
+    enva run otter-core -- bismark2report --dir {params.outDir} \
     --output {params.samplename} \
     --alignment_report {params.alignment_log} \
     --splitting_report {params.split_log} \

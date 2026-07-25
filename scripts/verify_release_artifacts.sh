@@ -5,15 +5,15 @@ set -euo pipefail
 DIST_DIR="${1:-dist}"
 
 required=(
-  xdxtools-linux-amd64-static
+  otter-linux-amd64-static
   enva-linux-amd64-static
-  xenofilter-linux-amd64-static
-  paireads-linux-amd64-static
-  htseq2matrix-linux-amd64-static
-  gomats-linux-amd64-static
+  xenofilx-linux-amd64-static
+  pairbam-linux-amd64-static
+  seq2mat-linux-amd64-static
+  matsrun-linux-amd64-static
   qctb-linux-amd64-static
-  fqc-linux-amd64-static
-  methrix-linux-amd64-static
+  fastqcx-linux-amd64-static
+  methx-linux-amd64-static
 )
 
 missing=()

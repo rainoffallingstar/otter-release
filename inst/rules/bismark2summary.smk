@@ -11,6 +11,6 @@ rule bismarksummary:
   threads:10
   shell:
     """
-    cd {params.rundir} && enva run xdxtools-core -- bismark2summary {params.graft_align} 
-    
+    cd {params.rundir} && enva run otter-core -- bismark2summary {params.graft_align}
+
     """

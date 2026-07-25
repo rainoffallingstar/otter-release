@@ -13,9 +13,9 @@ import (
 	"text/tabwriter"
 	"time"
 
+	taskruntime "github.com/rainoffallingstar/otter/internal/task"
+	"github.com/rainoffallingstar/otter/internal/workflow"
 	"github.com/spf13/cobra"
-	taskruntime "github.com/xdxtools/xdxtools-go/internal/task"
-	"github.com/xdxtools/xdxtools-go/internal/workflow"
 )
 
 var (

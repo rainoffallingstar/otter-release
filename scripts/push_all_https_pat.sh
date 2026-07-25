@@ -55,8 +55,8 @@ push_repo() {
   with_pat_origin "$repo_dir" git -C "$repo_dir" push --follow-tags origin "$branch"
 }
 
-push_repo "$ROOT_DIR/bamdriver-go" main
+push_repo "$ROOT_DIR/bamdriver" main
 push_repo "$ROOT_DIR" main
 
-echo "[done] pushed bamdriver-go + xdxtools"
+echo "[done] pushed bamdriver + otter"
 

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/xdxtools/xdxtools-go/internal/logger"
+	"github.com/rainoffallingstar/otter/internal/logger"
 )
 
 // Scanner scans directories for FASTQ files

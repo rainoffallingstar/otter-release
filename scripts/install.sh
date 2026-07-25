@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-#  xdxtools Installer
+#  otter Installer
 #  Downloads pre-built binaries from GitHub Releases and sets up conda envs.
 #
 #  Usage:
@@ -9,7 +9,7 @@
 #  Options:
 #    --install-dir PATH   Override binary installation directory
 #    --skip-envs          Skip conda environment creation
-#    --skip-hdf5          Skip HDF5 environment setup for methrix-cli
+#    --skip-hdf5          Skip HDF5 environment setup for methx
 #    --non-interactive    Use all defaults without prompting
 #    --dry-run            Print all actions without executing
 #    --version VER        Specify release version (e.g. v0.3.0); default: latest
@@ -23,8 +23,8 @@
 #    GITHUB_TOKEN / GH_TOKEN / GITHUB_PAT        Optional GitHub token for private release downloads
 #    GITHUB_RELEASES_REPO           Optional primary release repo override (owner/name)
 #    GITHUB_FALLBACK_RELEASES_REPO  Optional fallback release repo override
-#    GITHUB_PROXY_PREFIX / XDXTOOLS_GITHUB_PROXY  Optional GitHub proxy prefix
-#    XDXTOOLS_INSTALL_LANG          Optional interface language override (en|zh)
+#    GITHUB_PROXY_PREFIX / OTTER_GITHUB_PROXY  Optional GitHub proxy prefix
+#    OTTER_INSTALL_LANG          Optional interface language override (en|zh)
 #
 #  Interactive behavior:
 #    Interactive mode can ask for an optional GitHub proxy prefix. If GitHub
@@ -36,8 +36,8 @@ set -euo pipefail
 
 # ── Top-level configuration ───────────────────────────────────────────────────
 RELEASES_REPO="${GITHUB_RELEASES_REPO:-rainoffallingstar/flightlight}"
-FALLBACK_RELEASES_REPO="${GITHUB_FALLBACK_RELEASES_REPO:-rainoffallingstar/xdxtools-go}"
-XDXTOOLS_VERSION="latest"
+FALLBACK_RELEASES_REPO="${GITHUB_FALLBACK_RELEASES_REPO:-rainoffallingstar/otter}"
+OTTER_VERSION="latest"
 DEFAULT_INSTALL_DIR=""
 USER_HOME="${HOME:-}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -46,8 +46,8 @@ ACTIVE_ENVS_DIR="$ENVS_DIR"
 TMP_ENVS_DIR=""
 HDF5_SKIP_REASON=""
 GITHUB_AUTH_TOKEN="${GITHUB_TOKEN:-${GH_TOKEN:-${GITHUB_PAT:-}}}"
-GITHUB_PROXY_PREFIX="${GITHUB_PROXY_PREFIX:-${XDXTOOLS_GITHUB_PROXY:-}}"
-INSTALLER_LANG="${XDXTOOLS_INSTALL_LANG:-}"
+GITHUB_PROXY_PREFIX="${GITHUB_PROXY_PREFIX:-${OTTER_GITHUB_PROXY:-}}"
+INSTALLER_LANG="${OTTER_INSTALL_LANG:-}"
 RELEASE_METADATA=""
 RELEASE_METADATA_TAG=""
 RELEASE_METADATA_REPO=""
@@ -55,22 +55,22 @@ ACTIVE_RELEASES_REPO=""
 
 # All 9 tools: binary_name:release_asset_stem:linkage(static|dynamic)
 TOOLS=(
-  "xdxtools:xdxtools:static"
+  "otter:otter:static"
   "enva:enva:static"
-  "xenofilter:xenofilter:static"
-  "paireads:paireads:static"
-  "htseq2matrix:htseq2matrix:static"
-  "methrix-cli:methrix:static"
+  "xenofilx:xenofilx:static"
+  "pairbam:pairbam:static"
+  "seq2mat:seq2mat:static"
+  "methx:methx:static"
   "qctb:qctb:static"
-  "fqc:fqc:static"
-  "gomats:gomats:static"
+  "fastqcx:fastqcx:static"
+  "matsrun:matsrun:static"
 )
 
 # Conda environment yaml files
 ENV_FILES=(
-  "xdxtools-core.yaml"
-  "xdxtools-snakemake.yaml"
-  "xdxtools-extra.yaml"
+  "otter-core.yaml"
+  "otter-snakemake.yaml"
+  "otter-extra.yaml"
 )
 
 # ── Parse arguments ───────────────────────────────────────────────────────────
@@ -93,7 +93,7 @@ while [[ $# -gt 0 ]]; do
     --skip-hdf5)      SKIP_HDF5=true;   shift ;;
     --non-interactive) NON_INTERACTIVE=true; shift ;;
     --dry-run)        DRY_RUN=true;     shift ;;
-    --version)        XDXTOOLS_VERSION="$2"; shift 2 ;;
+    --version)        OTTER_VERSION="$2"; shift 2 ;;
     --releases-repo)  RELEASES_REPO="$2"; shift 2 ;;
     --fallback-releases-repo) FALLBACK_RELEASES_REPO="$2"; shift 2 ;;
     --github-proxy)   GITHUB_PROXY_PREFIX="$2"; shift 2 ;;
@@ -193,7 +193,7 @@ hdf5_skip_reason_text() {
     conda_environment_installation_skipped) printf '%s' "$(txt "conda environment installation skipped" "已跳过 conda 环境安装")" ;;
     conda_environments_not_set_up) printf '%s' "$(txt "conda environments not set up" "conda 环境未就绪")" ;;
     hdf5_configuration_disabled) printf '%s' "$(txt "HDF5 configuration disabled" "HDF5 配置已禁用")" ;;
-    xdxtools_core_environment_not_found) printf '%s' "$(txt "xdxtools-core environment not found" "未找到 xdxtools-core 环境")" ;;
+    otter_core_environment_not_found) printf '%s' "$(txt "otter-core environment not found" "未找到 otter-core 环境")" ;;
     conda_environment_yamls_unavailable) printf '%s' "$(txt "conda environment YAMLs unavailable" "无法获取 conda 环境 YAML 文件")" ;;
     *) printf '%s' "$1" ;;
   esac
@@ -203,7 +203,7 @@ print_help() {
   if [ "$INSTALLER_LANG" = "zh" ]; then
     cat <<'EOF'
 # =============================================================================
-#  xdxtools 安装脚本
+#  otter 安装脚本
 #  从 GitHub Releases 下载预编译二进制文件，并配置 conda 环境。
 #
 #  用法:
@@ -212,7 +212,7 @@ print_help() {
 #  选项:
 #    --install-dir PATH   指定二进制安装目录
 #    --skip-envs          跳过 conda 环境创建
-#    --skip-hdf5          跳过 methrix-cli 的 HDF5 环境配置
+#    --skip-hdf5          跳过 methx 的 HDF5 环境配置
 #    --non-interactive    不提示交互，全部使用默认值
 #    --dry-run            仅打印操作，不实际执行
 #    --version VER        指定发布版本（例如 v0.3.0），默认 latest
@@ -226,8 +226,8 @@ print_help() {
 #    GITHUB_TOKEN / GH_TOKEN / GITHUB_PAT        私有 release 下载使用的 GitHub token
 #    GITHUB_RELEASES_REPO           主 release 仓库覆盖（owner/name）
 #    GITHUB_FALLBACK_RELEASES_REPO  备用 release 仓库覆盖
-#    GITHUB_PROXY_PREFIX / XDXTOOLS_GITHUB_PROXY  GitHub 代理前缀覆盖
-#    XDXTOOLS_INSTALL_LANG          界面语言覆盖（en|zh）
+#    GITHUB_PROXY_PREFIX / OTTER_GITHUB_PROXY  GitHub 代理前缀覆盖
+#    OTTER_INSTALL_LANG          界面语言覆盖（en|zh）
 #
 #  交互行为:
 #    交互模式下会先选择语言，再输入可选的 GitHub 代理前缀；如果 GitHub
@@ -237,7 +237,7 @@ EOF
   else
     cat <<'EOF'
 # =============================================================================
-#  xdxtools Installer
+#  otter Installer
 #  Downloads pre-built binaries from GitHub Releases and sets up conda envs.
 #
 #  Usage:
@@ -246,7 +246,7 @@ EOF
 #  Options:
 #    --install-dir PATH   Override binary installation directory
 #    --skip-envs          Skip conda environment creation
-#    --skip-hdf5          Skip HDF5 environment setup for methrix-cli
+#    --skip-hdf5          Skip HDF5 environment setup for methx
 #    --non-interactive    Use all defaults without prompting
 #    --dry-run            Print all actions without executing
 #    --version VER        Specify release version (e.g. v0.3.0); default: latest
@@ -260,8 +260,8 @@ EOF
 #    GITHUB_TOKEN / GH_TOKEN / GITHUB_PAT        Optional GitHub token for private release downloads
 #    GITHUB_RELEASES_REPO           Optional primary release repo override (owner/name)
 #    GITHUB_FALLBACK_RELEASES_REPO  Optional fallback release repo override
-#    GITHUB_PROXY_PREFIX / XDXTOOLS_GITHUB_PROXY  Optional GitHub proxy prefix
-#    XDXTOOLS_INSTALL_LANG          Optional interface language override (en|zh)
+#    GITHUB_PROXY_PREFIX / OTTER_GITHUB_PROXY  Optional GitHub proxy prefix
+#    OTTER_INSTALL_LANG          Optional interface language override (en|zh)
 #
 #  Interactive behavior:
 #    Interactive mode asks for language first, then an optional GitHub proxy prefix.
@@ -336,9 +336,9 @@ print_completion_summary() {
   echo ""
   echo "$(txt "Quick start:" "快速开始：")"
   echo ""
-  echo "    xdxtools init my_project"
-  echo "    xdxtools create --fastq /data/fastq --mode RRBS --pdata samples.csv --output my_project/userspace --jobid demo_rrbs"
-  echo "    xdxtools run --config my_project/userspace/demo_rrbs/config/config.yaml"
+  echo "    otter init my_project"
+  echo "    otter create --fastq /data/fastq --mode RRBS --pdata samples.csv --output my_project/userspace --jobid demo_rrbs"
+  echo "    otter run --config my_project/userspace/demo_rrbs/config/otter.yaml"
   echo ""
   divider
   echo ""
@@ -553,7 +553,7 @@ prepare_env_files() {
   for yaml_file in "${ENV_FILES[@]}"; do
     url="${BASE_URL}/${yaml_file}"
     if [ -n "$GITHUB_AUTH_TOKEN" ]; then
-      asset_api_url="$(resolve_release_asset_api_url "$ACTIVE_RELEASES_REPO" "$XDXTOOLS_VERSION" "$yaml_file" || true)"
+      asset_api_url="$(resolve_release_asset_api_url "$ACTIVE_RELEASES_REPO" "$OTTER_VERSION" "$yaml_file" || true)"
       if [ -n "$asset_api_url" ]; then
         url="$asset_api_url"
       fi
@@ -991,7 +991,7 @@ fi
 # ── Step 0: Banner ────────────────────────────────────────────────────────────
 echo ""
 echo -e "${BOLD}╔══════════════════════════════════════════╗${RESET}"
-echo -e "${BOLD}║        $(printf "%-26s" "$(txt "xdxtools Installer" "xdxtools 安装器")")║${RESET}"
+echo -e "${BOLD}║        $(printf "%-26s" "$(txt "otter Installer" "otter 安装器")")║${RESET}"
 echo -e "${BOLD}║  $(printf "%-38s" "$(txt "Bioinformatics Workflow Manager" "生物信息工作流管理器")")║${RESET}"
 echo -e "${BOLD}╚══════════════════════════════════════════╝${RESET}"
 echo ""
@@ -1108,7 +1108,7 @@ echo -e "${BOLD}$(txt "Step 3: Downloading binaries" "Step 3: 下载二进制文
 
 # Resolve release tag and source repo via GitHub API
 ACTIVE_RELEASES_REPO=""
-if [ "$XDXTOOLS_VERSION" = "latest" ]; then
+if [ "$OTTER_VERSION" = "latest" ]; then
   log_info "$(txt "Querying GitHub API for latest release..." "正在查询 GitHub API 获取最新版本...")"
   latest_release_tag=""
   while IFS= read -r candidate_repo; do
@@ -1131,14 +1131,14 @@ if [ "$XDXTOOLS_VERSION" = "latest" ]; then
     log_error "$(txt "Could not determine latest version from any configured release repo. Check GitHub connectivity and proxy settings first. Tokens are mainly needed for private repos or rate limits, or use --version to specify." "无法从已配置的 release 仓库确定最新版本。请先检查 GitHub 连通性与代理设置。token 主要用于私有仓库或限流场景，或使用 --version 指定版本。")"
     exit 1
   fi
-  XDXTOOLS_VERSION="$latest_release_tag"
+  OTTER_VERSION="$latest_release_tag"
 fi
 
-if [ -z "$ACTIVE_RELEASES_REPO" ] && ! select_release_repo_for_tag "$XDXTOOLS_VERSION" 2>/dev/null; then
+if [ -z "$ACTIVE_RELEASES_REPO" ] && ! select_release_repo_for_tag "$OTTER_VERSION" 2>/dev/null; then
   ACTIVE_RELEASES_REPO=""
 fi
 if [ -z "$ACTIVE_RELEASES_REPO" ] && maybe_prompt_github_token_on_failure "$(txt "Release lookup failed for the requested version. For public repos this usually means GitHub connectivity or proxy issues; private repos may require a GitHub token." "查询指定版本 release 失败。对于公开 release 仓库，这通常意味着 GitHub 或代理连接异常；私有 release 仓库才可能需要 GitHub token。")"; then
-  if ! select_release_repo_for_tag "$XDXTOOLS_VERSION" 2>/dev/null; then
+  if ! select_release_repo_for_tag "$OTTER_VERSION" 2>/dev/null; then
     ACTIVE_RELEASES_REPO=""
   fi
 fi
@@ -1147,12 +1147,12 @@ if [ -z "$ACTIVE_RELEASES_REPO" ]; then
   exit 1
 fi
 
-log_info "$(txt "Version: $XDXTOOLS_VERSION" "版本: $XDXTOOLS_VERSION")"
+log_info "$(txt "Version: $OTTER_VERSION" "版本: $OTTER_VERSION")"
 log_info "$(txt "Selected release repo: $ACTIVE_RELEASES_REPO" "已选择的 release 仓库: $ACTIVE_RELEASES_REPO")"
 
 run "mkdir -p \"$INSTALL_DIR\""
 
-BASE_URL="https://github.com/${ACTIVE_RELEASES_REPO}/releases/download/${XDXTOOLS_VERSION}"
+BASE_URL="https://github.com/${ACTIVE_RELEASES_REPO}/releases/download/${OTTER_VERSION}"
 
 for entry in "${TOOLS[@]}"; do
   IFS=':' read -r bin_name asset_stem linkage <<< "$entry"
@@ -1165,7 +1165,7 @@ for entry in "${TOOLS[@]}"; do
 
   url="${BASE_URL}/${asset}"
   if [ -n "$GITHUB_AUTH_TOKEN" ]; then
-    asset_api_url="$(resolve_release_asset_api_url "$ACTIVE_RELEASES_REPO" "$XDXTOOLS_VERSION" "$asset" || true)"
+    asset_api_url="$(resolve_release_asset_api_url "$ACTIVE_RELEASES_REPO" "$OTTER_VERSION" "$asset" || true)"
     if [ -n "$asset_api_url" ]; then
       url="$asset_api_url"
     fi
@@ -1211,15 +1211,6 @@ for entry in "${TOOLS[@]}"; do
     fi
   fi
 done
-# Keep backward compatibility for legacy scripts that call `methrix`.
-if [ "$DRY_RUN" = false ]; then
-  if [ -f "${INSTALL_DIR}/methrix-cli" ] && [ ! -e "${INSTALL_DIR}/methrix" ]; then
-    ln -s "${INSTALL_DIR}/methrix-cli" "${INSTALL_DIR}/methrix"
-    log_info "$(txt "Created compatibility symlink: methrix -> methrix-cli" "已创建兼容性软链接：methrix -> methrix-cli")"
-  fi
-else
-  echo -e "  ${YELLOW}[DRY-RUN]${RESET} ln -s \"${INSTALL_DIR}/methrix-cli\" \"${INSTALL_DIR}/methrix\""
-fi
 
 echo ""
 
@@ -1233,8 +1224,8 @@ for entry in "${TOOLS[@]}"; do
   bin_name="${entry%%:*}"
   dest="${INSTALL_DIR}/${bin_name}"
 
-  if [ "$bin_name" = "methrix-cli" ]; then
-    echo -e "  ${YELLOW}⚠${RESET}  $(txt "methrix-cli  (requires HDF5 environment setup – will verify in Step 8)" "methrix-cli  （需要 HDF5 环境配置，将在 Step 8 验证）")"
+  if [ "$bin_name" = "methx" ]; then
+    echo -e "  ${YELLOW}⚠${RESET}  $(txt "methx  (requires HDF5 environment setup – will verify in Step 8)" "methx  （需要 HDF5 环境配置，将在 Step 8 验证）")"
     continue
   fi
 
@@ -1259,7 +1250,7 @@ echo -e "${BOLD}$(txt "Step 5: Configuring PATH" "Step 5: 配置 PATH")${RESET}"
 if [[ ":$PATH:" != *":${INSTALL_DIR}:"* ]]; then
   log_info "$(txt "Adding $INSTALL_DIR to PATH in $SHELL_CONFIG" "正在将 $INSTALL_DIR 添加到 $SHELL_CONFIG 的 PATH")"
   run "echo '' >> \"$SHELL_CONFIG\""
-  run "echo '# xdxtools: binary install directory' >> \"$SHELL_CONFIG\""
+  run "echo '# otter: binary install directory' >> \"$SHELL_CONFIG\""
   run "echo 'export PATH=\"${INSTALL_DIR}:\$PATH\"' >> \"$SHELL_CONFIG\""
   log_success "$(txt "PATH updated in $SHELL_CONFIG" "已更新 $SHELL_CONFIG 中的 PATH")"
 else
@@ -1301,11 +1292,11 @@ if [ "$SKIP_ENVS" = false ]; then
       for f in "${ENV_FILES[@]}"; do ENV_SELECT["$f"]=1; done
       ;;
     core)
-      ENV_SELECT["xdxtools-core.yaml"]=1
+      ENV_SELECT["otter-core.yaml"]=1
       ;;
     snakemake)
-      ENV_SELECT["xdxtools-core.yaml"]=1
-      ENV_SELECT["xdxtools-snakemake.yaml"]=1
+      ENV_SELECT["otter-core.yaml"]=1
+      ENV_SELECT["otter-snakemake.yaml"]=1
       ;;
     extra)
       for f in "${ENV_FILES[@]}"; do ENV_SELECT["$f"]=1; done
@@ -1365,8 +1356,8 @@ if [ "$SKIP_ENVS" = false ]; then
 fi
 [ "$SKIP_ENVS" = true ] || echo ""
 
-# ── Step 7: Confirm HDF5 availability for xdxtools-core ───────────────────────
-echo -e "${BOLD}$(txt "Step 7: Confirming HDF5 availability for xdxtools-core" "Step 7: 确认 xdxtools-core 的 HDF5 可用性")${RESET}"
+# ── Step 7: Confirm HDF5 availability for otter-core ───────────────────────
+echo -e "${BOLD}$(txt "Step 7: Confirming HDF5 availability for otter-core" "Step 7: 确认 otter-core 的 HDF5 可用性")${RESET}"
 if [ "$SKIP_HDF5" = true ] || [ "$SKIP_ENVS" = true ] || [ "$HAS_CONDA" = false ]; then
   if [ -z "$HDF5_SKIP_REASON" ]; then
     if [ "$HAS_CONDA" = false ]; then
@@ -1380,16 +1371,16 @@ if [ "$SKIP_HDF5" = true ] || [ "$SKIP_ENVS" = true ] || [ "$HAS_CONDA" = false 
   log_warn "$(txt "Skipped ($(hdf5_skip_reason_text "$HDF5_SKIP_REASON"))" "已跳过（$(hdf5_skip_reason_text "$HDF5_SKIP_REASON")）")"
 else
   if [ "$DRY_RUN" = false ]; then
-    if HDF5_ENV_PATH="$(resolve_conda_env_path xdxtools-core 2>/dev/null)" && [ -n "$HDF5_ENV_PATH" ]; then
-      log_success "$(txt "xdxtools-core includes HDF5 via its environment YAML" "xdxtools-core 环境 YAML 已包含 HDF5")"
-      log_info "$(txt "Detected xdxtools-core environment: $HDF5_ENV_PATH" "检测到 xdxtools-core 环境：$HDF5_ENV_PATH")"
+    if HDF5_ENV_PATH="$(resolve_conda_env_path otter-core 2>/dev/null)" && [ -n "$HDF5_ENV_PATH" ]; then
+      log_success "$(txt "otter-core includes HDF5 via its environment YAML" "otter-core 环境 YAML 已包含 HDF5")"
+      log_info "$(txt "Detected otter-core environment: $HDF5_ENV_PATH" "检测到 otter-core 环境：$HDF5_ENV_PATH")"
     else
-      HDF5_SKIP_REASON="xdxtools_core_environment_not_found"
+      HDF5_SKIP_REASON="otter_core_environment_not_found"
       SKIP_HDF5=true
       log_warn "$(txt "Skipped ($(hdf5_skip_reason_text "$HDF5_SKIP_REASON"))" "已跳过（$(hdf5_skip_reason_text "$HDF5_SKIP_REASON")）")"
     fi
   else
-    echo -e "  ${YELLOW}[DRY-RUN]${RESET} $(txt "would confirm that xdxtools-core already bundles hdf5 from its YAML" "将确认 xdxtools-core 已从其 YAML 安装 hdf5")"
+    echo -e "  ${YELLOW}[DRY-RUN]${RESET} $(txt "would confirm that otter-core already bundles hdf5 from its YAML" "将确认 otter-core 已从其 YAML 安装 hdf5")"
   fi
 fi
 echo ""
@@ -1411,13 +1402,13 @@ if [ "$SKIP_HDF5" = true ] || [ "$SKIP_ENVS" = true ] || [ "$HAS_CONDA" = false 
 else
   if [ "$DRY_RUN" = false ]; then
     if [ -z "$HDF5_ENV_PATH" ]; then
-      HDF5_ENV_PATH="$(resolve_conda_env_path xdxtools-core 2>/dev/null || true)"
+      HDF5_ENV_PATH="$(resolve_conda_env_path otter-core 2>/dev/null || true)"
     fi
 
     if [ -n "$HDF5_ENV_PATH" ]; then
       cat >> "$SHELL_CONFIG" << 'HEREDOC'
 
-# xdxtools: HDF5 configuration (required by methrix-cli)
+# otter: HDF5 configuration (required by methx)
 HEREDOC
       echo "export HDF5_DIR=\"${HDF5_ENV_PATH}\"" >> "$SHELL_CONFIG"
       cat >> "$SHELL_CONFIG" << 'HEREDOC'
@@ -1431,20 +1422,20 @@ HEREDOC
       export HDF5_DIR="$HDF5_ENV_PATH"
       export LD_LIBRARY_PATH="${HDF5_DIR}/lib:${LD_LIBRARY_PATH:-}"
 
-      METHRIX_BIN="${INSTALL_DIR}/methrix-cli"
+      METHRIX_BIN="${INSTALL_DIR}/methx"
       if [ -f "$METHRIX_BIN" ] && "$METHRIX_BIN" --version &>/dev/null; then
         ver=$("$METHRIX_BIN" --version 2>&1 | head -1)
-        log_success "$(txt "methrix-cli verified: $ver" "methrix-cli 验证通过：$ver")"
+        log_success "$(txt "methx verified: $ver" "methx 验证通过：$ver")"
       else
-        log_warn "$(txt "methrix-cli could not be verified (may need to source $SHELL_CONFIG first)" "无法验证 methrix-cli（可能需要先 source $SHELL_CONFIG）")"
+        log_warn "$(txt "methx could not be verified (may need to source $SHELL_CONFIG first)" "无法验证 methx（可能需要先 source $SHELL_CONFIG）")"
       fi
     else
-      HDF5_SKIP_REASON="xdxtools_core_environment_not_found"
-      log_warn "$(txt "xdxtools-core path not found, HDF5 variables not configured" "未找到 xdxtools-core 路径，未配置 HDF5 环境变量")"
+      HDF5_SKIP_REASON="otter_core_environment_not_found"
+      log_warn "$(txt "otter-core path not found, HDF5 variables not configured" "未找到 otter-core 路径，未配置 HDF5 环境变量")"
     fi
   else
     echo -e "  ${YELLOW}[DRY-RUN]${RESET} $(txt "would append HDF5_DIR / LD_LIBRARY_PATH to $SHELL_CONFIG" "将向 $SHELL_CONFIG 追加 HDF5_DIR / LD_LIBRARY_PATH")"
-    echo -e "  ${YELLOW}[DRY-RUN]${RESET} $(txt "would verify: methrix-cli --version" "将验证：methrix-cli --version")"
+    echo -e "  ${YELLOW}[DRY-RUN]${RESET} $(txt "would verify: methx --version" "将验证：methx --version")"
   fi
 fi
 echo ""

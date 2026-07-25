@@ -6,11 +6,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/xdxtools/xdxtools-go/internal/logger"
+	"github.com/rainoffallingstar/otter/internal/logger"
 )
 
 // ValidateConfig validates the workflow configuration
-func ValidateConfig(config *XDXToolsConfig) error {
+func ValidateConfig(config *OtterConfig) error {
 	// Validate mode
 	mode := strings.ToUpper(config.Workflow.Mode)
 	switch mode {
@@ -78,7 +78,7 @@ func fileExists(path string) bool {
 }
 
 // DetectPDXMode detects if PDX mode should be enabled
-func DetectPDXMode(config *XDXToolsConfig) bool {
+func DetectPDXMode(config *OtterConfig) bool {
 	return config.Workflow.Species.Primary != "" && config.Workflow.Species.Secondary != ""
 }
 

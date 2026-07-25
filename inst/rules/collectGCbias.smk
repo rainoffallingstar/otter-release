@@ -15,7 +15,7 @@ rule collectGCbias:
   threads:4
   shell:
     """
-    enva run xdxtools-core -- picard CollectGcBiasMetrics \
+    enva run otter-core -- picard CollectGcBiasMetrics \
       I={input.sample_bam} \
       O={params.gc_txt}  \
       CHART={params.gc_pdf}  \
