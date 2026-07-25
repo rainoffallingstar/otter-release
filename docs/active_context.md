@@ -24,8 +24,9 @@
 ### Enva 环境层
 - **Path**: `enva/`
 - **Public Methods**: `create/list/run/install/adopt/remove` - 环境生命周期
-- **Data Flow**: 执行请求 → `otter-core`/`otter-snakemake`/`otter-extra` → 隔离命令
-- **Dependencies**: rattler；conda/mamba/micromamba 仅作兼容发现或接管
+- **Data Flow**: 执行请求 → sibling staging 写入（按 final prefix patch）→ residual 验证/原子发布 → `otter-core`/`otter-snakemake`/`otter-extra` → 隔离命令
+- **Dependencies**: Rattler 0.45 一致版本组；conda/mamba/micromamba 仅作兼容发现或接管
+- **Publication Contract**: Rattler 使用 alternative target prefix 处理 metadata 驱动的文本/二进制前缀；Enva 只修正内部绝对 symlink 并拒绝任何普通文件 staging residual
 
 ### 生信算子与 BAM 基础层
 - **Path**: `fastqcx/`, `xenofilx/`, `pairbam/`, `seq2mat/`, `matsrun/`, `qctb/`, `methx/`, `bamdriver/`
@@ -40,6 +41,7 @@
 | `OtterConfig` | `internal/config/config.go` | Workflow, Input, Output, Reference, Engine | 主配置契约；源码直接实现且不提供旧类型别名 |
 | `Engine` | `internal/engine/engine.go` | Execute, Status, Wait, Kill | local/SLURM 执行边界 |
 | `WorkflowSpec` | `craftmake/internal/spec/` | DAG, tasks, resources | craftmake 工作流编译契约 |
+| `PrefixPublicationValidationResult` | `enva/src/backend/rattler.rs` | files_scanned, symlinks_rewritten | Enva 原子发布前 residual 验证结果 |
 
 ## 3. API 端点注册表
 
@@ -67,7 +69,9 @@
 - [x] 10 个子仓完成新身份提交与推送；父仓 gitlink 指向对应新提交
 - [x] `bamdriver` 新 module path 已发布，`xenofilx` 与 `pairbam` 已固定可解析 pseudo-version
 - [x] Otter Go CI 的 test/build 与 Craftmake、Methx、Pairbam、Xenofilx 首次改名后门禁通过
-- [ ] Enva E2E：原生环境发布仍因第三方二进制含 staging prefix residual 失败；compatibility conda 路径通过
+- [x] Enva native staging/final prefix 分离已实现；本地 Python 真实 create/run/remove、106 个库测试、4 个 CLI 测试及严格 Clippy 通过
+- [x] Enva compatibility run-by-name 按 canonical prefix 去重；E2E 多包参数与 helper manager 错误输出已修复
+- [ ] 重跑 Enva GitHub E2E，确认三个 `otter-*`、root-priority、adopt 与三种 compatibility manager 全部通过
 - [ ] 完成 `craftmake` 与 otter 的集成测试并确定 Snakemake 退场门禁
 - [ ] 完成 RRBS/WGBS/RNA-seq/PDX 双轨 smoke tests
 - [x] GitHub PAT 已轮换；本地 remote 已清理为无凭据 HTTPS
