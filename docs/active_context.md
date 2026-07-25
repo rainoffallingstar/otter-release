@@ -66,7 +66,8 @@
 
 - [x] 10 个子仓完成新身份提交与推送；父仓 gitlink 指向对应新提交
 - [x] `bamdriver` 新 module path 已发布，`xenofilx` 与 `pairbam` 已固定可解析 pseudo-version
-- [ ] 观察改名后各仓首次 CI 与 release workflow，处理平台特有失败
+- [x] Otter Go CI 的 test/build 与 Craftmake、Methx、Pairbam、Xenofilx 首次改名后门禁通过
+- [ ] Enva E2E：原生环境发布仍因第三方二进制含 staging prefix residual 失败；compatibility conda 路径通过
 - [ ] 完成 `craftmake` 与 otter 的集成测试并确定 Snakemake 退场门禁
 - [ ] 完成 RRBS/WGBS/RNA-seq/PDX 双轨 smoke tests
 - [x] GitHub PAT 已轮换；本地 remote 已清理为无凭据 HTTPS
