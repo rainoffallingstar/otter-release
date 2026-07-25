@@ -198,6 +198,162 @@ func TestXenofilterSuccessMarkersRequireSuccessfulCommands(t *testing.T) {
 	}
 }
 
+func TestWorkflowCommandsQuotePathArguments(t *testing.T) {
+	testCases := []struct {
+		name              string
+		rulePath          string
+		requiredSnippets  []string
+		forbiddenSnippets []string
+	}{
+		{
+			name:     "RNA splicing",
+			rulePath: filepath.Join("..", "..", "inst", "rules", "rnaseq_splicing.smk"),
+			requiredSnippets: []string{
+				"--root {params.run_dir:q}",
+				"--pdata {input.pdata:q}",
+				"--seqlengthQC {params.seqlengthQC:q}",
+				"--gtf {input.gtf:q}",
+				"> {output.marker:q}",
+			},
+			forbiddenSnippets: []string{
+				"--root {params.run_dir} ",
+				"--pdata {params.pdata}",
+				"--gtf {params.gtf}",
+			},
+		},
+		{
+			name:     "bisulfite QC summary",
+			rulePath: filepath.Join("..", "..", "inst", "rules", "bs_qc_summary.smk"),
+			requiredSnippets: []string{
+				"--config {input.config_file:q}",
+				"--output {output.summary:q}",
+			},
+			forbiddenSnippets: []string{"--config {params.self_config}"},
+		},
+		{
+			name:     "RNA QC summary",
+			rulePath: filepath.Join("..", "..", "inst", "rules", "rna_qc_summary.smk"),
+			requiredSnippets: []string{
+				"--config {input.config_file:q}",
+				"--output {output.summary:q}",
+			},
+			forbiddenSnippets: []string{"--config {params.self_config}"},
+		},
+		{
+			name:     "raw FastQC",
+			rulePath: filepath.Join("..", "..", "inst", "rules", "01fqcAtfirst.smk"),
+			requiredSnippets: []string{
+				"fqc -q {input.R1:q} -s {params.R1_dir:q} --no-html",
+				"fqc -q {input.R2:q} -s {params.R2_dir:q} --no-html",
+				"{sample}_R1_fqc\", \"fastqc_data.txt",
+				"{sample}_R2_fqc\", \"fastqc_data.txt",
+			},
+			forbiddenSnippets: []string{
+				"fqc -q {input.R1} ",
+				"fqc -q {input.R2} ",
+			},
+		},
+		{
+			name:     "clean FastQC",
+			rulePath: filepath.Join("..", "..", "inst", "rules", "03-0-fqcAtclean.smk"),
+			requiredSnippets: []string{
+				"fqc -q {input.R1:q} -s {params.R1_dir:q} --no-html",
+				"fqc -q {input.R2:q} -s {params.R2_dir:q} --no-html",
+				"{sample}_val_1_fqc\", \"fastqc_data.txt",
+				"{sample}_val_2_fqc\", \"fastqc_data.txt",
+			},
+			forbiddenSnippets: []string{
+				"fqc -q {input.R1} ",
+				"fqc -q {input.R2} ",
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			ruleContent, err := os.ReadFile(testCase.rulePath)
+			if err != nil {
+				t.Fatalf("read workflow rule %s: %v", testCase.rulePath, err)
+			}
+			ruleText := string(ruleContent)
+			for _, requiredSnippet := range testCase.requiredSnippets {
+				if !strings.Contains(ruleText, requiredSnippet) {
+					t.Errorf("workflow rule %s is missing safely quoted command fragment %q", testCase.rulePath, requiredSnippet)
+				}
+			}
+			for _, forbiddenSnippet := range testCase.forbiddenSnippets {
+				if strings.Contains(ruleText, forbiddenSnippet) {
+					t.Errorf("workflow rule %s still contains unsafe command fragment %q", testCase.rulePath, forbiddenSnippet)
+				}
+			}
+		})
+	}
+}
+
+func TestQCWorkflowDeclaresQCTBConsumedArtifacts(t *testing.T) {
+	testCases := []struct {
+		name             string
+		rulePath         string
+		requiredSnippets []string
+	}{
+		{
+			name:     "bisulfite summary inputs",
+			rulePath: filepath.Join("..", "..", "inst", "rules", "bs_qc_summary.smk"),
+			requiredSnippets: []string{
+				"{sample}_val_1_bismark_bt2_PE_report.txt",
+				"genome_results.txt",
+				"CpG_coverage.xlsx",
+				"CpG_annotation_report.xlsx",
+			},
+		},
+		{
+			name:     "methrix producer outputs",
+			rulePath: filepath.Join("..", "..", "inst", "rules", "methrix_object.smk"),
+			requiredSnippets: []string{
+				"assays.h5",
+				"methrix_data.h5",
+				"CpG_coverage.xlsx",
+				"CpG_annotation_report.xlsx",
+				"CpG_annotation_details.tsv.gz",
+			},
+		},
+		{
+			name:             "RNA summary inputs",
+			rulePath:         filepath.Join("..", "..", "inst", "rules", "rna_qc_summary.smk"),
+			requiredSnippets: []string{"{sample}Log.final.out"},
+		},
+		{
+			name:             "Bismark producer outputs",
+			rulePath:         filepath.Join("..", "..", "inst", "rules", "04bsmap2sort_bismark.smk"),
+			requiredSnippets: []string{"alignment_report=", "{sample}_val_1_bismark_bt2_PE_report.txt"},
+		},
+		{
+			name:             "Qualimap producer outputs",
+			rulePath:         filepath.Join("..", "..", "inst", "rules", "05-3-qualimap.smk"),
+			requiredSnippets: []string{"genome_results=", "genome_results.txt"},
+		},
+		{
+			name:             "STAR producer outputs",
+			rulePath:         filepath.Join("..", "..", "inst", "rules", "rnaseq_mapping.smk"),
+			requiredSnippets: []string{"star_log=", "{sample}Log.final.out"},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			ruleContent, err := os.ReadFile(testCase.rulePath)
+			if err != nil {
+				t.Fatalf("read workflow rule %s: %v", testCase.rulePath, err)
+			}
+			for _, snippet := range testCase.requiredSnippets {
+				if !strings.Contains(string(ruleContent), snippet) {
+					t.Errorf("workflow rule %s does not declare qctb artifact %q", testCase.rulePath, snippet)
+				}
+			}
+		})
+	}
+}
+
 func TestCopyAll_EmptyEmbeddedAssets(t *testing.T) {
 	// Reset to empty
 	EmbeddedAssets = fstest.MapFS{}

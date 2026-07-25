@@ -7,18 +7,16 @@ rule qcsummary:
     expand(os.path.join(config["directories"]["qc"]["before"], "{sample}_R2_fqc", "fastqc_data.txt"), sample=config["metadata"]["sample_ids"]),
     expand(os.path.join(config["directories"]["qc"]["after"], "{sample}_val_1_fqc", "fastqc_data.txt"), sample=config["metadata"]["sample_ids"]),
     expand(os.path.join(config["directories"]["qc"]["after"], "{sample}_val_2_fqc", "fastqc_data.txt"), sample=config["metadata"]["sample_ids"]),
-    expand(os.path.join(config["directories"]["bsmap"]["main"], "{sample}_{species}.bam"), sample=config["metadata"]["sample_ids"],species =config["workflow"]["species"]["name"]) ,
-    expand(os.path.join(config["directories"]["qualimap"],"{sample}_{species}","qualimapReport.html") , sample=config["metadata"]["sample_ids"],species =config["workflow"]["species"]["name"]),
-    os.path.join(config["directories"]["methylation_call"], "methrixh5","CpG_coverage.xlsx")
+    expand(os.path.join(config["directories"]["bsmap"]["main"], config["workflow"]["species"]["graft"], "{sample}_val_1_bismark_bt2_PE_report.txt"), sample=config["metadata"]["sample_ids"]),
+    expand(os.path.join(config["directories"]["qualimap"], "{sample}_" + config["workflow"]["species"]["graft"], "genome_results.txt"), sample=config["metadata"]["sample_ids"]),
+    os.path.join(config["directories"]["methylation_call"], "methrixh5", "CpG_coverage.xlsx"),
+    os.path.join(config["directories"]["methylation_call"], "methrixh5", "CpG_annotation_report.xlsx"),
+    config_file=os.path.join(config["directories"]["selfconfig"], "config.yaml")
   output:
-    os.path.join(config["directories"]["qc_summary"],"qc_summary.xlsx")
-  params:
-    self_config = config["directories"]["selfconfig"],
-    qc_output = config["directories"]["qc_summary"]
-    
+    summary=os.path.join(config["directories"]["qc_summary"],"qc_summary.xlsx")
   threads:5
   shell:
     """
-    qctb --config {params.self_config}/config.yaml --output {params.qc_output}/qc_summary.xlsx
+    qctb --config {input.config_file:q} --output {output.summary:q}
     """
     

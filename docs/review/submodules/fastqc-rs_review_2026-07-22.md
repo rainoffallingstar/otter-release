@@ -2,28 +2,62 @@
 
 ## 1. 审查结论
 
-- **仓库基线**：`14ccb7b`（分支 `library-latest`，工作树干净）
-- **审查状态**：只读审查完成，发现 1 Critical / 4 High / 8 Medium / 7 Low
-- **发布结论**：**阻断发布**。非法碱基 panic、Q20/Q30/AvgQual 公式按 read 而非碱基级（直接污染 qctb 上报）、clippy 失败、doctest 失败致 `cargo test` exit 101。
+- **原始审查基线**：`14ccb7b`（分支 `library-latest`）。
+- **整改状态**：2026-07-25 本地 closure 完成；原始 1 Critical / 4 High / 8 Medium / 7 Low 均已修复或形成明确兼容边界，当前 Critical / High / Medium 为 0。
+- **本地发布结论**：代码、异常输入、资源预算、真实消费者和主仓调用契约门禁通过；不再因 malformed/truncated FASTQ、HTML 网络访问或无界 k-mer/position 统计产生虚假成功、panic 或无界增长。
+- **交付状态**：当前改动尚未 commit、push，也未更新主仓 submodule pointer。GitHub Actions 中固定外部工具下载链仍需远端实际运行后才能形成发布证据。
 
 ## 2. 门禁结果
 
-| 命令 | 结果 |
+| 门禁 | 结果 |
 |---|---|
 | `cargo fmt --all -- --check` | 通过 |
-| `cargo clippy --all-targets --all-features -- -D warnings` | **失败**（lib 18 个 error，lib test 17 个 error） |
-| `cargo test --all-features` | **失败**（exit 101）：单测/集成通过，但 `src/lib.rs:8` doctest 用不存在的 `sample.fastq` 触发 panic |
-| 系统 `fastqc` / `multiqc` / `seqkit` | 均未安装，无法做外部兼容验证 |
+| `cargo check --all-targets --all-features --locked` | 通过 |
+| `cargo clippy --all-targets --all-features --locked -- -D warnings` | 通过 |
+| `cargo test --all-targets --all-features --locked` | 通过：23 unit + 4 binary integration，doctest 不再访问不存在的 fixture |
+| `cargo build --all-targets --all-features --locked` | 通过 |
+| `git diff --check` | 通过 |
+| 100,000 reads × 150 bp，`k=7`，`--no-html` | 通过：28.847 秒，峰值 RSS 14,208 KiB；预算 120 秒 / 512 MiB |
+| Babraham FastQC 0.12.1 | 真实 fixture 核心统计对照通过 |
+| SeqKit 2.13.0 | 19 列模块中约定核心字段逐字段对照通过 |
+| MultiQC 1.35 | 真实解析通过，发现 1 个 FastQC report |
+| qctb parser | 定向单测通过；真实 `fqc` run4 产物消费通过 |
+| 主仓 FastQC Snakemake contract | 两个规则路径参数已使用 `{value:q}`，静态契约测试通过 |
+| GitHub Actions YAML | `yaml.safe_load` 解析通过 |
 
 工具链：rustc/cargo 1.97.1，edition 2018，包 `fastqc-rs 0.3.4`，二进制 `fqc`，needletail 0.5.1。
 
-## 3. 架构与数据流
+## 3. 整改架构与发现 closure
 
-CLI `fqc`（clap v4）：`-q/--fastq`（必填）、`-k/--kmer`（默认 5）、`-s/--summary`（输出 `fastqc_data.txt` 目录）、`--no-html`（跳过 HTML 到 stdout，主仓实际使用模式）。
+当前数据流只有一个 FASTQ 解析事实来源：
 
-`analyze(filename, k) -> Result<FastqAnalysisResult>`（库入口，只统计）；`process(...)`（CLI 入口，统计+渲染；两处解析循环几乎逐行重复）。
+```text
+CLI / library
+    -> KmerLength + AnalysisLimits validation
+    -> analyze_with_options()
+    -> FastqAnalysisResult
+    -> HTML / fastqc_data.txt rendering
+```
 
-数据流：`parse_fastx_file`（needletail）逐 record → read_count/read_lengths/gc_content/mean_read_qualities/base_quality_count/base_count/kmers → 派生 warning 等级 → 嵌入 Vega-Lite spec + Tera 渲染 HTML（或 `fastqc_data.txt`）。
+- `analyze()` 使用默认资源边界；`process()` 只渲染分析结果，不再维护第二套 parser loop。
+- needletail 的 malformed record、截断 gzip、缺 quality、空 read、长度不一致和非法 Phred+33 均立即返回结构化错误。
+- summary 目录只在完整分析成功后创建，失败时不发布部分报告。
+- k-mer 限制为 1..=7；per-position histogram 最多保留 10,000 位；单 read 最长 10,000,000 bases；distinct read lengths 最多 100,000。
+- HTML 生成删除 reqwest/CDN 抓取路径，不再发起网络请求；输出保留固定外链，浏览器完全离线打开时图表资源可能不可用。
+- FastQC Basic Statistics 与 SeqKit GC 分母分别按各自语义计算；Q20/Q30 为碱基级，AvgQual 使用平均错误概率。
+
+| 原始发现 | Closure |
+|---|---|
+| FASTQC-C01 | IUPAC/其他非 ACGT 字节归入 N 类，不再 panic；回归测试覆盖 |
+| FASTQC-H01 | Q20/Q30 改为碱基级；AvgQual 对齐 SeqKit 2.13；真实差分通过 |
+| FASTQC-H02 | sequence content 使用 A-T 与 G-C；测试通过 |
+| FASTQC-H03 | 导出使用确定性排序；MultiQC 真实消费通过 |
+| FASTQC-H04 | 删除运行时网络请求和 `unwrap()`；不可达代理 integration test 通过 |
+| FASTQC-H05 | typed k-mer/read/position/distinct-length limits + 大输入机器预算通过 |
+| FASTQC-M01..M08 | 空 histogram、malformed/truncated、CRLF、空 read、长/变长 read、doctest、FastQC/MultiQC 字段与百分位语义均已关闭 |
+| FASTQC-L01..L07 | URL 拼写、重复 parser、文档、百分位命名、截断均值等已整改；浏览器端 CDN availability 保留为明确非阻断边界 |
+
+以下各节保留原始审查 finding、触发条件和影响说明；其中代码行号对应原始基线，不代表整改后位置。
 
 ## 4. Critical 发现
 
@@ -95,30 +129,42 @@ CLI `fqc`（clap v4）：`-q/--fastq`（必填）、`-k/--kmer`（默认 5）、
 
 ## 8. 主仓实际调用契约
 
-主仓 snakemake 规则（`inst/rules/01fqcAtfirst.smk`、`03-0-fqcAtclean.smk`）**只用 `--no-html` + `-s` 模式**：`fqc -q {input.R1} -s {params.R1_dir} --no-html`。输出契约：`<dir>/fastqc_data.txt`（`fqc` 内部 `create_dir_all`）。
+主仓 Snakemake 规则（`inst/rules/01fqcAtfirst.smk`、`03-0-fqcAtclean.smk`）只使用 `--no-html` + `-s` 模式。整改后命令使用 Snakemake 路径 quoting：
 
-qctb 解析契约（`qctb/src/qc_summary/parsers/fqc.rs`）：定位 `>>Seqkit Statistics` 模块，表头 19 字段，数据行末尾 `>>END_MODULE` 紧贴（`trim_end_matches`），消费 num_seqs/sum_len/Q20(%)/Q30(%)/min_len/avg_len/max_len 七字段。
+```text
+fqc -q {input.R1:q} -s {params.R1_dir:q} --no-html
+```
 
-**关键级联**：FASTQC-H01 的 Q20/Q30 公式错误**直接污染 qctb 上报的 Q20/Q30**；M2 malformed read 不落字段 qctb 无感知；`>>END_MODULE` 紧贴数据行是硬契约，模板空行/换行改动会破坏 qctb 解析。
+输出契约保持为 `<summary-dir>/fastqc_data.txt`。静态测试同时固定两条命令的 `:q` 参数和 raw/clean 四个 `fastqc_data.txt` 输出路径。
 
-构建契约：`scripts/build-all-submodules.sh:138` `build_rust "fastqc-rs" "fastqc-rs" "fqc"`；`scripts/install.sh:65` `"fqc:fqc:static"`。
+qctb 解析器定位 `>>Seqkit Statistics` 模块，并消费 `num_seqs`、`sum_len`、`Q20(%)`、`Q30(%)`、`min_len`、`avg_len`、`max_len`。本轮使用真实 run4 文件直接调用 qctb parser，结果为：
 
-## 9. 外部兼容验证缺口
+```text
+num_seqs=200 sum_len=20200 min_len=101 avg_len=101 max_len=101 Q20=96 Q30=91
+```
 
-系统无 `fastqc`/`multiqc`/`seqkit`，无法：
-- 对比 fastqc-rs 与 Babraham FastQC 对同一 FASTQ 的 `fastqc_data.txt` 数值差异。
-- 用真实 MultiQC 解析 `fqc -s` 产出验证模块名/字段名。
-- 用 seqkit 验证 `>>Seqkit Statistics` 的 Q20/Q30/AvgQual（H1 已证明公式不同源）。
+`>>END_MODULE` 可独立成行或紧贴数据行；qctb 均可解析。构建产物契约未变：`scripts/build-all-submodules.sh` 构建 `fqc`，`scripts/install.sh` 安装 `fqc`。
 
-## 10. 完成门禁缺口
+## 9. 外部兼容验证
 
-- [ ] Critical/High 风险为零。
-- [ ] 非法碱基不再 panic。
-- [ ] Q20/Q30/AvgQual 改碱基级。
-- [ ] Per base sequence content 警告改 A-T。
-- [ ] summary 输出排序后确定性。
-- [ ] `cargo clippy --all-targets --all-features -- -D warnings` 通过。
-- [ ] doctest 修复（`cargo test --all-features` exit 0）。
-- [ ] embed_source 超时/回退。
-- [ ] 内存/k-mer 上限或文档化预算。
-- [ ] 真实 fastqc/multiqc/seqkit 差分门禁。
+- **SeqKit 2.13.0**：同一 `example.fastq` 的核心字段一致：`FASTQ/DNA/200/20200/101/101/101/Q20 96/Q30 91/AvgQual 19.94/GC 46.69/sum_n 228`；`N50_num=1` 与当前 SeqKit length-bin 实现一致。
+- **Babraham FastQC 0.12.1**：Total Sequences 200、Sequence length 101、`%GC` 四舍五入为 47、position 1 mean quality 30.135 对照一致。`fqc` 是 FastQC-compatible subset，不声明 tile、duplication、adapter 等全部模块 parity。
+- **MultiQC 1.35**：真实读取 `fastqc_data.txt`，发现 1 个报告并生成 `multiqc_fastqc.txt`、general stats、sources 和 HTML；未知 `Seqkit Statistics` 扩展不破坏 parser。
+- **CI**：workflow 固定上述版本与 Java 21/Python 3.12，并在每次兼容 job 运行逐字段断言和大输入预算。固定 URL 的下载可用性仍需 GitHub-hosted runner 首次执行确认。
+
+## 10. 完成门禁
+
+- [x] Critical/High/Medium 风险为零。
+- [x] 非法/IUPAC 碱基不再 panic。
+- [x] malformed plain FASTQ 与 truncated gzip fail closed，失败不发布 summary。
+- [x] Q20/Q30 为碱基级，AvgQual 对齐 SeqKit。
+- [x] Per base sequence content 使用 A-T 和 G-C。
+- [x] summary 输出排序确定，位置与百分比语义对齐 FastQC。
+- [x] strict clippy、locked check/test/build 和 diff check 通过。
+- [x] HTML 生成不请求网络，不因 CDN 失败 panic。
+- [x] k-mer、per-position、read length 和 distinct length 有 typed 上限。
+- [x] 本机大输入时间/RSS预算通过，CI 有同等机器 gate。
+- [x] 真实 FastQC/MultiQC/SeqKit 差分门禁通过。
+- [x] qctb 真实产物消费和主仓 Snakemake 静态契约通过。
+- [ ] GitHub Actions compatibility job 远端实跑。
+- [ ] commit/push 与主仓 submodule pointer 更新（需用户明确授权）。

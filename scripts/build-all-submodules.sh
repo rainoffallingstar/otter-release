@@ -116,11 +116,16 @@ build_rust() {
   local dir="$2"
   local binary="$3"
   local source_binary="${4:-$3}"
+  local cargo_args=()
+
+  if [ "${dir}" = "methrix-cli" ]; then
+    cargo_args+=(--features download)
+  fi
 
   echo "Building ${name}..."
   (
     cd "${dir}"
-    "${RUST_CMD[@]}" build --release
+    "${RUST_CMD[@]}" build --release "${cargo_args[@]}"
     cp "target/release/${source_binary}" "${CARGO_BIN}/${binary}"
   )
   echo "  ✓ Installed to ${CARGO_BIN}/${binary}"

@@ -4,7 +4,8 @@ rule bsmap2sort4homo:
     trim_R1 = lambda wildcards: os.path.join(config["output"]["trim_dir"], f"{wildcards.sample}_val_1.fq.gz"),
     trim_R2 = lambda wildcards: os.path.join(config["output"]["trim_dir"], f"{wildcards.sample}_val_2.fq.gz")
   output:
-    os.path.join(config["directories"]["bsmap"]["main"], "{sample}_{species}" + ".bam")
+    sorted_bam=os.path.join(config["directories"]["bsmap"]["main"], "{sample}_{species}" + ".bam"),
+    alignment_report=os.path.join(config["directories"]["bsmap"]["main"], "{species}", "{sample}_val_1_bismark_bt2_PE_report.txt")
   params:
     bsmapDir = config["directories"]["bsmap"]["main"],
     bsmapDir_species = lambda wildcards: os.path.join(config["directories"]["bsmap"]["main"],f"{wildcards.species}"),

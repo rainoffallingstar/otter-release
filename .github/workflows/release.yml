@@ -28,15 +28,20 @@ jobs:
           submodules: recursive
           token: ${{ secrets.SUBMODULES_PAT }}
 
-      - name: Install samtools
+      - name: Install test system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y samtools
+          sudo apt-get install -y samtools pkg-config libhdf5-dev cmake zlib1g-dev
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.24'
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
 
       - name: Test parent project
         run: go test -count=1 -short -buildvcs=false ./internal/... ./cmd/...
@@ -56,7 +61,15 @@ jobs:
       - name: Test xenofilter-go
         run: cd xenofilter-go && go test -count=1 -short ./...
 
+      - name: Test methrix-cli
+        run: |
+          cd methrix-cli
+          cargo fmt --all -- --check
+          cargo clippy --all-targets --all-features --locked -- -D warnings
+          cargo test --all-targets --all-features --locked
+
   build-and-release:
+    needs: test
     runs-on: ubuntu-latest
     env:
       PUBLIC_RELEASES_REPO: rainoffallingstar/flightlight
@@ -185,7 +198,7 @@ jobs:
 
       - name: Build methrix-cli (static HDF5 via CMake, native target)
         run: |
-          (cd methrix-cli && cargo build --release)
+          (cd methrix-cli && cargo build --release --features download)
           if [ -f methrix-cli/target/release/methrix-cli ]; then
             cp methrix-cli/target/release/methrix-cli dist/methrix-linux-amd64-static
           elif [ -f methrix-cli/target/release/methrix ]; then

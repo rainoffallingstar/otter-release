@@ -3,8 +3,9 @@ rule qualimap:
   input:
     sample_bam = lambda wildcards: os.path.join(config["directories"]["bsmap"]["main"], f"{wildcards.sample}_{wildcards.species}.bam")
   output:
-    os.path.join(config["directories"]["qualimap"],"{sample}_{species}", "qualimapReport.html"),
-    os.path.join(config["directories"]["qualimap"],"{sample}_{species}", "report.pdf")
+    html=os.path.join(config["directories"]["qualimap"],"{sample}_{species}", "qualimapReport.html"),
+    pdf=os.path.join(config["directories"]["qualimap"],"{sample}_{species}", "report.pdf"),
+    genome_results=os.path.join(config["directories"]["qualimap"],"{sample}_{species}", "genome_results.txt")
   params:
     outdir_qualimap = lambda wildcards:os.path.join(config["directories"]["qualimap"], f"{wildcards.sample}_{wildcards.species}"),
     java_mem = "40G"

@@ -4,20 +4,44 @@
 
 - **仓库基线**：`c35185a58d0a58e5633d7c727dac2ba11065fec6`
 - **分支**：`main`
-- **审查状态**：只读审查完成，发现 2 Critical / 6 High / 6 Medium / 多 Low
-- **发布结论**：**阻断发布**。Rust 静态门禁通过，但存在 Git 凭据暴露、核心 R 兼容契约不成立、发布门禁脱钩与真实规模内存/原子输出风险。
+- **原始审查**：2026-07-22 只读审查发现 2 Critical / 6 High / 6 Medium / 多 Low。
+- **整改状态（2026-07-24）**：子仓代码整改完成，Rust 门禁和真实最小 CLI integration test 通过。HDF5 契约已收敛为版本化 custom schema，不再声称标准 HDF5Array/methrix loader 兼容。
+- **发布结论**：代码、门禁与父仓发布编排阻断项已关闭；正式发布前仍必须由账户所有者完成 Git 凭据吊销/轮换。该账户操作不应由源码整改冒充完成。
+
+## 1.1 整改关闭摘要（2026-07-24）
+
+| 原发现 | 状态 | 关闭证据 |
+|---|---|---|
+| METHRIX-C01 Git 凭据暴露 | 外部未完成 | 不在源码中修改凭据；必须由账户所有者吊销/轮换并清理 remote URL |
+| METHRIX-C02 loader 契约不成立 | 已关闭（契约收敛） | 固定 `methrix-cli.custom-hdf5/1.0.0`；metadata 明示仅支持 `rhdf5` direct access；README、设计、R smoke test 同步 |
+| METHRIX-H01 父仓 release 绕过测试 | 已关闭 | `build-and-release` 明确 `needs: test`；test job 执行 methrix fmt、strict clippy 和 all-target/all-feature tests |
+| METHRIX-H02 download feature 未进入正式构建 | 已关闭 | 子仓 E2E、父仓 release 和 `build-all-submodules.sh` 均以 `--features download` 构建 methrix |
+| METHRIX-H03 非事务发布 | 已关闭 | `AtomicOutputSet` 覆盖 HDF5 alias、QC、annotation；测试覆盖 staging failure、发布中途 rollback 和 stale removal |
+| METHRIX-H04 峰值内存 | 风险显著降低 | 样本结果直接写最终 columns；并发临时向量受线程数约束；stats 单 pass；HDF5 bounded chunk writing；Bismark 单样本记录仍按 worker 整体读入 |
+| METHRIX-H05 Excel 行上限 | 已关闭 | workbook 仅保留 `ChIPseeker_By_Sample`；逐 CpG 明细迁移到 `CpG_annotation_details.tsv.gz` |
+| METHRIX-H06 下载完整性 | 已关闭 | UCSC 固定 URL/MD5、流式 checksum、大小/超时限制、FASTA provenance、cache tamper validation、事务发布 |
+| METHRIX-M01 线程上限 | 已关闭到处理/过滤范围 | sample processing 与 filter 在 bounded Rayon pool 内；stats 已顺序单 pass |
+| METHRIX-M02 schema 漂移 | 已关闭 | schema name/version、`u32` coverage 和 loader compatibility 已冻结并由 native validator 检查 |
+| METHRIX-M03 Bismark end 忽略 | 已关闭 | 要求单碱基 `end == start`，含 negative test |
+| METHRIX-M04 GTF fallback 不确定 | 已关闭 | 精确 species GTF 优先；fallback 仅接受唯一候选，多候选列出路径并失败 |
+| METHRIX-M05 side effects 未声明 | 已关闭 | 父仓 Snakemake 声明 `assays.h5`、alias、QC、annotation summary 和 details |
+| METHRIX-M06 门禁缺口 | 已关闭到可用环境范围 | malformed HDF5、单/多线程等价、真实 CLI integration、事务测试和 CI R `rhdf5` smoke 已加入 |
 
 ## 2. 门禁结果
 
 | 命令 | 结果 |
 |---|---|
 | `cargo fmt --all -- --check` | 通过 |
-| `cargo clippy --all-targets --all-features -- -D warnings` | 通过 |
-| `cargo test --all-features` | 通过（27 passed） |
-| R `rhdf5` 可用 | 可用 |
-| R `HDF5Array` / `methrix` 可用 | 不可用 |
+| `cargo check --all-targets --all-features --locked` | 通过 |
+| `cargo clippy --all-targets --all-features --locked -- -D warnings` | 通过 |
+| `cargo test --all-targets --all-features --locked -- --test-threads=1` | 通过（52 unit + 1 real CLI integration；0 failed / ignored / filtered） |
+| `cargo build --all-targets --all-features --locked` | 通过 |
+| 子仓及父仓 `git diff --check` | 通过 |
+| 父仓 `go test -count=1 ./internal/assets` | 通过 |
+| workflow YAML parse / build script `bash -n` | 通过 |
+| 本机 R | R 4.6.0 可用，`rhdf5` 不可用 |
 
-本地 R 环境缺少 `HDF5Array` 与 `methrix`，因此标准 `loadHDF5SummarizedExperiment()` 兼容性未动态验证。
+本机无法执行 R direct-schema smoke，因为 `requireNamespace("rhdf5")` 返回 `FALSE`。子仓 E2E workflow 已显式安装 `r-bioc-rhdf5`，通过真实 `methrix process` 产物运行 `tests/integration/test_r_compatibility.R`；标准 HDF5Array/methrix loader 不属于当前 custom schema 的支持契约。
 
 ## 3. 架构与坐标契约
 
@@ -96,16 +120,19 @@ Coverage 已从文档承诺的 `u16` 改为 `u32`，70,000 coverage 回归测试
 
 ## 8. 主仓调用
 
-- 已对齐：主仓调用 `methrix-cli`，本地 build 与安装器把 `methrix` 安装为 `methrix-cli`，名称一致；扫描有确定性排序；样本名冲突被拒绝。
-- 缺失：主仓 CI/release 不测试 methrix；release 不依赖 test；子仓 CI 无 fmt/严格 clippy/完整 test；R CI 仅验证自定义 schema；release 默认未启用 download；无 Snakemake 集成测试；无原子输出门禁。
+- 已对齐：主仓调用 `methrix-cli`；Snakemake 声明 `assays.h5`、`methrix_data.h5`、QC、annotation summary 和 details；GTF fallback 只接受唯一候选；父仓 release 依赖 test 并执行 methrix Rust 门禁；release 与本地 submodule build 均启用 `download` feature。
+- 已记录限制：本机缺少 `rhdf5`，R direct-schema smoke 只能由已配置依赖安装的子仓 E2E 执行；release 产物的实际静态链接属性仍应由现有 artifact/linkage verification 持续检查。
 
-## 9. 完成门禁缺口
+## 9. 完成门禁
 
-- [ ] Git remote 凭据已轮换。
-- [ ] HDF5 产物满足真实 `loadHDF5SummarizedExperiment()` / `load_HDF5_methrix()` 契约。
-- [ ] `build-and-release` 依赖 test 并运行真实 R 门禁。
-- [ ] 所有产物原子发布。
-- [ ] 流式/分块处理满足真实规模内存预算。
-- [ ] annotation 不依赖 Excel 行上限。
-- [ ] 下载固定版本、校验和、原子安装。
-- [ ] 真实 R 消费者、多线程等价、异常输入门禁。
+- [ ] Git remote 凭据已由账户所有者吊销/轮换并清理暴露范围（外部任务）。
+- [x] HDF5 契约收敛为 versioned custom schema，并明确仅支持 `rhdf5` direct access。
+- [x] `build-and-release` 依赖 test，且父仓 release test 执行 methrix Rust 门禁。
+- [x] HDF5、alias、QC 与 annotation 事务发布并覆盖 rollback/stale removal。
+- [x] 样本并发和 HDF5 写入临时内存受界；不再创建完整转置副本。
+- [x] annotation 明细迁移到 gzip TSV，不依赖 Excel 行上限。
+- [x] genome 下载固定 release、URL、checksum、大小限制、provenance 与 cache validation。
+- [x] 真实 CLI integration、多线程等价、malformed HDF5 与事务门禁已执行。
+- [x] 子仓 E2E 配置真实 R `rhdf5` direct-schema smoke；本机因缺包未重复执行。
+
+剩余已记录限制：每个活跃 worker 的 `BismarkReader` 仍会读入一个完整样本记录向量；若需要进一步压低极端 WGBS 峰值，应在后续版本改为逐行解析并直接填充最终 column。

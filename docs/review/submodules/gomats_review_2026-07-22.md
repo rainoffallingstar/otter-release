@@ -119,4 +119,14 @@ CLI flags：`--root`、`--threads`、`--pdata`、`--seqlengthQC`、`--gtf`、`--
 - [ ] 本地/Slurm 并发与部分失败证据。
 - [ ] 重跑幂等与失败清理证据。
 - [ ] 版本差异与产物完整性证据。
-- [ ] 主仓真实调用通过。
+## 11. 已实施整改（2026-07-23）
+
+- pdata 重复、空字段和 `sample_group`/`condition` 回退已严格校验。
+- expected/observed BAM 集合、重复 sample/species BAM 和 pdata 外样本已 fail closed。
+- 用户分组名不再直接进入路径；零 combination、无效线程和 PDX 参数返回错误。
+- 主仓 `rnaseq_splicing.smk` 已对路径使用 `{value:q}`，pdata/GTF 纳入显式 input。
+- runner 已改为同级 staging 执行，写入 `gomats.contrast-manifest/v1`，验证五类 `*.MATS.JC.txt` 的文件类型、非空状态及 `ID/GeneID/FDR` 表头，然后使用备份和 rename 原子发布。
+- fake `rmats.py` 回归覆盖成功、命令失败、缺产物、坏表头、重跑替换、BAM 分隔符和 symlink 最终路径。
+- `go test -count=1 ./...`、`go vet ./...`、`go test -race -count=1 ./...`、`CGO_ENABLED=0 go build ./...` 与 `git diff --check` 通过。
+
+仍阻塞：锁定 rMATS 4.1.2 的真实表头/产物验证、PDX species→BAM→GTF 显式契约和主仓真实集成。

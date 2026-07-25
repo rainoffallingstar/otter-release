@@ -4,7 +4,8 @@ rule rnaseqmappingbowtie:
     trim_R1 = lambda wildcards: os.path.join(config["output"]["trim_dir"], f"{wildcards.sample}_val_1.fq.gz"),
     trim_R2 = lambda wildcards: os.path.join(config["output"]["trim_dir"], f"{wildcards.sample}_val_2.fq.gz")
   output:
-    os.path.join(config["directories"]["bsmap"]["main"], "{sample}_{species}" + ".bam")
+    sorted_bam=os.path.join(config["directories"]["bsmap"]["main"], "{sample}_{species}" + ".bam"),
+    star_log=os.path.join(config["directories"]["bsmap"]["main"], "{species}", "{sample}Log.final.out")
   params:
     bsmapDir = config["directories"]["bsmap"]["main"],
     tempdir = lambda wildcards: os.path.join(config["directories"]["bsmap"]["main"],"tmp", f"{wildcards.sample}"),

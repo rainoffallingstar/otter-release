@@ -21,14 +21,14 @@
 | `bamdriver-go` | BAM/BGZF、BAI/FAI、排序与 NM 计算 | 已完成系统审查和整改，作为本计划基线 | 已完成 |
 | `xenofilter-go` | PDX host/graft reads 分类和过滤 | 整改提交 `6ae7f84` 已推送，主仓指针纳入本次提交；0 Critical / 0 High / 0 Medium，待真实 PDX 集成 | P0 |
 | `Paireads` | 两个 BAM 的 read-name 配对、过滤、排序和索引 | 整改提交 `1ece0ba` 已推送，主仓指针纳入本次提交；0 Critical / 0 High / 0 Medium，待 Bismark 集成 | P0 |
-| `methrix-cli` | Bismark 甲基化数据转换、HDF5 与 QC 输出 | 修复过构建和发布问题，未完整审查 | P0 |
-| `htseq2matrix-go` | HTSeq 计数合并、基因 ID 转换和矩阵输出 | 修复过 CI 与入口问题，未完整审查 | P1 |
-| `fastqc-rs` | FASTQ 质量统计、HTML 与 MultiQC 输出 | 未完整审查 | P1 |
-| `qctb` | RRBS/WGBS/RNA-seq QC 汇总 | 未完整审查 | P1 |
-| `gomats` | rMATS 任务构造和可变剪接流程编排 | 仅完成构建与集成 | P1 |
-| `enva` | 环境创建、发现、执行、安装和删除 | 仅完成构建与基本功能工作 | P1 |
+| `methrix-cli` | Bismark 甲基化数据转换、自定义 HDF5 与 QC 输出 | 首轮整改完成，原生 schema/规模化/集成待完成 | P0 |
+| `htseq2matrix-go` | HTSeq 计数合并、基因 ID 转换和矩阵输出 | I/O 可靠性整改完成，科学矩阵契约待冻结 | P1 |
+| `fastqc-rs` | FASTQ 质量统计、HTML 与 MultiQC 输出 | 本地系统整改 closure 完成；异常输入、资源预算、外部消费者与主仓静态契约通过 | P1 |
+| `qctb` | RRBS/WGBS/RNA-seq QC 汇总 | 当前主仓契约整改完成，原生报告 schema 待冻结 | P1 |
+| `gomats` | rMATS 任务构造和可变剪接流程编排 | 输入/路径整改完成，任务事务和产物契约待完成 | P1 |
+| `enva` | 环境创建、发现、执行、安装和删除 | 路径/argv 首轮整改完成，完整测试与事务安全待完成 | P0 |
 
-尚未开始系统审查的子仓库共 6 个；`xenofilter-go` 与 `Paireads` 已完成代码整改、本地门禁和子仓推送，主仓指针已更新，尚待具备工具链环境中的真实工作流集成。
+六个 Wave 2-3 子仓均已完成只读审查和首轮整改；当前状态、剩余问题与实施批次见 `wave2_wave3_remediation_plan_2026-07-22.md`。`xenofilter-go` 与 `Paireads` 已完成代码整改、本地门禁和子仓推送，尚待具备工具链环境中的真实工作流集成。
 
 ## 3. 审查原则
 
@@ -219,19 +219,19 @@ Critical 和 High 问题未清零时，不得将对应子仓库标记为“已�
 - coverage、methylated count、beta 值的数值范围、溢出、精度和缺失值。
 - `u16` coverage 是否会截断真实高覆盖数据。
 - 并行样本处理的确定性、内存峰值和失败传播。
-- HDF5 dataset 名称、维度、类型、字符串编码、chunk/compression 和 metadata。
-- R `rhdf5`、`HDF5Array`、`SummarizedExperiment` 或项目承诺的真实消费者兼容性。
+- 自定义 HDF5 schema 的 dataset 名称、维度、类型、字符串编码、chunk/compression 和 metadata。
+- Rust 原生 validator/reader 与 `qctb` 对正式 schema 的消费兼容性。
 - QC Excel 和 CpG annotation 的字段、公式、空样本和零分母。
 - 下载参考基因组的 TLS、校验和、断点/部分文件和原子安装。
 
 最低兼容性证据：
 
-- 小型 Bismark fixture 与 R methrix/参考脚本的数值差分。
-- R 端真实读取生成 HDF5，并校验维度、坐标、样本名和数值。
+- 小型 Bismark fixture 的人工可核算数值验证。
+- Rust 原生 validator 读取生成 HDF5，并校验维度、坐标、样本名和数值。
 - 单线程/多线程结果等价。
 - 极端 coverage、空文件、截断 gzip 和重复 CpG 回归测试。
 
-完成标准：HDF5 与 QC 产物由真实 R 消费者读取，关键数值与参考实现一致。
+完成标准：版本化 custom HDF5 schema 与 QC 产物通过原生 validator 和 `qctb` 消费验证，关键数值与人工 golden fixtures 一致。
 
 #### 6.4 `htseq2matrix-go`
 
@@ -284,12 +284,12 @@ Critical 和 High 问题未清零时，不得将对应子仓库标记为“已�
 - 样本与 pdata/config 的匹配、重复样本和缺失样本。
 - RRBS/WGBS/RNA-seq 模式分支是否选择正确指标。
 - Excel sheet 名称、单元格类型、TSV 列顺序和跨运行确定性。
-- 与当前 R QC 脚本或冻结历史输出的逐字段差分。
+- 与版本化原生 `qctb.report` schema golden fixtures 的逐字段验证。
 
 最低兼容性证据：
 
 - 各工作流至少一组真实精简日志 fixture。
-- 与 R 输出逐字段比较并记录允许的舍入误差。
+- 对版本化原生输出逐字段比较并记录允许的舍入误差。
 - 缺字段、空样本和不同 STAR/Bismark 版本回归测试。
 
 完成标准：主仓所有支持模式均有 golden output，Excel/TSV 契约稳定。
@@ -414,12 +414,12 @@ Critical 和 High 问题未清零时，不得将对应子仓库标记为“已�
 | 基线 | `bamdriver-go` | 已整改，待纳入统一索引 | 既有审查记录 | 0 | 已通过 |
 | Wave 1 | `xenofilter-go` | 整改提交 `6ae7f84` 已推送，主仓指针已更新；待真实集成 | `submodules/xenofilter-go_review_2026-07-21.md` | 0 Critical / 0 High | 规则失败标记契约通过，真实 PDX 集成待工具链 |
 | Wave 1 | `Paireads` | 整改提交 `1ece0ba` 已推送，主仓指针已更新；待真实集成 | `submodules/Paireads_review_2026-07-21.md` | 0 Critical / 0 High | samtools 1.24 兼容通过，Bismark extractor 集成待工具链 |
-| Wave 2 | `methrix-cli` | 审查完成，阻断发布 | `submodules/methrix-cli_review_2026-07-22.md` | 2 Critical / 6 High | CI/release 不测试 methrix；真实 R loader 待 HDF5Array/methrix 环境 |
-| Wave 2 | `htseq2matrix-go` | 审查完成，阻断发布 | `submodules/htseq2matrix-go_review_2026-07-22.md` | 2 Critical / 6 High | Go/R 差分失败；主仓规则参数与实际 CLI 一致但缺科学兼容门禁 |
-| Wave 2 | `fastqc-rs` | 审查完成，阻断发布 | `submodules/fastqc-rs_review_2026-07-22.md` | 1 Critical / 4 High | Q20/Q30 公式错误直接污染 qctb；clippy/doctest 失败 |
-| Wave 2 | `qctb` | 审查完成，阻断发布 | `submodules/qctb_review_2026-07-22.md` | 3 Critical / 8 High | 主仓当前配置无法被 qctb 反序列化；R 契约不兼容 |
-| Wave 3 | `gomats` | 审查完成，阻断发布 | `submodules/gomats_review_2026-07-22.md` | 1 Critical / 8 High | Snakemake 边界 shell 注入；真实 rMATS 集成待工具链 |
-| Wave 3 | `enva` | 审查完成，阻断发布 | `submodules/enva_review_2026-07-22.md` | 1 Critical / 7 High | argv 边界丢失破坏主仓 `enva run` 契约；clippy 失败 |
+| Wave 2 | `methrix-cli` | 首轮整改完成，Rust 门禁通过；仍阻断发布 | `submodules/methrix-cli_review_2026-07-22.md` | 原子发布与 custom schema 已整改；原生 validator、分块写、genome hash 待完成 | 不要求 R loader；主仓/qctb 原生集成待验证 |
+| Wave 2 | `htseq2matrix-go` | 首轮 I/O 整改完成，Go 门禁通过；仍阻断发布 | `submodules/htseq2matrix-go_review_2026-07-22.md` | count 与事务发布已整改；matrix/mapping 科学契约待冻结 | 主仓参数一致；human/mouse 原生 golden 待完成 |
+| Wave 2 | `fastqc-rs` | 本地整改 closure 完成；GitHub-hosted compatibility job 与交付待完成 | `submodules/fastqc-rs_review_2026-07-22.md` | 0 Critical / 0 High / 0 Medium；malformed/truncated、资源上限、HTML 网络边界已关闭 | qctb 真实产物消费、FastQC 0.12.1/SeqKit 2.13.0/MultiQC 1.35 和主仓规则静态契约通过；commit/push/指针待授权 |
+| Wave 2 | `qctb` | 首轮整改完成，Rust 门禁通过；原生 schema 待冻结 | `submodules/qctb_review_2026-07-22.md` | 当前 config/Methrix/FQC/原子输出已整改；其余 parser 和 golden 待完成 | 不要求历史 R/RDS；四模式主仓集成待验证 |
+| Wave 3 | `gomats` | 首轮输入与路径整改完成，Go 门禁通过；仍阻断发布 | `submodules/gomats_review_2026-07-22.md` | shell 边界、pdata/BAM、路径、零任务已整改；staging/产物契约待完成 | 真实 rMATS 与 PDX 集成待工具链 |
+| Wave 3 | `enva` | 首轮路径和 argv 整改完成；完整测试待稳定 | `submodules/enva_review_2026-07-22.md` | Critical 路径逃逸与 argv 注入已整改；transaction/lock/cache/download 待完成 | fmt/clippy 通过；test 79/81 后补丁待重跑 |
 | Wave 4 | 主仓跨仓集成 | 待开始 | 汇总报告待创建 | 不适用 | 待验证 |
 
 每完成一次审查或整改，应立即更新本表和 `docs/active_context.md`，不得仅依赖聊天记录或未提交的本地日志维护进度。

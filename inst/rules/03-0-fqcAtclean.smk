@@ -12,6 +12,6 @@ rule fqcAtclean:
   threads: 2
   shell:
     """
-    fqc -q {input.R1} -s {params.R1_dir} --no-html
-    fqc -q {input.R2} -s {params.R2_dir} --no-html
+    fqc -q {input.R1:q} -s {params.R1_dir:q} --no-html
+    fqc -q {input.R2:q} -s {params.R2_dir:q} --no-html
     """

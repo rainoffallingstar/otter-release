@@ -24,13 +24,19 @@ rule prepare_methrix_reference_cpg:
         fi
       done
       if [[ -z "$gtf_src" ]]; then
-        gtf_any=("$ref_dir"/*.gtf "$ref_dir"/*.gtf.gz)
-        for c in "${gtf_any[@]}"; do
+        gtf_candidates=()
+        for c in "$ref_dir"/*.gtf "$ref_dir"/*.gtf.gz; do
           if [[ -f "$c" ]]; then
-            gtf_src="$c"
-            break
+            gtf_candidates+=("$c")
           fi
         done
+        if [[ ${{#gtf_candidates[@]}} -eq 1 ]]; then
+          gtf_src="${{gtf_candidates[0]}}"
+        elif [[ ${{#gtf_candidates[@]}} -gt 1 ]]; then
+          printf 'Multiple GTF candidates found for %s:\n' "$key" >&2
+          printf '  %s\n' "${{gtf_candidates[@]}}" >&2
+          exit 1
+        fi
       fi
       if [[ -n "$gtf_src" ]]; then
         cp -f "$gtf_src" "$out_dir/"
@@ -65,8 +71,10 @@ rule create_methrix_object :
     os.path.join(config["directories"]["methylation_call"], "methrixh5", "reference_cpgs.ron")
   output:
     os.path.join(config["directories"]["methylation_call"], "methrixh5","assays.h5"),
+    os.path.join(config["directories"]["methylation_call"], "methrixh5","methrix_data.h5"),
     os.path.join(config["directories"]["methylation_call"], "methrixh5","CpG_coverage.xlsx"),
-    os.path.join(config["directories"]["methylation_call"], "methrixh5","CpG_annotation_report.xlsx")
+    os.path.join(config["directories"]["methylation_call"], "methrixh5","CpG_annotation_report.xlsx"),
+    os.path.join(config["directories"]["methylation_call"], "methrixh5","CpG_annotation_details.tsv.gz")
 
   params:
     mcall_dir = config["directories"]["methylation_call"],

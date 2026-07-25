@@ -1,4 +1,26 @@
-# qctb 系统审查报告（2026-07-22）
+# qctb remediation closure (2026-07-24)
+
+## Status
+
+The code-level blockers in this review are remediated in the current working tree. The historical R-compatible report requirement was intentionally replaced by the versioned native `qctb.report/1.0.0` contract, so no RDS or R-table parity is claimed.
+
+## Closed findings
+
+- C01/C02: main-repository nested configuration, workflow mode, graft, custom Qualimap directory, and `methrixh5` report paths are supported.
+- C03/H08/M04: Excel and TSV share one typed schema definition with fixed columns, order, types, rounding, and `N/A`; Excel embeds a metadata sheet and TSV embeds schema/mode comments.
+- H01/H02/H03/M05: strict numeric, duplicate-field, internal-consistency, SID, and Methrix contract validation is covered by tests.
+- H04/H05/H06/H07/L01/L02/L04: `Cargo.lock` is tracked, binary fixtures are generated at runtime, publication is atomic, quoted command paths are tested, dead dependencies and the unsafe legacy Seqkit parser are removed, docs are updated, and Excel rejects integers outside its exact numeric range.
+- Main workflow rules now declare Bismark PE reports, Qualimap `genome_results.txt`, STAR `Log.final.out`, and both Methrix workbooks as explicit producer/consumer artifacts.
+
+## Remaining external validation
+
+- Run real Snakemake RRBS/WGBS/RNA/PDX chains in an environment with Bismark, Qualimap, STAR, and Methrix installed.
+- Run a real `methrix-cli -> qctb` workbook smoke test after the next submodule remediation.
+- Rust MSRV policy remains a release-process decision; current local gates use the repository toolchain and locked dependencies.
+
+---
+
+# Original qctb system review (2026-07-22)
 
 ## 1. 审查结论
 
