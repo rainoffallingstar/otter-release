@@ -25,3 +25,6 @@
 [submodule "bamdriver-go"]
 	path = bamdriver-go
 	url = https://github.com/rainoffallingstar/bamdriver-go.git
+[submodule "craftmake"]
+	path = craftmake
+	url = https://github.com/rainoffallingstar/craftmake.git
