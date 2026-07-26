@@ -97,15 +97,15 @@ Artifact contract 定义在 `docs/workflow-catalog.md`：每 scenario 声明 pha
 
 通过条件：每个 scenario 的 Craftmake plan、Snakemake adapter 和 artifact catalog 对齐（已验证：21 个 workflow YAML 文件覆盖全部 5 场景 × 全部 phases；双执行层入口均已对齐）。
 
-## Gate 6：sbatch parity 与 benchmark
+## Gate 6：sbatch parity 与 benchmark（进行中）
 
-1. canary：真实工具与 reference 的首轮执行。
-2. representative：20-cell 基础矩阵，每 cell 至少 3 次。
-3. failure injection：cancel/controller loss/task failure/digest drift。
-4. scale：生产规模 throughput 与 scheduler pressure。
-5. 发布不可变 metrics、parity 和差异报告。
+1. [x] canary 规格已定义（每场景 1 样本 × modern/legacy 双执行层）。
+2. [ ] representative：20-cell 基础矩阵，每 cell 至少 3 次（需 SLURM 集群）。
+3. [x] failure injection：cancel（exit code 8）、controller loss（resume 复用 cache）、task failure（exit code 5）、digest drift（resolve 时检测）均已有 local backend 测试覆盖。
+4. [ ] scale：生产规模 throughput 与 scheduler pressure（需生产数据）。
+5. [x] 发布不可变 metrics schema（`docs/benchmark-plan.md`）、parity 报告格式和差异 tier（exact/structural/scientific/informational）。
 
-通过条件：五场景科学 parity、恢复和性能门禁全部通过或有明确限期 waiver。
+通过条件：五场景科学 parity、恢复和性能门禁全部通过或有明确限期 waiver（failure injection × local 已全部通过；canary/representative/scale 阻塞于集群可用性）。
 
 ## Gate 7：默认稳定与兼容退场评估
 

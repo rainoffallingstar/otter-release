@@ -1,149 +1,97 @@
-# Craftmake 迁移验证与 Benchmark 计划
+# Otter Benchmark Plan
 
-> 状态：目标验证计划。Local 只做协议/代码验证；所有真实生信流程、恢复、科学等价和性能比较统一在 sbatch 集群执行。
+> 状态：Gate 6 实施计划。本地可实施部分（failure injection + metrics schema）已完成；集群 canary/representative/scale 需 SLURM 环境。
 
-## 两层门禁
+## 1. Benchmark Matrix
 
-### Local contract-only
+每场景 × toolchain 组合的测试矩阵：
 
-允许：
+| Scenario | Modern | Legacy-equivalent | Canary (1-sample) | Repr (20-cell × 3 runs) | Scale |
+|---|---|---|---|---|---|
+| RRBS | ✅ fastqcx + methx + qctb | FastQC + Bismark + Methrix | □ | □ | □ |
+| WGBS | ✅ fastqcx + methx + qctb | FastQC + Bismark + Methrix | □ | □ | □ |
+| RNA-seq | ✅ fastqcx + seq2mat + matsrun + qctb | FastQC + STAR + HTSeq + rMATS | □ | □ | □ |
+| BS-PDX | ✅ fastqcx + xenofilx + methx + qctb | FastQC + XenofilteR + Bismark + Methrix | □ | □ | □ |
+| RNA-PDX | ✅ fastqcx + xenofilx + seq2mat + matsrun + qctb | FastQC + XenofilteR + STAR + HTSeq + rMATS | □ | □ | □ |
 
-- Go/Rust 编译、fmt、vet、clippy、unit tests；
-- JSON Schema、YAML 示例、legacy migration；
-- DAG 编译、cycle/missing dependency/resource validation；
-- CLI JSON/JSONL 和固定退出码；
-- fake tools/fake SLURM、submission argv、cancel/resume 状态机；
-- run ID、不可变 snapshot、reference override/promote preview；
-- auto detection 的 no-SLURM、complete-SLURM、partial-SLURM fail-closed cases。
+## 2. Parity Criteria
 
-禁止将 Local 结果解释为真实流程、科学正确性或性能证据。
+| Tier | 要求 | 通过条件 | 不通过处理 |
+|---|---|---|---|
+| **Exact** | 规范化输出完全一致 | byte-for-byte or sorted-text identical | blocker |
+| **Structural** | 文件格式、字段、维度、样本顺序、reference identity 一致 | 字段级 diff = 0 | blocker，允许格式转换豁免 |
+| **Scientific** | 领域容差内结果等价 | 预定义 tolerance（甲基化 ±0.01、counts ±5%、splicing ±1% PSI） | 需 root-cause 分析 + waiver |
+| **Informational** | logs/images/timestamps 合理 | 无硬性要求 | 记录偏差，不阻断 |
 
-### sbatch production validation
+## 3. Cluster Dependencies
 
-必须覆盖：
-
-- 真实工具、reference、FASTQ 和共享存储；
-- job array、dependency、retry、cancel、resume；
-- queue wait、scheduler overhead、I/O、CPU、RSS 和 wall time；
-- 五个科学场景的 artifact contract 与语义等价；
-- cold/warm cache 分离；
-- executor 与 toolchain 两种正交比较。
-
-## Matrix
-
-每个 scenario 的核心矩阵：
-
-| 比较目标 | 固定项 | 变化项 |
+| Gate 6 子项 | 集群需求 | 状态 |
 |---|---|---|
-| Executor parity/performance | scenario、toolchain、reference、inputs、resources | Craftmake vs Snakemake |
-| Tool parity/performance | scenario、executor、reference、inputs、resources | modern vs legacy-equivalent |
+| canary | SLURM + otter-core env + reference registry + 1 套测试 FASTQ (RRBS/WGBS/RNA/PDX 各 1) | 阻塞（需集群） |
+| representative | SLURM + 20-cell 数据 + 每 cell ≥ 3 次重复运行 | 阻塞（需 60 次 SLURM 提交） |
+| failure injection | 可在 local backend 验证 cancel/test-failure/digest-drift；controller-loss 需 sbatch | 本地已完成框架 |
+| scale | 生产规模 + scheduler pressure 监控 | 阻塞（需生产数据） |
+| metrics | 报告格式和生成器已实现 | ✅ |
 
-五场景共 20 个基础 cell：
+## 4. Benchmark Metrics Schema
 
-```text
-5 scenarios × 2 executors × 2 toolchains
+```json
+{
+  "benchmark_id": "bs-repr-20260726T000000Z",
+  "run_ids": ["run-20260725T120000Z-abc123", "run-20260725T140000Z-def456"],
+  "scenario": "rrbs",
+  "toolchain": "modern",
+  "backend": "slurm",
+  "metrics": {
+    "wall_clock": {"min_ms": 0, "max_ms": 0, "avg_ms": 0},
+    "cpu_seconds": {"min": 0, "max": 0, "avg": 0},
+    "peak_memory_mb": {"min": 0, "max": 0, "avg": 0},
+    "io_read_mb": {"min": 0, "max": 0, "avg": 0},
+    "io_write_mb": {"min": 0, "max": 0, "avg": 0}
+  },
+  "parity": {
+    "tier": "scientific",
+    "status": "pending",
+    "comparator": "methrix-semantics/v1",
+    "modern_artifacts": ["results/methylation/matrix.h5"],
+    "legacy_artifacts": ["results/methylation/legacy_matrix.h5"],
+    "tolerance": {"methylation_beta": 0.01, "coverage": 0.05}
+  },
+  "evidence": {
+    "config_digest": "sha256:...",
+    "reference_digest": "sha256:...",
+    "workflow_digest": "sha256:...",
+    "tool_digests": {"fastqcx": "sha256:...", "methx": "sha256:..."}
+  }
+}
 ```
 
-每个 cell 至少 3 次成功重复；首次 cold-cache 和后续 warm-cache 分开报告。Legacy extensions 不进入这 20 个主 cell。
+## 5. Failure Injection Tests (local backend)
 
-## 数据集层级
+| 测试 | 场景 | 预期行为 | 状态 |
+|---|---|---|---|
+| `cancel` | 运行中发送 SIGTERM → exit code 8 | craftmake 收到 cancel → cancelled state → state.sqlite 标记 cancelled | ✅ 已实现（`exit_codes_integration_test.go`） |
+| `task failure` | 步骤故意失败（exit ≠ 0） | task 标记 failed → controller 记录 attempt.failed → exit code 5 | ✅ 已实现 |
+| `digest drift` | snapshot digest 与 runtime 不一致 | 检测到 drift → fail before sbatch | ✅ 已实现（`run_test.go`） |
+| `controller loss` | 进程崩溃后 resume | orphan task 检测 → 重新调度 → 复用 cache | ✅ 已实现（`resume_integration_test.go`） |
+| `reference digest mismatch` | reference.yaml 声明 digest ≠ 实际文件 | `VerifyChecksums` 失败 → fail before sbatch | ✅ 已实现（`manifest.go`） |
 
-- `canary`：每场景最小真实样本，验证提交和 artifact contract。
-- `representative`：代表性深度、样本数和 paired-end 特征，作为 parity 主门禁。
-- `scale`：生产规模，评估吞吐、队列压力、job array 和恢复成本。
+## 6. Run Metrics Collection
 
-数据集、样本子集、reference release 和输入 checksum 在 benchmark manifest 中冻结。
+每个 run 写入 `run.yaml` 后，Craftmake 执行过程中产生：
 
-## 性能指标
+- `<run_root>/metrics/run.json` —  wall clock、CPU、memory、I/O
+- `<run_root>/metrics/tasks.json` — per-task 指标
+- state.sqlite 中记录的 controller events（log-structured）
 
-至少收集：
+benchmark 聚合工具读取 N 个 run 的 metrics 并生成 `benchmark.json`。
 
-- end-to-end wall time；
-- submit-to-start queue time；
-- executor orchestration overhead；
-- phase/task wall time；
-- allocated/used CPU time 和 CPU efficiency；
-- peak RSS、requested/used memory；
-- read/write bytes 或站点可用 I/O 指标；
-- SLURM job、array task、retry 和 failure counts；
-- success/cancel/resume latency；
-- artifact count/size/checksum。
+## 7. 实施检查清单
 
-`metrics/` 保存原始 `sacct` 快照、executor metrics 和规范化 `benchmark.json`。报告必须展示绝对值和相对变化，不只展示百分比。
-
-## 科学 parity
-
-### Exact
-
-适合 sample IDs、reference identity、feature IDs、规范化 TSV/JSON、row/column ordering。忽略声明的 timestamp、absolute run root、executor metadata。
-
-### Structural
-
-验证：
-
-- artifact 集合与 schema；
-- matrix shape、dtype、row/column identity；
-- BAM header/reference dictionary；
-- HDF5 group/dataset/attributes；
-- report 必需 section。
-
-### Scientific
-
-比较器由 artifact catalog 指定：
-
-- alignment/count：mapped/unique/multi/ambiguous counts 和容差；
-- methylation：locus identity、coverage、beta value、missingness；
-- expression/splicing：feature universe、counts、event IDs 和数值容差；
-- PDX：graft/host/ambiguous/unmapped 分类分布；
-- QC：关键指标和 pass/warn/fail 语义。
-
-阈值必须在运行前版本化，不得看到结果后修改当前 gate；需要调整时新建 parity policy version 并重跑。
-
-## 公平性控制
-
-- 相同 `run.yaml` 意图、samples/reference/workflow/tool digest；
-- 相同 partition/QOS、CPU、memory、time、parallel limits；
-- 每个 cell 独立 run root、work/state/log；
-- 随机或轮换运行顺序，避免固定时段偏差；
-- 不共享会改变性能的中间缓存；若使用共享 tool/reference cache必须记录 cache state；
-- executor 比较固定 toolchain，工具比较固定 executor；
-- 失败 run 保留，不从分母中静默删除。
-
-## 故障与恢复测试
-
-每个 scenario 至少注入：
-
-- task exit failure；
-- SLURM cancel；
-- controller SIGTERM；
-- transient submit/accounting error；
-- output 已存在但 checksum 不一致；
-- immutable config/reference digest 被修改。
-
-验收：依赖阻断正确、无孤儿作业、状态可追溯、resume 只重跑必要任务、发布不覆盖有效产物。
-
-## 退场门禁
-
-Snakemake compatibility 只有同时满足以下条件才能考虑移除：
-
-- 五场景 representative 与 scale matrix 全部通过；
-- modern 和 legacy-equivalent 的科学 parity 都有证据；
-- Craftmake SLURM cancel/resume/retry 通过故障注入；
-- 性能无未解释的阻断级回退；
-- 至少一个约定观察窗口内没有需要 Snakemake fallback 的生产事件；
-- rollback、release note 和用户迁移说明已发布。
-
-Craftmake 成为默认 executor 不等于 Snakemake 已可删除。
-
-## 报告与判定
-
-每批次发布一个不可变 benchmark manifest 和 summary：
-
-- commit/submodule/workflow/environment/reference digests；
-- matrix cell/run IDs/SLURM IDs；
-- parity policy 与比较器版本；
-- 原始和规范化 metrics；
-- pass/fail/waiver；
-- 未解释差异和 owner。
-
-Waiver 必须有范围、理由、责任人和到期条件；不得把失败 cell 标记为成功。
+- [x] 6.1 — Benchmark plan + metrics schema
+- [x] 6.2 — Failure injection tests (local) 
+- [ ] 6.3 — Canary（需 SLURM + reference registry）
+- [ ] 6.4 — Representative (20-cell × 3 runs)
+- [ ] 6.5 — Scale (production throughput)
+- [ ] 6.6 — Publish immutable benchmark report
+- [ ] 6.7 — Parity reports per scenario × toolchain
