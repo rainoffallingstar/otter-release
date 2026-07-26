@@ -60,17 +60,42 @@
 
 通过条件：缺失、digest mismatch、index/FASTA mismatch、compute path 不可见均在 sbatch 前失败（VerifyChecksums 已实现 FASTA/annotation/index digest + FAI 可读性 + index↔FASTA digest 交叉校验；promote 前自动重新验证全部 resolved references）。
 
-## Gate 5：五场景 Craftmake workflow
+## Gate 5：五场景 Craftmake workflow（进行中）
 
-建议按共享接口和风险推进：
+1. [x] RRBS 与 WGBS 共用 BS phase components（BeaverBS），但保留独立 scenario spec。
+2. [x] RNA-seq 建立 STAR/count/matrix/splicing artifacts（BeaverRNA，2-step pipeline）。
+3. [x] BS-PDX 增加 graft/host separation 与 BS downstream（BeaverPDX，3-step pipeline）。
+4. [x] RNA-PDX 修正并锁定历史 stale Snakemake asset，再建立 RNA separation downstream（BeaverRNASEQPDX，3-step pipeline）。
+5. [x] 每场景同时定义 modern 与 legacy-equivalent toolchain；legacy extensions 单列（clubcpg/mhap/ccgg/insert-length 四种，已在 config v1 validate 中约束）。
 
-1. RRBS 与 WGBS 共用 BS phase components，但保留独立 scenario spec。
-2. RNA-seq 建立 STAR/count/matrix/splicing artifacts。
-3. BS-PDX 增加 graft/host separation 与 BS downstream。
-4. RNA-PDX 修正并锁定历史 stale Snakemake asset，再建立 RNA separation downstream。
-5. 每场景同时定义 modern 与 legacy-equivalent toolchain；legacy extensions 单列。
+### 双轨执行层对齐
 
-通过条件：每个 scenario 的 Craftmake plan、Snakemake adapter 和 artifact catalog 对齐。
+| Scenario | Craftmake 工作流 | Snakemake adapter | Phases | Modes |
+|---|---|---|---|---|
+| RRBS | `craftmake/workflows/BeaverBS/` (step1–3) | `inst/snakefiles/BeaverBS*.snakemake` | ingest→qc→prepare→align→quantify→qcfinal→publish | RRBS, WGBS |
+| WGBS | 同上（共享 BeaverBS，不同 adapter/cut 默认） | 同上 | 同 RRBS | RRBS, WGBS |
+| RNA-seq | `craftmake/workflows/BeaverRNA/` (step1–2) | `inst/snakefiles/BeaverRNA*.snakemake` | ingest→qc→prepare→align(star)→quantify→qcfinal→publish | RNASEQ |
+| BS-PDX | `craftmake/workflows/BeaverPDX/` (step1–3) | `inst/snakefiles/BeaverPDX*.snakemake` | + separate phase（graft/host xenofilx） | RRBS, WGBS |
+| RNA-PDX | `craftmake/workflows/BeaverRNASEQPDX/` (step1–3) | `inst/snakefiles/BeaverRNASEQPDX*.snakemake` | + separaterna phase | RNASEQ |
+
+### Toolchain 映射
+
+| 算子 | Modern | Legacy-equivalent | Parity |
+|---|---|---|---|
+| FASTQ QC | `fastqcx` | FastQC/MultiQC | exact/structural |
+| PDX 分离 | `xenofilx` | XenofilteR | scientific |
+| 配对 BAM | `pairbam`/`bamdriver` | Paireads | structural |
+| 计数矩阵 | `seq2mat` | HTSeq matrix | scientific |
+| Splicing | `matsrun` | rMATS orchestrator | scientific |
+| 甲基化 | `methx` | Methrix/R | scientific |
+| QC 聚合 | `qctb` | legacy report | informational |
+| ClubCpG/mHap/CCGG/insert | 无（legacy only） | — | — |
+
+### Artifact catalog
+
+Artifact contract 定义在 `docs/workflow-catalog.md`：每 scenario 声明 phase chain、典型产物、comparison tier（exact/structural/scientific/informational）。Craftmake 和 Snakemake 均通过同一 `run.yaml` 适配执行。
+
+通过条件：每个 scenario 的 Craftmake plan、Snakemake adapter 和 artifact catalog 对齐（已验证：21 个 workflow YAML 文件覆盖全部 5 场景 × 全部 phases；双执行层入口均已对齐）。
 
 ## Gate 6：sbatch parity 与 benchmark
 

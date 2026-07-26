@@ -1,6 +1,16 @@
 # Otter Workflow Catalog
 
-> 状态：目标 catalog。每个场景需要同时拥有 Craftmake workflow 与 Snakemake compatibility workflow，并发布相同 artifact contract。
+> 状态：目标 catalog，双轨实现已完成（Craftmake + Snakemake）。每个场景已拥有完整的 workflow YAML 和 snakefile。
+
+## 实施状态 (2026-07)
+
+| Scenario | Craftmake workflow YAML | Snakemake snakefile | Phase chain | 验证状态 |
+|---|---|---|---|---|
+| RRBS | `craftmake/workflows/BeaverBS/step1–3.yaml` (+ checks) | `inst/snakefiles/BeaverBS*.snakemake` | 7 phases | ✅ |
+| WGBS | 同上（共享 BeaverBS） | 同上 | 7 phases | ✅ |
+| RNA-seq | `craftmake/workflows/BeaverRNA/step1–2.yaml` (+ check) | `inst/snakefiles/BeaverRNA*.snakemake` | 7 phases (no step3) | ✅ |
+| BS-PDX | `craftmake/workflows/BeaverPDX/step1–3.yaml` (+ checks) | `inst/snakefiles/BeaverPDX*.snakemake` | 8 phases (+ separate) | ✅ |
+| RNA-PDX | `craftmake/workflows/BeaverRNASEQPDX/step1–3.yaml` (+ checks) | `inst/snakefiles/BeaverRNASEQPDX*.snakemake` | 8 phases (+ separate) | ✅ |
 
 ## 正交维度
 
