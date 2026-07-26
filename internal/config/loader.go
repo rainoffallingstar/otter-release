@@ -27,8 +27,17 @@ func NewLoader(configPath string) *Loader {
 	}
 }
 
-// LoadConfig loads configuration from file
+// LoadConfig loads configuration from file with legacy environment overrides.
 func (l *Loader) LoadConfig() (*OtterConfig, error) {
+	return l.loadConfig(true)
+}
+
+// LoadConfigWithoutEnvironmentOverrides loads a legacy configuration deterministically for migration.
+func (l *Loader) LoadConfigWithoutEnvironmentOverrides() (*OtterConfig, error) {
+	return l.loadConfig(false)
+}
+
+func (l *Loader) loadConfig(applyEnvironmentOverrides bool) (*OtterConfig, error) {
 	config := LoadDefaults()
 
 	// Load from file if it exists
@@ -51,8 +60,9 @@ func (l *Loader) LoadConfig() (*OtterConfig, error) {
 		logger.Debugf("Auto-derived suffix2: %s", config.Input.Suffix2)
 	}
 
-	// Merge environment variables
-	l.mergeEnvOverrides(config)
+	if applyEnvironmentOverrides {
+		l.mergeEnvOverrides(config)
+	}
 
 	// Merge flat reference fields into nested structure
 	l.mergeReferenceFields(config)
@@ -122,6 +132,15 @@ func (l *Loader) mergeFlatCompatFields(config *OtterConfig) {
 		if mode := l.viper.GetString("mode"); mode != "" {
 			config.Workflow.Mode = mode
 			logger.Debugf("Merged top-level mode into workflow.mode")
+		}
+	}
+	if len(config.Metadata.SampleIDs) == 0 {
+		for _, key := range []string{"metadata.sample_ids", "metadata.SIDs", "SIDs"} {
+			if sampleIDs := l.viper.GetStringSlice(key); len(sampleIDs) > 0 {
+				config.Metadata.SampleIDs = sampleIDs
+				logger.Debugf("Merged %s into metadata.SIDs", key)
+				break
+			}
 		}
 	}
 }

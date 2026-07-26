@@ -1,130 +1,99 @@
-# otter 架构设计
+# Otter 架构设计
+
+> 更新日期：2026-07-26。本文同时区分当前实现和已冻结的目标契约。
 
 ## 架构目标
-
-`otter` 将项目配置、工作流执行、环境隔离和生信算子拆成可独立演进的层。GitHub 主仓为 `rainoffallingstar/otter`。
 
 ```text
 otter → craftmake → enva → 算子 → bamdriver
 ```
 
-该箭头表示控制与依赖方向：`otter` 负责用户意图和配置；`craftmake` 负责编译/执行工作流；`enva` 提供可复现环境；算子完成领域计算；`bamdriver` 为需要 BAM 操作的算子提供底层能力。
+Otter 管理项目意图、配置解析、run snapshot 和顶层任务；Craftmake 编译 DAG 并控制 Local/SLURM；Enva 提供可复现环境；领域算子生成科学产物；BAM 低层能力由 `bamdriver` 复用。
 
-## 当前迁移状态
+## 当前状态与目标状态
 
-`craftmake` 是 Snakemake 的 Go 替代执行层，但尚未完全接入 `otter`。当前架构是双轨：
+| 领域 | 当前实现 | 目标契约 |
+|---|---|---|
+| 默认 executor | Snakemake 生产路径；Craftmake 尚未完整接入 | Craftmake 默认；Snakemake 仅显式兼容 |
+| config | `OtterConfig` 和多种 legacy key | canonical `project.yaml` + immutable `run.yaml` |
+| Craftmake 输入 | adapter 直接兼容多种 Otter config | 只解析一个 resolved `run.yaml` |
+| backend | Otter `internal/engine` 提供 local/SLURM | Craftmake 管理 Local/SLURM；`backend=auto` fail closed |
+| workflows | RRBS/WGBS/RNA/PDX Snakemake assets | RRBS/WGBS/RNA-seq/BS-PDX/RNA-PDX 双轨 catalog |
+| reference | 配置中的路径/数组 | shared registry + project lock + run override |
+| 验证 | 本地测试与零散 smoke | Local contract-only；真实流程统一 sbatch |
 
-- 已有生产工作流继续使用嵌入的 Snakemake/Snakefile 资产。
-- `craftmake` 开发 Go 原生 workflow spec、DAG、local/SLURM 后端和 otter 适配器。
-- 只有在模式覆盖、资源语义、恢复行为和科学输出的集成门禁通过后，才能宣布 Snakemake 替换完成。
-- 迁移期保留 `otter-snakemake` 环境；不得把它提前从安装和运行文档删除。
+Craftmake 成为默认 executor 不表示 Snakemake 可以移除；退场必须通过五场景 parity、恢复和 benchmark 门禁。
 
-## 分层架构
+## 目标控制流
 
 ```mermaid
 flowchart LR
-    U[用户/自动化] --> O[otter<br/>项目与配置协调]
-    O --> C[craftmake<br/>Go 执行层·迁移中]
-    O --> S[Snakemake<br/>兼容生产路径]
-    C --> E[enva<br/>环境隔离]
-    S --> E
-    E --> F[fastqcx]
-    E --> X[xenofilx]
-    E --> P[pairbam]
-    E --> Q[seq2mat]
-    E --> M[matsrun]
-    E --> T[qctb]
-    E --> H[methx]
-    X --> B[bamdriver]
-    P --> B
-    M --> B
+    userNode["User/Automation"] --> otterNode["Otter project and task"]
+    otterNode --> resolverNode["Typed resolver"]
+    projectNode["project.yaml + samples + locks"] --> resolverNode
+    registryNode["Reference registry + site profile"] --> resolverNode
+    resolverNode --> runNode["Immutable run.yaml"]
+    runNode --> routerNode["Executor router"]
+    routerNode -->|"default"| craftmakeNode["Craftmake"]
+    routerNode -->|"explicit compatibility"| snakeNode["Snakemake adapter"]
+    craftmakeNode --> localNode["Local contract backend"]
+    craftmakeNode --> slurmNode["SLURM production backend"]
+    craftmakeNode --> envaNode["Enva"]
+    snakeNode --> envaNode
+    envaNode --> toolsNode["Domain tools"]
+    toolsNode --> bamNode["bamdriver when needed"]
 ```
 
-## 仓库目录
+## 配置和运行边界
 
-```text
-otter/
-├── cmd/                  # otter CLI 命令
-├── internal/             # config/input/engine/workflow/task/assets
-├── pkg/                  # 公共类型与工具
-├── inst/                 # 当前 Snakemake、rules、env YAML、辅助脚本资产
-├── testdata/             # 单元与端到端 fixtures
-├── craftmake/            # Go 工作流执行层
-├── enva/                 # 环境管理层
-├── fastqcx/              # FASTQ 质控算子
-├── xenofilx/             # PDX 物种过滤算子
-├── pairbam/              # 配对 BAM 算子
-├── seq2mat/              # HTSeq count-to-matrix 算子
-├── matsrun/              # rMATS 编排算子
-├── qctb/                 # QC 汇总算子
-├── methx/                # 甲基化/HDF5 算子
-├── bamdriver/            # BAM 底层操作层
-└── docs/                 # 当前文档、历史归档与审查证据
+项目文件：
+
+- `project.yaml`：用户意图与默认 executor/backend/toolchain；
+- `samples.tsv`：版本化样本清单；
+- `references.lock.yaml`：项目默认 genome release/manifest；
+- `project.lock.yaml`：项目内 workflow/rules/environment/schema digest。
+
+Otter 合并 CLI、site/profile detection 和项目默认，生成 `runs/<run_id>/run.yaml`。该 snapshot 固化绝对输入/reference 路径、所有 digest、最终 executor/backend/resource 及其来源。Craftmake 和 Snakemake adapter 都消费 snapshot，不能再次解析项目/legacy config。
+
+Run ID：`run-YYYYMMDDTHHMMSSZ-abcdef`，UTC 秒级时间戳加 6 位安全随机小写英文后缀。resume 复用原 run ID；改变输入、reference、executor 或 toolchain 必须创建新 run。
+
+详细契约见 [配置](configuration.md)、[项目目录](project-layout.md) 和 [执行协议](execution-contract.md)。
+
+## Executor、Backend 与 Toolchain
+
+三个维度正交：
+
+```yaml
+execution:
+  executor: craftmake
+  backend: auto
+  site: auto
+workflow:
+  toolchain: modern
 ```
 
-`.gitmodules` 中的上述子目录是独立仓库。父仓文档任务不得修改其中内容。
+- executor：`craftmake | snakemake`；Snakemake 不作为失败 fallback。
+- backend：`auto | local | slurm`；auto 在完整 SLURM 条件下选 slurm，无 SLURM 时选 Local，部分可用时 fail closed。
+- toolchain：`modern | legacy-equivalent`；legacy-only extensions 单列。
 
-## 核心数据流
+Local 只验证 schema、DAG、CLI、fake backend 和状态机。所有真实科学流程、cancel/resume、等价性和性能 benchmark 在 sbatch 集群运行。
 
-```mermaid
-sequenceDiagram
-    participant U as 用户
-    participant O as otter
-    participant W as craftmake/Snakemake
-    participant E as enva
-    participant P as 算子
-    participant B as bamdriver
+## Reference 架构
 
-    U->>O: init/create/run
-    O->>O: FASTQ/pdata 校验并形成 OtterConfig
-    alt craftmake 已覆盖的迁移路径
-        O->>W: workflow spec
-    else 当前生产兼容路径
-        O->>W: Snakefile/config
-    end
-    W->>E: 请求 otter-* 环境
-    E->>P: 运行专用算子
-    opt BAM 低层操作
-        P->>B: 读写、过滤、配对
-    end
-    P-->>O: 科学产物、QC、退出状态
-    O-->>U: task/status/logs
-```
+大型 genome 使用 `$OTTER_REFERENCE_ROOT/genomes/<id>/<release>/` registry。`reference.yaml`、manifest 和 checksums 描述 FASTA、annotation、index、构建 provenance 与兼容场景。项目 lock 固定 ID/release/manifest digest，site resolver 解析实际 mount。
 
-## 配置与类型
+单次 run 可以覆盖 genome；override 只进入新 snapshot，不修改项目默认。显式 `otter reference promote <run_id>` 经 preview/confirm 后才能提升默认。详见 [Reference Registry](reference-registry.md)。
 
-当前文档以 `OtterConfig` 作为全局配置契约：
+## Workflow 与科学产物
 
-```go
-type OtterConfig struct {
-    Workflow  WorkflowConfig
-    Input     InputConfig
-    Output    OutputConfig
-    Reference ReferenceConfig
-    Engine    EngineConfig
-}
-```
+五个场景是 `rrbs`、`wgbs`、`rnaseq`、`bs-pdx` 和 `rna-pdx`。每场景定义统一 phase/artifact contract，Craftmake 与 Snakemake 使用相同结果布局。执行器比较固定 toolchain；工具比较固定 executor。
 
-当前父仓源码直接定义并使用 `OtterConfig`，不提供旧产品类型别名。模块间继续依赖显式 Go 类型和 `Engine` 接口。
+产品更名不改变 FastQC/MultiQC、FASTQ/BAM、Bismark、HTSeq、Methrix/HDF5、rMATS 等标准和科学语义。场景和工具映射见 [Workflow Catalog](workflow-catalog.md)。
 
-## 环境边界
+## 仓库边界
 
-| 环境 | 责任 |
-|---|---|
-| `otter-core` | 核心生信工具和常用算子依赖 |
-| `otter-snakemake` | 双轨期间的 Snakemake 运行时 |
-| `otter-extra` | 附加分析和可视化依赖 |
+父仓根目录包含 `cmd/`、`internal/`、`pkg/`、`inst/`、`testdata/` 和 `docs/`。`craftmake/`、`enva/` 及领域算子是独立 git submodule；父仓文档变更不修改子仓内容。
 
-## 名称与科学契约
+## 迁移门禁
 
-产品名迁移不改变外部标准或科学术语。FastQC/MultiQC 输出、FASTQ/BAM、Bismark coverage、HTSeq、Methrix 领域模型、HDF5 和 rMATS 等名称按其真实格式保留。
-
-历史名映射见 [项目总览](project-overview.md)。`docs/archive/`、日期化审查报告和 remediation 证据保留原始名称，以保证证据可追溯。
-
-## 验收门禁
-
-- 父仓 Go 测试和静态检查通过。
-- local 与 SLURM 行为一致并可恢复。
-- craftmake 与 Snakemake 对同一 fixture 产生等价任务图、资源请求和关键科学产物。
-- `enva` 在三个 `otter-*` 环境中正确解析算子。
-- RRBS/WGBS/RNA-seq/PDX 均有双轨 smoke test 后，才能关闭 Snakemake 兼容路径。
+迁移按 Gate 0–7 推进：契约冻结、typed resolver、执行协议、site/backend、reference registry、五场景 workflow、sbatch parity/benchmark、默认稳定与退场评估。完整路线见 [Craftmake Adoption](migration/craftmake-adoption.md)，验证政策见 [Benchmark Plan](benchmark-plan.md)。

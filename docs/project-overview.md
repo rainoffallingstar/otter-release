@@ -1,8 +1,8 @@
-# otter 项目全景总览
+# Otter 项目全景总览
 
-> 更新日期：2026-07-25
+> 更新日期：2026-07-26
 
-`otter` 是面向 RRBS、WGBS、RNA-seq 和 PDX 的 Go 工作流 CLI。主仓为 `rainoffallingstar/otter`，产品层级统一为：
+Otter 是面向 RRBS、WGBS、RNA-seq、BS-PDX 和 RNA-PDX 的 Go 工作流 CLI。产品层级统一为：
 
 ```text
 otter → craftmake → enva → 算子 → bamdriver
@@ -12,51 +12,69 @@ otter → craftmake → enva → 算子 → bamdriver
 
 | 层级 | 组件 | 路径 | 角色 | 当前状态 |
 |---|---|---|---|---|
-| 协调 | `otter` | 父仓根目录 | 项目、配置、任务与流程入口 | 产品命名已统一；源码兼容名待迁移 |
-| 执行 | `craftmake` | `craftmake/` | Snakemake 的 Go 替代执行层 | 迁移中，与 Snakemake 双轨 |
-| 环境 | `enva` | `enva/` | rattler-first 环境生命周期与命令隔离 | 当前环境入口 |
-| 算子 | `fastqcx` | `fastqcx/` | FASTQ 质控，保留 FastQC/MultiQC 契约 | 子模块 |
-| 算子 | `xenofilx` | `xenofilx/` | PDX 物种过滤 | 子模块 |
-| 算子 | `pairbam` | `pairbam/` | 配对 BAM 过滤与恢复 | 子模块 |
-| 算子 | `seq2mat` | `seq2mat/` | HTSeq count-to-matrix | 子模块 |
-| 算子 | `matsrun` | `matsrun/` | rMATS 流程编排 | 子模块 |
-| 算子 | `qctb` | `qctb/` | QC 聚合报告 | 子模块 |
-| 算子 | `methx` | `methx/` | 甲基化/HDF5 处理，保留 Methrix 领域语义 | 子模块 |
+| 协调 | `otter` | 父仓根目录 | 项目、配置、任务与流程入口 | 当前生产入口 |
+| 执行 | `craftmake` | `craftmake/` | DAG、Local/SLURM 和状态 | 迁移中，尚未完整接入 |
+| 兼容 | Snakemake | `inst/` | 当前生产兼容 workflow | 显式兼容目标，退场需门禁 |
+| 环境 | `enva` | `enva/` | Rattler-first 环境生命周期 | 当前环境入口 |
+| 算子 | `fastqcx`、`xenofilx`、`pairbam`、`seq2mat`、`matsrun`、`qctb`、`methx` | 对应子模块 | QC、PDX、BAM、matrix、splicing、methylation | 独立演进 |
 | 基础 | `bamdriver` | `bamdriver/` | 共享 BAM 操作层 | 子模块 |
 
-## 运行路径
+## 当前路径和目标路径
 
-当前不是纯 `craftmake` 单轨：
+当前：
 
-1. `otter init/create` 负责工作区与 `OtterConfig`。
-2. `otter run` 的既有生产路径仍调用 Snakemake。
-3. `craftmake` 正在实现/验证 Go 原生 spec、DAG、local 与 SLURM 后端。
-4. 两条路径都通过 `enva` 解析 `otter-core`、`otter-snakemake`、`otter-extra`。
-5. `enva` 调用专用算子；需要 BAM 低层操作时由 `bamdriver` 提供能力。
+1. `otter init/create` 生成已有 `OtterConfig` 与工作区。
+2. `otter run` 生产路径调用 Snakemake。
+3. Craftmake 已有 spec、DAG、Local/SLURM、状态和 CLI 能力，但 Otter 接入尚未完成。
 
-完成四种模式的等价性、恢复与科学产物门禁前，不得声称 Snakemake 已被替换。
+目标：
 
-## 工作流模式
+1. `project.yaml`、`samples.tsv`、reference/workflow locks 表达项目意图。
+2. Otter 解析 site、reference 和 CLI override，生成不可变 `runs/<run_id>/run.yaml`。
+3. 默认 Craftmake 只解析 `run.yaml`；Snakemake 仅显式兼容，且不作为失败 fallback。
+4. Local 只做 contract tests；真实流程、parity、恢复和 benchmark 全部在 sbatch 集群验证。
 
-| 模式 | 当前兼容流程 | 主要算子 |
-|---|---|---|
-| RRBS/WGBS | Snakemake 3 步路径 | `fastqcx`, `methx`, `qctb` |
-| RNA-seq | Snakemake 2 步路径 | `fastqcx`, `seq2mat`, `matsrun`, `qctb` |
-| PDX | 双物种 Snakemake 路径 | `xenofilx`, `pairbam`, `bamdriver` |
+Run ID 为 `run-YYYYMMDDTHHMMSSZ-abcdef`，使用 UTC 时间戳和 6 位安全随机小写英文后缀。
 
-Bismark、STAR、HTSeq、FastQC/MultiQC、Methrix、rMATS 等是外部工具、标准或科学领域名称，不属于产品重命名范围。
+## 五场景与比较维度
+
+| 场景 | 主要领域 |
+|---|---|
+| RRBS | restriction-aware BS alignment、CpG/methylation |
+| WGBS | whole-genome BS alignment、CpG/methylation |
+| RNA-seq | STAR、counts/matrix、splicing |
+| BS-PDX | graft/host separation + BS downstream |
+| RNA-PDX | graft/host separation + RNA downstream |
+
+比较维度彼此正交：`executor=craftmake|snakemake`、`backend=local|slurm|auto`、`toolchain=modern|legacy-equivalent`。主 sbatch benchmark 是 5 × 2 × 2 的 20-cell 矩阵。
+
+## 新项目模型
+
+```text
+project/
+├── project.yaml
+├── samples.tsv
+├── references.lock.yaml
+├── project.lock.yaml
+├── workflows/ rules/ environments/ schemas/
+└── runs/<run_id>/
+    ├── run.yaml
+    └── input/ work/ results/ logs/ state/ metrics/
+```
+
+轻量 workflow assets 复制并锁定在项目；大型 genome 保存在共享 reference registry。项目可锁定默认 genome，单次 run 可覆盖；只有显式 `reference promote` 才能修改默认。
 
 ## 父仓主要目录
 
 | 路径 | 职责 |
 |---|---|
-| `cmd/` | CLI 命令层 |
-| `internal/config/` | `OtterConfig` 的目标契约；源码旧类型仍待迁移 |
-| `internal/input/` | FASTQ/pdata 解析与验证 |
-| `internal/engine/` | local/SLURM 执行边界 |
-| `internal/workflow/` | 当前 Snakemake 集成与工作流状态 |
-| `inst/` | 嵌入 workflow、rules、env 和辅助资产 |
-| `docs/` | 当前文档、归档、审查证据 |
+| `cmd/` | Otter CLI |
+| `internal/config/` | 当前配置；后续 canonical typed resolver |
+| `internal/input/` | FASTQ/pdata；后续 samples manifest |
+| `internal/engine/` | 当前 local/SLURM 边界；后续收敛到 executor adapter |
+| `internal/workflow/` | 当前 Snakemake 集成 |
+| `inst/` | 当前嵌入 workflow、rules、env 和辅助资产 |
+| `docs/` | 当前契约、迁移计划、归档与审查证据 |
 
 ## 历史名称映射
 
@@ -71,13 +89,20 @@ Bismark、STAR、HTSeq、FastQC/MultiQC、Methrix、rMATS 等是外部工具、�
 | `methx` | `methrix-cli` |
 | `bamdriver` | `bamdriver-go` |
 
-`docs/archive/**`、`docs/review/submodules/**` 和已有 remediation 报告保留历史名称，以维持当时证据的可追溯性。
+历史归档与日期化审查证据保留当时名称。
 
 ## 文档入口
 
 - [架构设计](architecture.md)
+- [配置契约](configuration.md)
+- [项目目录](project-layout.md)
+- [执行协议](execution-contract.md)
+- [Site 与 Backend](site-profiles.md)
+- [Reference Registry](reference-registry.md)
+- [Workflow Catalog](workflow-catalog.md)
+- [Benchmark 计划](benchmark-plan.md)
+- [Craftmake 迁移路线](migration/craftmake-adoption.md)
+- [需求文档](requirements.md)
 - [安装指南](installation.md)
 - [构建指南](build.md)
-- [需求文档](requirements.md)
-- [子模块指南](submodules-build-guide.md)
 - [用户手册](manual/README.md)

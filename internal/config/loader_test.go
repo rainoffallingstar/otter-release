@@ -73,6 +73,28 @@ func TestMergeFlatCompatFields_EmptyMode(t *testing.T) {
 	}
 }
 
+func TestMergeFlatCompatFields_SampleIDAliases(t *testing.T) {
+	tests := []struct {
+		name string
+		key  string
+	}{
+		{name: "metadata sample ids", key: "metadata.sample_ids"},
+		{name: "top-level SIDs", key: "SIDs"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			loader := NewLoader("/tmp/test.yaml")
+			loader.viper.Set(test.key, []string{"S01", "S02"})
+			cfg := LoadDefaults()
+			cfg.Metadata.SampleIDs = nil
+			loader.mergeFlatCompatFields(cfg)
+			if len(cfg.Metadata.SampleIDs) != 2 || cfg.Metadata.SampleIDs[0] != "S01" {
+				t.Fatalf("unexpected sample IDs: %v", cfg.Metadata.SampleIDs)
+			}
+		})
+	}
+}
+
 func TestMergeFlatCompatFields_ExistingMode(t *testing.T) {
 	loader := NewLoader("/tmp/test.yaml")
 

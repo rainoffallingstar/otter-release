@@ -1,0 +1,134 @@
+# Reference Registry 契约
+
+> 状态：目标契约。大型 reference 资产不复制进项目，由共享 registry 统一管理。
+
+## 标准目录
+
+```text
+$OTTER_REFERENCE_ROOT/
+└── genomes/
+    └── <genome_id>/
+        └── <release>/
+            ├── reference.yaml
+            ├── manifest.json
+            ├── checksums.sha256
+            ├── fasta/
+            ├── annotations/
+            └── indexes/
+                ├── bismark/
+                ├── bowtie2/
+                └── star/
+```
+
+- `genome_id` 是稳定逻辑名，例如 `hg38`、`mm39`。
+- `release` 是精确 assembly/release，例如 `GRCh38.p14`。
+- release 目录不可变；任何资产修订必须生成新 release 或新 manifest digest。
+- 项目 lock 不硬编码集群 mount path；site resolver 在生成 `run.yaml` 时解析实际路径。
+
+## Reference metadata
+
+`reference.yaml` 描述身份、资产和兼容性：
+
+```yaml
+schema_version: otter.reference/v1
+reference:
+  id: hg38
+  release: GRCh38.p14
+  organism: Homo sapiens
+  assembly: GRCh38
+  aliases: [human, hg38]
+assets:
+  fasta:
+    path: fasta/genome.fa.gz
+    sha256: sha256:...
+    size_bytes: 0
+    fai: fasta/genome.fa.gz.fai
+  annotations:
+    - id: gencode-v44
+      type: gtf
+      path: annotations/gencode.v44.gtf.gz
+      sha256: sha256:...
+  indexes:
+    - type: bismark
+      path: indexes/bismark
+      reference_fasta_sha256: sha256:...
+      tool: bismark
+      tool_version: 0.24.2
+compatibility:
+  scenarios: [rrbs, wgbs, rnaseq, bs-pdx, rna-pdx]
+  workflows: [BeaverBS, BeaverRNA, BeaverPDX, BeaverRNASEQPDX]
+```
+
+每个 index 必须声明：
+
+- 对应 FASTA digest；
+- 构建工具和版本；
+- 影响结果的构建参数；
+- 输出文件集合与 checksum；
+- 支持的场景和架构。
+
+## Manifest 与 checksum
+
+- `manifest.json` 是 release 的规范化机器清单，按相对路径排序。
+- `checksums.sha256` 覆盖 metadata、FASTA、annotation 和 index 文件。
+- directory index 必须展开到文件级 manifest，不能只 hash 目录名。
+- registry 发布采用 staging、校验和原子 rename；已发布 release 不允许原地写入。
+
+## 项目锁定
+
+`references.lock.yaml` 锁定项目默认选择：
+
+```yaml
+schema_version: otter.references.lock/v1
+references:
+  primary:
+    id: hg38
+    release: GRCh38.p14
+    manifest_digest: sha256:...
+```
+
+PDX 使用 `graft` 和 `host` 两个明确 role。lock 固定逻辑 ID、release 和 manifest digest，不固定 mount root。
+
+## 解析流程
+
+```text
+selection
+  -> site reference root
+  -> reference.yaml schema
+  -> manifest digest
+  -> checksum verification
+  -> scenario/toolchain asset selection
+  -> absolute path expansion
+  -> run.yaml snapshot
+  -> sbatch preflight
+```
+
+Workflow 不得自行拼接 FASTA/GTF/index 路径，只能消费 `run.yaml` 中 typed resolved assets。
+
+## Run override 与 promote
+
+单次 run 可指定其他 release，但不改变项目默认。`run.yaml` 同时记录 project/effective selection、override source 和 resolved assets。resume 不允许切换 reference。
+
+`otter reference promote <run_id>` 用于显式提升：
+
+1. 读取 run 的 effective selection。
+2. 重新验证 registry 和兼容性。
+3. 生成 project/reference lock diff。
+4. 用户确认后原子更新 lock。
+5. 记录 promoted-from run ID 和旧/新 digest。
+
+## Fail-closed 验证
+
+提交 sbatch 前必须验证：
+
+- reference/release/manifest 存在且 digest 一致；
+- FASTA、FAI、annotation 和 index 文件可读；
+- FAI 与 FASTA 一致；
+- index 的 FASTA digest 与实际 FASTA 一致；
+- RNA-seq 有匹配 GTF 和 STAR index；
+- BS-seq 有匹配 Bismark/Bowtie2 index；
+- PDX graft/host 资产分别完整；
+- scenario、workflow 和 toolchain 在 compatibility 中允许；
+- compute node 能访问 registry 与输出路径。
+
+失败时不得调用 sbatch；诊断必须给出资产角色、期望值、实际路径和 digest 差异。

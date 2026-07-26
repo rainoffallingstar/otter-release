@@ -2,14 +2,20 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+	"strings"
+
+	"gopkg.in/yaml.v3"
 
 	"github.com/rainoffallingstar/otter/internal/config"
+	configv1 "github.com/rainoffallingstar/otter/internal/config/v1"
 	"github.com/rainoffallingstar/otter/internal/logger"
 	"github.com/spf13/cobra"
 )
 
 var (
-	validateConfigFile string
+	validateConfigFile   string
+	validateConfigSchema string
 )
 
 // configCmd represents the config command
@@ -48,21 +54,47 @@ func init() {
 
 	// Flags for validate command
 	validateCmd.Flags().StringVarP(&validateConfigFile, "config", "c", "otter.yaml", "Configuration file to validate")
+	validateCmd.Flags().StringVar(&validateConfigSchema, "schema", "auto", "Schema to validate: auto, legacy, or v1")
+	configCmd.AddCommand(newConfigResolveCommand())
+	configCmd.AddCommand(newConfigMigrateCommand())
 }
 
 func runConfigValidate(cmd *cobra.Command, args []string) error {
-	// Load configuration
-	loader := config.NewLoader(validateConfigFile)
-	cfg, err := loader.LoadConfig()
-	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
+	schema := strings.ToLower(strings.TrimSpace(validateConfigSchema))
+	if schema == "auto" {
+		content, err := os.ReadFile(validateConfigFile)
+		if err != nil {
+			return fmt.Errorf("read configuration: %w", err)
+		}
+		header := struct {
+			SchemaVersion string `yaml:"schema_version"`
+		}{}
+		if err := yaml.Unmarshal(content, &header); err != nil {
+			return fmt.Errorf("inspect configuration schema: %w", err)
+		}
+		if header.SchemaVersion == configv1.ProjectSchemaVersion {
+			schema = "v1"
+		} else {
+			schema = "legacy"
+		}
 	}
-
+	switch schema {
+	case "v1":
+		project, err := configv1.LoadProject(validateConfigFile)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "Valid canonical project: %s (%s)\n", project.Project.ID, project.Workflow.Scenario)
+	case "legacy":
+		loader := config.NewLoader(validateConfigFile)
+		configuration, err := loader.LoadConfig()
+		if err != nil {
+			return fmt.Errorf("failed to load legacy configuration: %w", err)
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "Valid legacy configuration: mode=%s engine=%s\n", configuration.Workflow.Mode, configuration.Engine.Type)
+	default:
+		return fmt.Errorf("unsupported schema %q; expected auto, legacy, or v1", validateConfigSchema)
+	}
 	logger.Info("Configuration validation passed")
-	logger.Infof("Mode: %s", cfg.Workflow.Mode)
-	logger.Infof("Engine: %s", cfg.Engine.Type)
-	logger.Infof("FASTQ Directory: %s", cfg.Input.FastqDir)
-	logger.Infof("Samples: %d", cfg.Parallel.Workers)
-
 	return nil
 }
