@@ -49,14 +49,16 @@
 
 通过条件：Local contract tests 完整（已实现：auto-detection → local、partial SLURM fail-closed、explicit backend validation）；集群 canary 验证 submit/status/cancel/accounting（待 Gate 6 集群环境执行）。
 
-## Gate 4：Reference registry
+## Gate 4：Reference registry（进行中）
 
-1. 实现 reference schema、manifest/checksum 和原子 publication。
-2. 实现 project lock、site path resolution 和 scenario/index compatibility。
-3. 实现 run override，不修改项目默认。
-4. 实现 `reference promote <run_id>` 的 preview/confirm/audit。
+1. [x] 实现 reference schema、manifest/checksum 和原子 publication。
+2. [x] 实现 project lock（已存在）、site path resolution（site profile paths 已注入 DetectionResult，待集成至 reference resolver）和 scenario/index compatibility。
+3. [x] 实现 run override，不修改项目默认。
+4. [x] 实现 `reference promote <run_id>` 的 preview/confirm/audit。
 
-通过条件：缺失、digest mismatch、index/FASTA mismatch、compute path 不可见均在 sbatch 前失败。
+实现入口：`internal/reference/manifest.go`（BuildManifest 文件级清单生成 + VerifyChecksums FASTA/annotation/index 校验 + PublishRelease 原子发布）、`cmd/reference.go`（`otter reference promote` — 读取 run snapshot → 生成 lock diff → preview/confirm → 原子写入 `references.lock.yaml`，记录 `promoted_from_run_id`）。
+
+通过条件：缺失、digest mismatch、index/FASTA mismatch、compute path 不可见均在 sbatch 前失败（VerifyChecksums 已实现 FASTA/annotation/index digest + FAI 可读性 + index↔FASTA digest 交叉校验；promote 前自动重新验证全部 resolved references）。
 
 ## Gate 5：五场景 Craftmake workflow
 
