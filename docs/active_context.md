@@ -1,4 +1,4 @@
-# System Context (Updated: 2026-07-25)
+# System Context (Updated: 2026-07-26)
 
 ## 1. 已实现的核心模块 (Modules)
 
@@ -26,7 +26,7 @@
 - **Public Methods**: `create/list/run/install/adopt/remove` - 环境生命周期
 - **Data Flow**: 执行请求 → sibling staging 写入（按 final prefix patch）→ residual 验证/原子发布 → `otter-core`/`otter-snakemake`/`otter-extra` → 隔离命令
 - **Dependencies**: Rattler 0.45 一致版本组；conda/mamba/micromamba 仅作兼容发现或接管
-- **Publication Contract**: Rattler 使用 alternative target prefix 处理 metadata 驱动的文本/二进制前缀；Enva 只修正内部绝对 symlink 并拒绝任何普通文件 staging residual
+- **Publication Contract**: Rattler 使用 alternative target prefix 处理 metadata 驱动的文本/二进制前缀；增量安装在 staging 中临时移除 Enva ownership marker，Rattler 完成 post-process 后恢复；Enva 只修正内部绝对 symlink 并拒绝任何普通文件 staging residual
 
 ### 生信算子与 BAM 基础层
 - **Path**: `fastqcx/`, `xenofilx/`, `pairbam/`, `seq2mat/`, `matsrun/`, `qctb/`, `methx/`, `bamdriver/`
@@ -69,8 +69,10 @@
 - [x] 10 个子仓完成新身份提交与推送；父仓 gitlink 指向对应新提交
 - [x] `bamdriver` 新 module path 已发布，`xenofilx` 与 `pairbam` 已固定可解析 pseudo-version
 - [x] Otter Go CI 的 test/build 与 Craftmake、Methx、Pairbam、Xenofilx 首次改名后门禁通过
-- [x] Enva native staging/final prefix 分离已实现；本地 Python 真实 create/run/remove、106 个库测试、4 个 CLI 测试及严格 Clippy 通过
+- [x] Enva native staging/final prefix 分离已实现；本地 Python 真实 create/run/remove、110 个库测试、4 个 CLI 测试及严格 Clippy 通过
 - [x] Enva compatibility run-by-name 按 canonical prefix 去重；E2E 多包参数与 helper manager 错误输出已修复
+- [x] Enva GitHub E2E run `30161695788` 证明 native create、adopt、conda/micromamba compatibility 已通过，并定位增量安装、active root、Mamba run 三类剩余失败
+- [x] Enva 增量安装已隔离 ownership marker；active `CONDA_PREFIX` root 检测和 Mamba 2 run argv 已修复；本地 110 个库测试、4 个 CLI 测试、严格 Clippy、真实增量安装与 active-root smoke 通过
 - [ ] 重跑 Enva GitHub E2E，确认三个 `otter-*`、root-priority、adopt 与三种 compatibility manager 全部通过
 - [ ] 完成 `craftmake` 与 otter 的集成测试并确定 Snakemake 退场门禁
 - [ ] 完成 RRBS/WGBS/RNA-seq/PDX 双轨 smoke tests
