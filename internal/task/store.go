@@ -36,6 +36,8 @@ type Record struct {
 	ProjectDir        string    `json:"project_dir"`
 	ConfigPath        string    `json:"config_path"`
 	Engine            string    `json:"engine"`
+	CraftmakeRunID    string    `json:"craftmake_run_id,omitempty"`
+	CraftmakeBinary   string    `json:"craftmake_binary,omitempty"`
 	Command           []string  `json:"command,omitempty"`
 	LogPath           string    `json:"log_path"`
 	StatePath         string    `json:"state_path,omitempty"`

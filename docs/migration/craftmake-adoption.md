@@ -38,14 +38,16 @@
 
 通过条件：fake workflow 覆盖成功、失败、cancel、resume；Craftmake 失败不自动回退 Snakemake。
 
-## Gate 3：Backend 与 site
+## Gate 3：Backend 与 site（进行中）
 
-1. 实现 auto detection 状态机和命名 site profiles。
-2. 完整 SLURM 选择 sbatch；无 SLURM 选择 Local；部分 SLURM fail closed。
-3. 校验 partition/account/QOS、资源、shared path 和 compute-node visibility。
-4. 将最终 backend/site/resource 与证据写入 `run.yaml`。
+1. [x] 实现 auto detection 状态机和命名 site profiles。
+2. [x] 完整 SLURM 选择 sbatch；无 SLURM 选择 Local；部分 SLURM fail closed。
+3. [x] 校验 partition/account/QOS、资源、shared path 和 compute-node visibility。
+4. [x] 将最终 backend/site/resource 与证据写入 `run.yaml`。
 
-通过条件：Local contract tests 完整；集群 canary 验证 submit/status/cancel/accounting。
+实现入口：`internal/site/types.go`（SiteProfile + `otter.site/v1` schema）、`internal/site/detect.go`（Detector 状态机 + mockable tool/exec 注入）、`internal/site/validate.go`（partition/account/QOS/path 校验）、`internal/config/resolver/resolver.go`（resolveBackendAndSite 集成，移除 Gate 2 fail-closed 守卫）。
+
+通过条件：Local contract tests 完整（已实现：auto-detection → local、partial SLURM fail-closed、explicit backend validation）；集群 canary 验证 submit/status/cancel/accounting（待 Gate 6 集群环境执行）。
 
 ## Gate 4：Reference registry
 

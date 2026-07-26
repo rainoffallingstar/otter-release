@@ -9,6 +9,7 @@ import (
 	"github.com/rainoffallingstar/otter/internal/input/samples"
 	"github.com/rainoffallingstar/otter/internal/reference"
 	runstate "github.com/rainoffallingstar/otter/internal/run"
+	"github.com/rainoffallingstar/otter/internal/site"
 )
 
 type Options struct {
@@ -20,6 +21,7 @@ type Options struct {
 	SiteOverride      string
 	ReferenceOverride map[configv1.ReferenceRole]configv1.ReferenceSelection
 	ParentRunID       string
+	Detector          *site.Detector
 }
 
 type Resolver struct{}
@@ -61,19 +63,20 @@ func (Resolver) Resolve(options Options) (configv1.RunSnapshot, error) {
 		}
 		executor, executorSource = options.ExecutorOverride, configv1.SourceCLI
 	}
-	backend, backendSource := project.Execution.Backend, sources.Backend
-	if options.BackendOverride != "" {
-		if options.BackendOverride != configv1.BackendLocal && options.BackendOverride != configv1.BackendSlurm {
-			return configv1.RunSnapshot{}, fmt.Errorf("backend override must be local or slurm")
-		}
-		backend, backendSource = options.BackendOverride, configv1.SourceCLI
+
+	detector := options.Detector
+	if detector == nil {
+		detector = site.NewDetector()
 	}
-	if backend == configv1.BackendAuto {
-		return configv1.RunSnapshot{}, fmt.Errorf("backend auto requires Gate 3 site detection; provide an explicit local or slurm override")
-	}
-	site, siteSource := project.Execution.Site, sources.Site
-	if options.SiteOverride != "" {
-		site, siteSource = options.SiteOverride, configv1.SourceCLI
+	backend, backendSource, backendEvidence, resolvedSite, resolvedSiteSource, err := resolveBackendAndSite(
+		project.Execution.Backend, sources.Backend,
+		project.Execution.Site, sources.Site,
+		options.BackendOverride,
+		options.SiteOverride,
+		detector,
+	)
+	if err != nil {
+		return configv1.RunSnapshot{}, err
 	}
 
 	projectSelections, roles := selectionsFromProject(project.References)
@@ -158,13 +161,11 @@ func (Resolver) Resolve(options Options) (configv1.RunSnapshot, error) {
 		Execution: configv1.ResolvedExecution{
 			Executor: configv1.ResolvedExecutor{Value: executor, Source: executorSource},
 			Backend: configv1.ResolvedBackend{
-				Value:  backend,
-				Source: backendSource,
-				Evidence: configv1.BackendEvidence{
-					Reason: "explicit Gate 1 resolution; automatic backend detection is deferred to Gate 3",
-				},
+				Value:    backend,
+				Source:   backendSource,
+				Evidence: backendEvidence,
 			},
-			Site:      configv1.ResolvedString{Value: site, Source: siteSource},
+			Site:      configv1.ResolvedString{Value: resolvedSite, Source: resolvedSiteSource},
 			Resources: project.Resources,
 		},
 		Samples: sampleRecords,
@@ -196,6 +197,49 @@ func (Resolver) Resolve(options Options) (configv1.RunSnapshot, error) {
 		return configv1.RunSnapshot{}, err
 	}
 	return snapshot, nil
+}
+
+func resolveBackendAndSite(
+	projectBackend configv1.Backend,
+	projectBackendSource configv1.ValueSource,
+	projectSite string,
+	projectSiteSource configv1.ValueSource,
+	backendOverride configv1.Backend,
+	siteOverride string,
+	detector *site.Detector,
+) (configv1.Backend, configv1.ValueSource, configv1.BackendEvidence, string, configv1.ValueSource, error) {
+	backend, backendSource := projectBackend, projectBackendSource
+	if backendOverride != "" {
+		if backendOverride != configv1.BackendLocal && backendOverride != configv1.BackendSlurm {
+			return "", "", configv1.BackendEvidence{}, "", "", fmt.Errorf("backend override must be local or slurm")
+		}
+		backend, backendSource = backendOverride, configv1.SourceCLI
+	}
+
+	siteID, siteSource := projectSite, projectSiteSource
+	if siteOverride != "" {
+		siteID, siteSource = siteOverride, configv1.SourceCLI
+	}
+
+	locator := site.DefaultLocator()
+
+	if backend == configv1.BackendAuto {
+		result, err := detector.Detect(locator, siteID)
+		if err != nil {
+			return "", "", configv1.BackendEvidence{}, "", "", fmt.Errorf("backend auto-detection failed: %w", err)
+		}
+		return result.Backend, configv1.SourceDetection, result.Evidence, result.SiteID, configv1.SourceDetection, nil
+	}
+
+	result, err := detector.Validate(backend, locator, siteID)
+	if err != nil {
+		return "", "", configv1.BackendEvidence{}, "", "", fmt.Errorf("backend validation failed: %w", err)
+	}
+	if siteID == "auto" {
+		siteID = result.SiteID
+		siteSource = configv1.SourceDetection
+	}
+	return backend, backendSource, result.Evidence, siteID, siteSource, nil
 }
 
 func resolveProjectPath(path string) (string, string, error) {

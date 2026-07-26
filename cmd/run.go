@@ -148,6 +148,25 @@ func init() {
 }
 
 func runRun(cmd *cobra.Command, args []string) error {
+	executorName, err := selectedRunExecutor()
+	if err != nil {
+		return err
+	}
+	if executorName == runExecutorCraftmake {
+		if cmd.Flags().Changed("engine") {
+			return fmt.Errorf("--engine is a Snakemake compatibility flag; use --backend with --executor craftmake")
+		}
+		if !dryRun && !foregroundRun && !internalWorker {
+			return submitBackgroundCraftmakeRun()
+		}
+		return executeCraftmakeRun(cmd)
+	}
+	if cmd.Flags().Changed("backend") {
+		if cmd.Flags().Changed("engine") && runEngine != runBackend {
+			return fmt.Errorf("--engine %s conflicts with --backend %s", runEngine, runBackend)
+		}
+		runEngine = runBackend
+	}
 	if !dryRun && !foregroundRun && !internalWorker {
 		return submitBackgroundRun()
 	}

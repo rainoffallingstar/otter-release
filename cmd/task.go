@@ -13,16 +13,19 @@ import (
 	"text/tabwriter"
 	"time"
 
+	craftmakeclient "github.com/rainoffallingstar/otter/internal/craftmake"
 	taskruntime "github.com/rainoffallingstar/otter/internal/task"
 	"github.com/rainoffallingstar/otter/internal/workflow"
 	"github.com/spf13/cobra"
 )
 
 var (
-	taskListAll     bool
-	taskLogsFollow  bool
-	taskLogsTail    int
-	taskStopTimeout time.Duration
+	taskListAll       bool
+	taskLogsFollow    bool
+	taskLogsTail      int
+	taskStopTimeout   time.Duration
+	taskReportOutput  string
+	taskReportRefresh bool
 )
 
 var taskCmd = &cobra.Command{
@@ -57,14 +60,23 @@ var taskStopCmd = &cobra.Command{
 	RunE:  runTaskStop,
 }
 
+var taskReportCmd = &cobra.Command{
+	Use:   "report <task-id>",
+	Short: "Export a Craftmake task report",
+	Args:  cobra.ExactArgs(1),
+	RunE:  runTaskReport,
+}
+
 func init() {
 	rootCmd.AddCommand(taskCmd)
-	taskCmd.AddCommand(taskListCmd, taskStatusCmd, taskLogsCmd, taskStopCmd)
+	taskCmd.AddCommand(taskListCmd, taskStatusCmd, taskLogsCmd, taskStopCmd, taskReportCmd)
 
 	taskListCmd.Flags().BoolVar(&taskListAll, "all", false, "Include completed and failed tasks")
 	taskLogsCmd.Flags().BoolVarP(&taskLogsFollow, "follow", "f", false, "Follow new log output until the task finishes")
 	taskLogsCmd.Flags().IntVarP(&taskLogsTail, "tail", "n", 100, "Number of existing log lines to show")
 	taskStopCmd.Flags().DurationVar(&taskStopTimeout, "timeout", 10*time.Second, "Time to wait before forcing local processes to stop")
+	taskReportCmd.Flags().StringVar(&taskReportOutput, "output", "", "Report output directory")
+	taskReportCmd.Flags().BoolVar(&taskReportRefresh, "refresh-metrics", false, "Refresh unavailable SLURM metrics before export")
 }
 
 func runTaskList(cmd *cobra.Command, args []string) error {
@@ -151,6 +163,14 @@ func runTaskStatus(cmd *cobra.Command, args []string) error {
 	if record.Message != "" {
 		fmt.Fprintf(output, "Message:      %s\n", record.Message)
 	}
+	if record.CraftmakeRunID != "" {
+		result, executeErr := executeTaskCraftmakeCommand(cmd, record, craftmakeclient.CommandStatus)
+		if executeErr != nil {
+			return executeErr
+		}
+		fmt.Fprintf(output, "\nCraftmake status:\n%s", result.Stdout)
+		return nil
+	}
 
 	if record.StatePath == "" {
 		return nil
@@ -184,9 +204,43 @@ func runTaskLogs(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if !taskLogsFollow {
+		if record.CraftmakeRunID != "" {
+			result, executeErr := executeTaskCraftmakeCommand(cmd, record, craftmakeclient.CommandLogs)
+			if executeErr != nil {
+				return executeErr
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "\nCraftmake logs:\n%s", result.Stdout)
+		}
 		return nil
 	}
 	return followTaskLog(cmd.OutOrStdout(), store, record.ID, record.LogPath)
+}
+
+func runTaskReport(cmd *cobra.Command, args []string) error {
+	store, err := taskruntime.DefaultStore()
+	if err != nil {
+		return err
+	}
+	record, err := store.Load(args[0])
+	if err != nil {
+		return err
+	}
+	if record.CraftmakeRunID == "" {
+		return fmt.Errorf("task %s is not a Craftmake task", record.ID)
+	}
+	extraArguments := make([]string, 0, 3)
+	if taskReportOutput != "" {
+		extraArguments = append(extraArguments, "--output", taskReportOutput)
+	}
+	if taskReportRefresh {
+		extraArguments = append(extraArguments, "--refresh-metrics")
+	}
+	result, executeErr := executeTaskCraftmakeCommand(cmd, record, craftmakeclient.CommandReport, extraArguments...)
+	if executeErr != nil {
+		return executeErr
+	}
+	_, err = fmt.Fprint(cmd.OutOrStdout(), result.Stdout)
+	return err
 }
 
 func runTaskStop(cmd *cobra.Command, args []string) error {
@@ -198,7 +252,7 @@ func runTaskStop(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	if taskruntime.IsTerminalStatus(record.Status) && len(record.ActiveSlurmJobIDs) == 0 {
+	if taskruntime.IsTerminalStatus(record.Status) && record.Status != taskruntime.StatusInterrupted && len(record.ActiveSlurmJobIDs) == 0 {
 		fmt.Fprintf(cmd.OutOrStdout(), "Task %s is already %s.\n", record.ID, record.Status)
 		return nil
 	}
@@ -212,11 +266,20 @@ func runTaskStop(cmd *cobra.Command, args []string) error {
 
 	var stopErrors []error
 	failedJobIDs := make([]string, 0)
-	for _, jobID := range record.ActiveSlurmJobIDs {
-		cancelCommand := exec.Command("scancel", jobID)
-		if output, cancelErr := cancelCommand.CombinedOutput(); cancelErr != nil {
-			failedJobIDs = append(failedJobIDs, jobID)
-			stopErrors = append(stopErrors, fmt.Errorf("cancel SLURM job %s: %w: %s", jobID, cancelErr, strings.TrimSpace(string(output))))
+	if record.CraftmakeRunID != "" {
+		result, cancelErr := executeTaskCraftmakeCommand(cmd, record, craftmakeclient.CommandCancel)
+		if cancelErr != nil {
+			stopErrors = append(stopErrors, cancelErr)
+		} else if result.Failed() {
+			stopErrors = append(stopErrors, fmt.Errorf("Craftmake cancel failed with exit code %d", result.ExitCode))
+		}
+	} else {
+		for _, jobID := range record.ActiveSlurmJobIDs {
+			cancelCommand := exec.Command("scancel", jobID)
+			if output, cancelErr := cancelCommand.CombinedOutput(); cancelErr != nil {
+				failedJobIDs = append(failedJobIDs, jobID)
+				stopErrors = append(stopErrors, fmt.Errorf("cancel SLURM job %s: %w: %s", jobID, cancelErr, strings.TrimSpace(string(output))))
+			}
 		}
 	}
 
@@ -257,6 +320,31 @@ func runTaskStop(cmd *cobra.Command, args []string) error {
 
 	fmt.Fprintf(cmd.OutOrStdout(), "Task %s stopped.\n", record.ID)
 	return errors.Join(stopErrors...)
+}
+
+func executeTaskCraftmakeCommand(command *cobra.Command, record *taskruntime.Record, requestedCommand craftmakeclient.Command, extraArguments ...string) (craftmakeclient.Result, error) {
+	if record.StatePath == "" || record.CraftmakeRunID == "" {
+		return craftmakeclient.Result{}, fmt.Errorf("task %s has incomplete Craftmake state correlation", record.ID)
+	}
+	binaryPath, err := craftmakeclient.ResolveBinary(record.CraftmakeBinary)
+	if err != nil {
+		return craftmakeclient.Result{}, err
+	}
+	arguments := []string{
+		"--state", record.StatePath,
+		"--run", record.CraftmakeRunID,
+		"--format", "json",
+	}
+	arguments = append(arguments, extraArguments...)
+	result, err := craftmakeclient.Execute(command.Context(), craftmakeclient.Request{
+		Binary:    binaryPath,
+		Command:   requestedCommand,
+		Arguments: arguments,
+	})
+	if result.Stderr != "" {
+		fmt.Fprint(command.ErrOrStderr(), result.Stderr)
+	}
+	return result, err
 }
 
 func printLastLogLines(output io.Writer, logPath string, lineCount int) error {
