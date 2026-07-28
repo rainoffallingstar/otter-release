@@ -64,6 +64,13 @@ func TestCraftmakeRunArgumentsPreserveSnapshotIdentity(t *testing.T) {
 	assertArgumentPair(t, arguments, "--backend", "slurm")
 	assertArgumentPair(t, arguments, "--state-dir", expectedStateDirectory)
 	assertArgumentPair(t, arguments, "--phase", "step1")
+	for _, immutableResourceFlag := range []string{"--partition", "--account", "--qos", "--time", "--scratch-root"} {
+		for _, argument := range arguments {
+			if argument == immutableResourceFlag {
+				t.Fatalf("Otter must not override immutable Craftmake resource %s", immutableResourceFlag)
+			}
+		}
+	}
 }
 
 func TestCraftmakeRunArgumentsRequireExplicitCompilationEntry(t *testing.T) {

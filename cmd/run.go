@@ -157,7 +157,7 @@ func runRun(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("--engine is a Snakemake compatibility flag; use --backend with --executor craftmake")
 		}
 		if !dryRun && !foregroundRun && !internalWorker {
-			return submitBackgroundCraftmakeRun()
+			return submitBackgroundCraftmakeRun(cmd)
 		}
 		return executeCraftmakeRun(cmd)
 	}
@@ -168,9 +168,9 @@ func runRun(cmd *cobra.Command, args []string) error {
 		runEngine = runBackend
 	}
 	if !dryRun && !foregroundRun && !internalWorker {
-		return submitBackgroundRun()
+		return submitBackgroundSnakemakeSnapshotRun(cmd)
 	}
-	return executeRun(cmd)
+	return executeSnakemakeSnapshotRun(cmd)
 }
 
 func submitBackgroundRun() error {

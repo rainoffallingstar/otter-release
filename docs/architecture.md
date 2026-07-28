@@ -14,7 +14,7 @@ Otter 管理项目意图、配置解析、run snapshot 和顶层任务；Craftma
 
 | 领域 | 当前实现 | 目标契约 |
 |---|---|---|
-| 默认 executor | Snakemake 生产路径；Craftmake 尚未完整接入 | Craftmake 默认；Snakemake 仅显式兼容 |
+| 默认 executor | Craftmake 默认；Snakemake 仅显式 compatibility executor | Craftmake 默认；Snakemake 仅显式兼容 |
 | config | `OtterConfig` 和多种 legacy key | canonical `project.yaml` + immutable `run.yaml` |
 | Craftmake 输入 | adapter 直接兼容多种 Otter config | 只解析一个 resolved `run.yaml` |
 | backend | Otter `internal/engine` 提供 local/SLURM | Craftmake 管理 Local/SLURM；`backend=auto` fail closed |

@@ -144,6 +144,10 @@ type SampleRecord struct {
 	Batch     string `yaml:"batch,omitempty" json:"batch,omitempty"`
 	AdapterR1 string `yaml:"adapter_r1,omitempty" json:"adapter_r1,omitempty"`
 	AdapterR2 string `yaml:"adapter_r2,omitempty" json:"adapter_r2,omitempty"`
+	R1SHA256  string `yaml:"r1_sha256,omitempty" json:"r1_sha256,omitempty"`
+	R1Size    int64  `yaml:"r1_size_bytes,omitempty" json:"r1_size_bytes,omitempty"`
+	R2SHA256  string `yaml:"r2_sha256,omitempty" json:"r2_sha256,omitempty"`
+	R2Size    int64  `yaml:"r2_size_bytes,omitempty" json:"r2_size_bytes,omitempty"`
 }
 
 type ReferencesLock struct {
@@ -270,11 +274,26 @@ type ResolvedString struct {
 	Source ValueSource `yaml:"source" json:"source"`
 }
 
+type ResolvedInt struct {
+	Value  int         `yaml:"value" json:"value"`
+	Source ValueSource `yaml:"source" json:"source"`
+}
+
+type ResolvedSlurmResources struct {
+	Partition   ResolvedString `yaml:"partition" json:"partition"`
+	Account     ResolvedString `yaml:"account" json:"account"`
+	QOS         ResolvedString `yaml:"qos" json:"qos"`
+	MaxJobs     ResolvedInt    `yaml:"max_jobs" json:"max_jobs"`
+	DefaultTime ResolvedString `yaml:"default_time" json:"default_time"`
+	ScratchRoot ResolvedString `yaml:"scratch_root" json:"scratch_root"`
+}
+
 type ResolvedExecution struct {
-	Executor  ResolvedExecutor `yaml:"executor" json:"executor"`
-	Backend   ResolvedBackend  `yaml:"backend" json:"backend"`
-	Site      ResolvedString   `yaml:"site" json:"site"`
-	Resources ProjectResources `yaml:"resources" json:"resources"`
+	Executor  ResolvedExecutor      `yaml:"executor" json:"executor"`
+	Backend   ResolvedBackend       `yaml:"backend" json:"backend"`
+	Site      ResolvedString        `yaml:"site" json:"site"`
+	Resources ProjectResources      `yaml:"resources" json:"resources"`
+	Slurm     ResolvedSlurmResources `yaml:"slurm,omitempty" json:"slurm,omitempty"`
 }
 
 type ReferenceSelections struct {
@@ -310,12 +329,16 @@ type ResolvedAsset struct {
 }
 
 type RunPaths struct {
-	RunRoot string `yaml:"run_root" json:"run_root"`
-	Work    string `yaml:"work" json:"work"`
-	Results string `yaml:"results" json:"results"`
-	Logs    string `yaml:"logs" json:"logs"`
-	State   string `yaml:"state" json:"state"`
-	Metrics string `yaml:"metrics" json:"metrics"`
+	RunRoot         string   `yaml:"run_root" json:"run_root"`
+	Work            string   `yaml:"work" json:"work"`
+	Results         string   `yaml:"results" json:"results"`
+	Logs            string   `yaml:"logs" json:"logs"`
+	State           string   `yaml:"state" json:"state"`
+	Metrics         string   `yaml:"metrics" json:"metrics"`
+	ProjectConfig   string   `yaml:"project_config,omitempty" json:"project_config,omitempty"`
+	SamplesManifest string   `yaml:"samples_manifest,omitempty" json:"samples_manifest,omitempty"`
+	ReferencesLock  string   `yaml:"references_lock,omitempty" json:"references_lock,omitempty"`
+	WorkflowAssets  []string `yaml:"workflow_assets,omitempty" json:"workflow_assets,omitempty"`
 }
 
 type RunDigests struct {

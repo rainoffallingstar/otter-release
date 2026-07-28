@@ -9,12 +9,12 @@ import (
 )
 
 var (
-	projectIDPattern          = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
-	referenceSelectionPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+@[A-Za-z0-9._-]+$`)
-	digestPattern             = regexp.MustCompile(`^sha256:[a-f0-9]{64}$`)
-	runIDPattern              = regexp.MustCompile(`^run-[0-9]{8}T[0-9]{6}Z-[a-z]{6}$`)
-	memoryPattern             = regexp.MustCompile(`^[1-9][0-9]*(MiB|GiB)$`)
-	timePattern               = regexp.MustCompile(`^[0-9]{2,3}:[0-5][0-9]:[0-5][0-9]$`)
+	projectIDPattern          = regexp.MustCompile("^[A-Za-z0-9][A-Za-z0-9._-]{0,63}\\z")
+	referenceSelectionPattern = regexp.MustCompile("^[A-Za-z0-9._-]+@[A-Za-z0-9._-]+\\z")
+	digestPattern             = regexp.MustCompile("^sha256:[a-f0-9]{64}\\z")
+	runIDPattern              = regexp.MustCompile("^run-[0-9]{8}T[0-9]{6}Z-[a-z]{6}\\z")
+	memoryPattern             = regexp.MustCompile("^[1-9][0-9]*(MiB|GiB)\\z")
+	timePattern               = regexp.MustCompile("^(?:[0-9]+-)?[0-9]{1,2}:[0-5][0-9]:[0-5][0-9]\\z")
 )
 
 func ApplyProjectDefaults(project *ProjectConfig) {
@@ -164,7 +164,7 @@ func ValidateRunSnapshot(snapshot RunSnapshot) error {
 	if snapshot.Run.ParentRunID != "" && !runIDPattern.MatchString(snapshot.Run.ParentRunID) {
 		return fmt.Errorf("run.parent_run_id %q is invalid", snapshot.Run.ParentRunID)
 	}
-	if snapshot.Project.ID == "" || !filepath.IsAbs(snapshot.Project.Root) {
+	if !projectIDPattern.MatchString(snapshot.Project.ID) || !filepath.IsAbs(snapshot.Project.Root) {
 		return fmt.Errorf("resolved project id and absolute root are required")
 	}
 	if !isScenario(snapshot.Workflow.Scenario) || !filepath.IsAbs(snapshot.Workflow.AssetRoot) {
@@ -172,6 +172,9 @@ func ValidateRunSnapshot(snapshot RunSnapshot) error {
 	}
 	if snapshot.Workflow.Toolchain != ToolchainModern && snapshot.Workflow.Toolchain != ToolchainLegacyEquivalent {
 		return fmt.Errorf("resolved workflow toolchain %q is invalid", snapshot.Workflow.Toolchain)
+	}
+	if err := validateLegacyExtensions(snapshot.Workflow.LegacyExtensions); err != nil {
+		return fmt.Errorf("resolved workflow extensions: %w", err)
 	}
 	if snapshot.Execution.Executor.Value != ExecutorCraftmake && snapshot.Execution.Executor.Value != ExecutorSnakemake {
 		return fmt.Errorf("resolved executor %q is invalid", snapshot.Execution.Executor.Value)
@@ -185,24 +188,91 @@ func ValidateRunSnapshot(snapshot RunSnapshot) error {
 	if strings.TrimSpace(snapshot.Execution.Site.Value) == "" {
 		return fmt.Errorf("resolved site is required")
 	}
+	if err := validateProjectResources(snapshot.Execution.Resources); err != nil {
+		return fmt.Errorf("resolved execution resources: %w", err)
+	}
+	if snapshot.Execution.Backend.Value == BackendSlurm {
+		if err := validateResolvedSlurmResources(snapshot.Execution.Slurm); err != nil {
+			return fmt.Errorf("resolved SLURM resources: %w", err)
+		}
+	}
 	if len(snapshot.Samples) == 0 || len(snapshot.References.Resolved) == 0 {
 		return fmt.Errorf("resolved samples and references must not be empty")
 	}
+	if err := validateResolvedReferenceSelections("references.project_selection", snapshot.References.ProjectSelection); err != nil {
+		return err
+	}
+	if err := validateResolvedReferenceSelections("references.effective_selection", snapshot.References.EffectiveSelection); err != nil {
+		return err
+	}
+	if snapshot.References.OverrideSource != "" && snapshot.References.OverrideSource != OverrideSourceNone && snapshot.References.OverrideSource != OverrideSourceProject && snapshot.References.OverrideSource != OverrideSourceCLI && snapshot.References.OverrideSource != OverrideSourceOverrideFile {
+		return fmt.Errorf("references.override_source %q is invalid", snapshot.References.OverrideSource)
+	}
+	seenSampleIDs := make(map[string]bool, len(snapshot.Samples))
 	for _, sample := range snapshot.Samples {
-		if sample.ID == "" || !filepath.IsAbs(sample.R1) || !filepath.IsAbs(sample.R2) {
+		if strings.TrimSpace(sample.ID) == "" || !filepath.IsAbs(sample.R1) || !filepath.IsAbs(sample.R2) {
 			return fmt.Errorf("sample %q must have absolute paired FASTQ paths", sample.ID)
 		}
+		if seenSampleIDs[sample.ID] {
+			return fmt.Errorf("sample %q is duplicated", sample.ID)
+		}
+		if err := validateOptionalInputMetadata(sample.ID+" R1", sample.R1SHA256, sample.R1Size); err != nil {
+			return err
+		}
+		if err := validateOptionalInputMetadata(sample.ID+" R2", sample.R2SHA256, sample.R2Size); err != nil {
+			return err
+		}
+		seenSampleIDs[sample.ID] = true
 	}
+	seenReferenceRoles := make(map[ReferenceRole]bool, len(snapshot.References.Resolved))
 	for _, resolvedReference := range snapshot.References.Resolved {
+		if !isReferenceRole(resolvedReference.Role) || seenReferenceRoles[resolvedReference.Role] {
+			return fmt.Errorf("resolved reference role %q is invalid or duplicated", resolvedReference.Role)
+		}
+		seenReferenceRoles[resolvedReference.Role] = true
 		if resolvedReference.ID == "" || resolvedReference.Release == "" || !filepath.IsAbs(resolvedReference.RegistryRoot) {
 			return fmt.Errorf("resolved reference %q is incomplete", resolvedReference.Role)
 		}
-		if !digestPattern.MatchString(resolvedReference.ManifestDigest) || !filepath.IsAbs(resolvedReference.Fasta.Path) {
-			return fmt.Errorf("resolved reference %q has invalid digest or FASTA path", resolvedReference.Role)
+		if !digestPattern.MatchString(resolvedReference.ManifestDigest) {
+			return fmt.Errorf("resolved reference %q has an invalid manifest digest", resolvedReference.Role)
 		}
+		if err := validateResolvedAsset("fasta", resolvedReference.Fasta); err != nil {
+			return fmt.Errorf("resolved reference %q: %w", resolvedReference.Role, err)
+		}
+		for _, annotation := range resolvedReference.Annotations {
+			if err := validateResolvedAsset("annotation", annotation); err != nil {
+				return fmt.Errorf("resolved reference %q: %w", resolvedReference.Role, err)
+			}
+		}
+		for _, index := range resolvedReference.Indexes {
+			if err := validateResolvedAsset("index", index); err != nil {
+				return fmt.Errorf("resolved reference %q: %w", resolvedReference.Role, err)
+			}
+		}
+	}
+	if snapshot.Workflow.Scenario == ScenarioBSPDX || snapshot.Workflow.Scenario == ScenarioRNAPDX {
+		if !seenReferenceRoles[ReferenceRoleGraft] || !seenReferenceRoles[ReferenceRoleHost] {
+			return fmt.Errorf("PDX run snapshots require graft and host references")
+		}
+	} else if !seenReferenceRoles[ReferenceRolePrimary] {
+		return fmt.Errorf("non-PDX run snapshots require a primary reference")
 	}
 	if !filepath.IsAbs(snapshot.Paths.RunRoot) || !filepath.IsAbs(snapshot.Paths.Work) || !filepath.IsAbs(snapshot.Paths.Results) || !filepath.IsAbs(snapshot.Paths.Logs) || !filepath.IsAbs(snapshot.Paths.State) || !filepath.IsAbs(snapshot.Paths.Metrics) {
 		return fmt.Errorf("all run paths must be absolute")
+	}
+	for pathName, pathValue := range map[string]string{
+		"project_config":   snapshot.Paths.ProjectConfig,
+		"samples_manifest": snapshot.Paths.SamplesManifest,
+		"references_lock":  snapshot.Paths.ReferencesLock,
+	} {
+		if pathValue != "" && !filepath.IsAbs(pathValue) {
+			return fmt.Errorf("paths.%s must be absolute", pathName)
+		}
+	}
+	for assetIndex, assetPath := range snapshot.Paths.WorkflowAssets {
+		if !filepath.IsAbs(assetPath) {
+			return fmt.Errorf("paths.workflow_assets[%d] must be absolute", assetIndex)
+		}
 	}
 	for name, digest := range map[string]string{
 		"project":         snapshot.Digests.Project,
@@ -211,6 +281,30 @@ func ValidateRunSnapshot(snapshot RunSnapshot) error {
 	} {
 		if !digestPattern.MatchString(digest) {
 			return fmt.Errorf("%s digest is invalid", name)
+		}
+	}
+	if snapshot.Digests.References != "" && !digestPattern.MatchString(snapshot.Digests.References) {
+		return fmt.Errorf("references digest is invalid")
+	}
+	return nil
+}
+
+func validateResolvedReferenceSelections(field string, selections ReferenceSelections) error {
+	selectionsByRole := []struct {
+		role      string
+		selection ReferenceSelection
+	}{
+		{role: "primary", selection: selections.Primary},
+		{role: "secondary", selection: selections.Secondary},
+		{role: "graft", selection: selections.Graft},
+		{role: "host", selection: selections.Host},
+	}
+	for _, selectionByRole := range selectionsByRole {
+		if selectionByRole.selection == "" {
+			continue
+		}
+		if _, _, err := ParseReferenceSelection(selectionByRole.selection); err != nil {
+			return fmt.Errorf("%s.%s: %w", field, selectionByRole.role, err)
 		}
 	}
 	return nil
@@ -235,6 +329,58 @@ func isScenario(scenario Scenario) bool {
 
 func isValueSource(source ValueSource) bool {
 	return source == SourceDefault || source == SourceProject || source == SourceCLI || source == SourceProfile || source == SourceDetection
+}
+
+func isReferenceRole(role ReferenceRole) bool {
+	return role == ReferenceRolePrimary || role == ReferenceRoleSecondary || role == ReferenceRoleGraft || role == ReferenceRoleHost
+}
+
+func validateResolvedAsset(assetName string, asset ResolvedAsset) error {
+	if strings.TrimSpace(asset.Type) == "" || !filepath.IsAbs(asset.Path) || !digestPattern.MatchString(asset.SHA256) {
+		return fmt.Errorf("%s asset is invalid", assetName)
+	}
+	return nil
+}
+
+func validateOptionalInputMetadata(inputName, digest string, sizeBytes int64) error {
+	if digest == "" && sizeBytes == 0 {
+		return nil
+	}
+	if !digestPattern.MatchString(digest) {
+		return fmt.Errorf("%s digest is invalid", inputName)
+	}
+	if sizeBytes < 1 {
+		return fmt.Errorf("%s size_bytes must be positive", inputName)
+	}
+	return nil
+}
+
+func validateResolvedSlurmResources(resources ResolvedSlurmResources) error {
+	if strings.TrimSpace(resources.Partition.Value) == "" || !isValueSource(resources.Partition.Source) {
+		return fmt.Errorf("partition value and source are required")
+	}
+	if strings.TrimSpace(resources.Account.Value) == "" || !isValueSource(resources.Account.Source) {
+		return fmt.Errorf("account value and source are required")
+	}
+	if !isValueSource(resources.QOS.Source) {
+		return fmt.Errorf("qos source is invalid")
+	}
+	if resources.MaxJobs.Value < 0 || !isValueSource(resources.MaxJobs.Source) {
+		return fmt.Errorf("max_jobs value/source is invalid")
+	}
+	if resources.DefaultTime.Value != "" && !timePattern.MatchString(resources.DefaultTime.Value) {
+		return fmt.Errorf("default_time %q has invalid format", resources.DefaultTime.Value)
+	}
+	if !isValueSource(resources.DefaultTime.Source) {
+		return fmt.Errorf("default_time source is invalid")
+	}
+	if resources.ScratchRoot.Value != "" && !filepath.IsAbs(resources.ScratchRoot.Value) {
+		return fmt.Errorf("scratch_root must be absolute")
+	}
+	if !isValueSource(resources.ScratchRoot.Source) {
+		return fmt.Errorf("scratch_root source is invalid")
+	}
+	return nil
 }
 
 func validateProjectReferences(scenario Scenario, references ProjectReferences) error {
@@ -307,8 +453,8 @@ func validateProjectResources(resources ProjectResources) error {
 }
 
 func validateResourceSpec(field string, resource ResourceSpec) error {
-	if resource.Cores < 0 || (resource.Cores == 0 && (resource.Memory != "" || resource.Time != "" || resource.Partition != "")) {
-		return fmt.Errorf("%s.cores must be positive when resources are configured", field)
+	if resource.Cores < 0 {
+		return fmt.Errorf("%s.cores must not be negative", field)
 	}
 	if resource.Memory != "" && !memoryPattern.MatchString(resource.Memory) {
 		return fmt.Errorf("%s.memory %q is invalid", field, resource.Memory)

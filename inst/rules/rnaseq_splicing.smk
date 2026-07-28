@@ -1,8 +1,12 @@
+import json
+import os
+
+
 def rnaseq_splicing_bams(wildcards):
     pdx_mode = str(config["metadata"]["pdx_pipeline"]).strip().lower() in {"1", "true", "yes"}
     if pdx_mode:
         return expand(
-            os.path.join(config["directories"]["bsmap"]["main"], "Filtered_bams", "{sample}_" + config["workflow"]["species"]["graft"] + "_Filtered.bam"),
+            os.path.join(config["directories"]["bsmap"]["main"], "Filtered_bams", "{sample}_fixed_" + config["workflow"]["species"]["graft"] + "_Filtered.bam"),
             sample=config["metadata"]["sample_ids"],
         )
     return expand(
@@ -11,6 +15,7 @@ def rnaseq_splicing_bams(wildcards):
         species=config["workflow"]["species"]["name"],
     )
 
+
 rule rnaseq_splicing:
     message: "RNA Splicing ..."
     input:
@@ -18,14 +23,15 @@ rule rnaseq_splicing:
         pdata=os.path.join(config["directories"]["selfconfig"], "pdata.xlsx"),
         gtf=config["reference"]["rnaseq"]["gtf"][config["workflow"]["species"]["name"].index(config["workflow"]["species"]["graft"])]
     output:
-        marker=os.path.join(config["directories"]["bsmap"]["main"], "RNASplicing", "RNASplicing_success.txt")
+        outcome=os.path.join(config["directories"]["bsmap"]["main"], "RNASplicing", "splicing-outcome.json")
     params:
         run_dir=config["directories"]["bsmap"]["main"],
         seqlengthQC=config["directories"]["qc"]["main"],
-        log_dir=os.path.join(config["directories"]["bsmap"]["main"], "RNASplicing"),
+        splicing_dir=os.path.join(config["directories"]["bsmap"]["main"], "RNASplicing"),
         pdxmode=(1 if str(config["metadata"]["pdx_pipeline"]).strip().lower() in {"1", "true", "yes"} else 0)
     threads: 20
     run:
+        os.makedirs(params.splicing_dir, exist_ok=True)
         if config["metadata"]["group_levels"] >= 2:
             shell(
                 """
@@ -37,13 +43,29 @@ rule rnaseq_splicing:
                   --seqlengthQC {params.seqlengthQC:q} \
                   --gtf {input.gtf:q} \
                   --pdxmode {params.pdxmode}
-                printf '%s\n' 'RNASplicing_DONE' > {output.marker:q}
                 """
             )
+            artifact_paths = sorted(
+                os.path.relpath(os.path.join(directory_path, filename), params.splicing_dir)
+                for directory_path, _, filenames in os.walk(params.splicing_dir)
+                for filename in filenames
+                if os.path.join(directory_path, filename) != output.outcome
+            )
+            if not artifact_paths:
+                raise ValueError("matsrun reported success but produced no splicing artifacts")
+            outcome = {
+                "schema_version": "otter.rna-splicing-outcome/v1",
+                "status": "produced",
+                "source_root": os.path.abspath(params.splicing_dir),
+                "artifact_paths": artifact_paths,
+            }
         else:
-            shell(
-                """
-                mkdir -p {params.log_dir:q}
-                printf '%s\n' 'RNASplicing_NOTRUN' > {output.marker:q}
-                """
-            )
+            outcome = {
+                "schema_version": "otter.rna-splicing-outcome/v1",
+                "status": "not_applicable",
+                "source_root": os.path.abspath(params.splicing_dir),
+                "artifact_paths": [],
+            }
+        with open(output.outcome, "w", encoding="utf-8") as outcome_file:
+            json.dump(outcome, outcome_file, indent=2)
+            outcome_file.write("\n")

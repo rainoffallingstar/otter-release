@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/rainoffallingstar/otter/internal/logger"
@@ -40,6 +41,20 @@ func Execute() error {
 func ExecuteContext(ctx context.Context) error {
 	rootCmd.SetContext(ctx)
 	return rootCmd.Execute()
+}
+
+// ExitCode returns a classified executor status when the command error provides one.
+func ExitCode(commandError error) int {
+	if commandError == nil {
+		return 0
+	}
+	var classifiedError interface{ ExitCode() int }
+	if errors.As(commandError, &classifiedError) {
+		if exitCode := classifiedError.ExitCode(); exitCode > 0 {
+			return exitCode
+		}
+	}
+	return 1
 }
 
 func init() {

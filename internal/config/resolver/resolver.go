@@ -3,6 +3,7 @@ package resolver
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	configv1 "github.com/rainoffallingstar/otter/internal/config/v1"
@@ -13,18 +14,31 @@ import (
 )
 
 type Options struct {
-	ProjectPath       string
-	RunDirectory      runstate.Directory
-	ReferenceRoot     string
-	ExecutorOverride  configv1.Executor
-	BackendOverride   configv1.Backend
-	SiteOverride      string
-	ReferenceOverride map[configv1.ReferenceRole]configv1.ReferenceSelection
-	ParentRunID       string
-	Detector          *site.Detector
+	ProjectPath                  string
+	RunDirectory                 runstate.Directory
+	ReferenceRoot                string
+	ExecutorOverride             configv1.Executor
+	BackendOverride              configv1.Backend
+	SiteOverride                 string
+	ReferenceOverride            map[configv1.ReferenceRole]configv1.ReferenceSelection
+	ParentRunID                  string
+	Detector                     *site.Detector
+	ComputePathValidator         func(path, partition, account string) error
+	ComputeWritablePathValidator func(path, partition, account string) error
 }
 
 type Resolver struct{}
+
+type backendResolution struct {
+	Backend        configv1.Backend
+	BackendSource  configv1.ValueSource
+	Evidence       configv1.BackendEvidence
+	SiteID         string
+	SiteSource     configv1.ValueSource
+	SitePaths      site.SitePaths
+	SiteResources  configv1.ProjectResources
+	SlurmResources configv1.ResolvedSlurmResources
+}
 
 func (Resolver) Resolve(options Options) (configv1.RunSnapshot, error) {
 	projectPath, projectRoot, err := resolveProjectPath(options.ProjectPath)
@@ -47,15 +61,15 @@ func (Resolver) Resolve(options Options) (configv1.RunSnapshot, error) {
 	if err != nil {
 		return configv1.RunSnapshot{}, err
 	}
+	sampleRecords, err = runstate.EnrichSampleInputMetadata(sampleRecords)
+	if err != nil {
+		return configv1.RunSnapshot{}, err
+	}
 	lockPath := filepath.Join(projectRoot, "references.lock.yaml")
 	referenceLock, err := reference.LoadLock(lockPath)
 	if err != nil {
 		return configv1.RunSnapshot{}, err
 	}
-	if !filepath.IsAbs(options.ReferenceRoot) {
-		return configv1.RunSnapshot{}, fmt.Errorf("reference root must be an absolute path")
-	}
-
 	executor, executorSource := project.Execution.Executor, sources.Executor
 	if options.ExecutorOverride != "" {
 		if options.ExecutorOverride != configv1.ExecutorCraftmake && options.ExecutorOverride != configv1.ExecutorSnakemake {
@@ -68,7 +82,7 @@ func (Resolver) Resolve(options Options) (configv1.RunSnapshot, error) {
 	if detector == nil {
 		detector = site.NewDetector()
 	}
-	backend, backendSource, backendEvidence, resolvedSite, resolvedSiteSource, err := resolveBackendAndSite(
+	backendResolution, err := resolveBackendAndSite(
 		project.Execution.Backend, sources.Backend,
 		project.Execution.Site, sources.Site,
 		options.BackendOverride,
@@ -78,6 +92,22 @@ func (Resolver) Resolve(options Options) (configv1.RunSnapshot, error) {
 	if err != nil {
 		return configv1.RunSnapshot{}, err
 	}
+	referenceRoot := strings.TrimSpace(options.ReferenceRoot)
+	if referenceRoot == "" {
+		referenceRoot = strings.TrimSpace(backendResolution.SitePaths.ReferenceRoot)
+	}
+	if !filepath.IsAbs(referenceRoot) {
+		return configv1.RunSnapshot{}, fmt.Errorf("reference root must be an absolute path or supplied by the selected site profile")
+	}
+	if err := validateSlurmComputePaths(
+		options,
+		backendResolution,
+		referenceRoot,
+		options.RunDirectory.Root,
+	); err != nil {
+		return configv1.RunSnapshot{}, err
+	}
+	resolvedResources := mergeResources(project.Resources, backendResolution.SiteResources)
 
 	projectSelections, roles := selectionsFromProject(project.References)
 	effectiveSelections := projectSelections
@@ -94,7 +124,7 @@ func (Resolver) Resolve(options Options) (configv1.RunSnapshot, error) {
 		}
 		overriddenRoles[role] = true
 	}
-	referenceResolver := reference.Resolver{RegistryRoot: options.ReferenceRoot, Lock: referenceLock}
+	referenceResolver := reference.Resolver{RegistryRoot: referenceRoot, Lock: referenceLock}
 	resolvedReferences := make([]configv1.ResolvedReference, 0, len(roles))
 	for _, role := range roles {
 		selection := selectionForRole(effectiveSelections, role)
@@ -161,12 +191,13 @@ func (Resolver) Resolve(options Options) (configv1.RunSnapshot, error) {
 		Execution: configv1.ResolvedExecution{
 			Executor: configv1.ResolvedExecutor{Value: executor, Source: executorSource},
 			Backend: configv1.ResolvedBackend{
-				Value:    backend,
-				Source:   backendSource,
-				Evidence: backendEvidence,
+				Value:    backendResolution.Backend,
+				Source:   backendResolution.BackendSource,
+				Evidence: backendResolution.Evidence,
 			},
-			Site:      configv1.ResolvedString{Value: resolvedSite, Source: resolvedSiteSource},
-			Resources: project.Resources,
+			Site:      configv1.ResolvedString{Value: backendResolution.SiteID, Source: backendResolution.SiteSource},
+			Resources: resolvedResources,
+			Slurm:     backendResolution.SlurmResources,
 		},
 		Samples: sampleRecords,
 		References: configv1.ResolvedReferences{
@@ -177,12 +208,16 @@ func (Resolver) Resolve(options Options) (configv1.RunSnapshot, error) {
 			Resolved:           resolvedReferences,
 		},
 		Paths: configv1.RunPaths{
-			RunRoot: runRoot,
-			Work:    filepath.Join(runRoot, "work"),
-			Results: filepath.Join(runRoot, "results"),
-			Logs:    filepath.Join(runRoot, "logs"),
-			State:   filepath.Join(runRoot, "state"),
-			Metrics: filepath.Join(runRoot, "metrics"),
+			RunRoot:         runRoot,
+			Work:            filepath.Join(runRoot, "work"),
+			Results:         filepath.Join(runRoot, "results"),
+			Logs:            filepath.Join(runRoot, "logs"),
+			State:           filepath.Join(runRoot, "state"),
+			Metrics:         filepath.Join(runRoot, "metrics"),
+			ProjectConfig:   projectPath,
+			SamplesManifest: samplesPath,
+			ReferencesLock:  lockPath,
+			WorkflowAssets:  append([]string(nil), workflowAssets...),
 		},
 		Digests: configv1.RunDigests{
 			Project:        projectDigest,
@@ -199,6 +234,40 @@ func (Resolver) Resolve(options Options) (configv1.RunSnapshot, error) {
 	return snapshot, nil
 }
 
+func validateSlurmComputePaths(
+	options Options,
+	resolution backendResolution,
+	referenceRoot string,
+	runRoot string,
+) error {
+	if resolution.Backend != configv1.BackendSlurm {
+		return nil
+	}
+	partition := resolution.SlurmResources.Partition.Value
+	account := resolution.SlurmResources.Account.Value
+	if err := site.CheckLoginNodePath(referenceRoot); err != nil {
+		return fmt.Errorf("effective reference root %q is not accessible on the login node: %w", referenceRoot, err)
+	}
+	computePathValidator := options.ComputePathValidator
+	if computePathValidator == nil {
+		computePathValidator = site.ValidateComputeNodePath
+	}
+	if err := computePathValidator(referenceRoot, partition, account); err != nil {
+		return fmt.Errorf("effective reference root %q is not accessible on Slurm compute nodes: %w", referenceRoot, err)
+	}
+	if err := site.CheckLoginNodeWritableDirectory(runRoot); err != nil {
+		return fmt.Errorf("run output root %q is not writable on the login node: %w", runRoot, err)
+	}
+	computeWritablePathValidator := options.ComputeWritablePathValidator
+	if computeWritablePathValidator == nil {
+		computeWritablePathValidator = site.ValidateComputeNodeWritableDirectory
+	}
+	if err := computeWritablePathValidator(runRoot, partition, account); err != nil {
+		return fmt.Errorf("run output root %q is not writable on Slurm compute nodes: %w", runRoot, err)
+	}
+	return nil
+}
+
 func resolveBackendAndSite(
 	projectBackend configv1.Backend,
 	projectBackendSource configv1.ValueSource,
@@ -207,11 +276,11 @@ func resolveBackendAndSite(
 	backendOverride configv1.Backend,
 	siteOverride string,
 	detector *site.Detector,
-) (configv1.Backend, configv1.ValueSource, configv1.BackendEvidence, string, configv1.ValueSource, error) {
+) (backendResolution, error) {
 	backend, backendSource := projectBackend, projectBackendSource
 	if backendOverride != "" {
 		if backendOverride != configv1.BackendLocal && backendOverride != configv1.BackendSlurm {
-			return "", "", configv1.BackendEvidence{}, "", "", fmt.Errorf("backend override must be local or slurm")
+			return backendResolution{}, fmt.Errorf("backend override must be local or slurm")
 		}
 		backend, backendSource = backendOverride, configv1.SourceCLI
 	}
@@ -222,24 +291,76 @@ func resolveBackendAndSite(
 	}
 
 	locator := site.DefaultLocator()
-
 	if backend == configv1.BackendAuto {
 		result, err := detector.Detect(locator, siteID)
 		if err != nil {
-			return "", "", configv1.BackendEvidence{}, "", "", fmt.Errorf("backend auto-detection failed: %w", err)
+			return backendResolution{}, fmt.Errorf("backend auto-detection failed: %w", err)
 		}
-		return result.Backend, configv1.SourceDetection, result.Evidence, result.SiteID, configv1.SourceDetection, nil
+		return backendResolution{
+			Backend:        result.Backend,
+			BackendSource:  configv1.SourceDetection,
+			Evidence:       result.Evidence,
+			SiteID:         result.SiteID,
+			SiteSource:     result.Source,
+			SitePaths:      result.SitePaths,
+			SiteResources:  result.SiteResources,
+			SlurmResources: result.SlurmResources,
+		}, nil
 	}
 
 	result, err := detector.Validate(backend, locator, siteID)
 	if err != nil {
-		return "", "", configv1.BackendEvidence{}, "", "", fmt.Errorf("backend validation failed: %w", err)
+		return backendResolution{}, fmt.Errorf("backend validation failed: %w", err)
 	}
 	if siteID == "auto" {
 		siteID = result.SiteID
-		siteSource = configv1.SourceDetection
+		siteSource = result.Source
 	}
-	return backend, backendSource, result.Evidence, siteID, siteSource, nil
+	return backendResolution{
+		Backend:        backend,
+		BackendSource:  backendSource,
+		Evidence:       result.Evidence,
+		SiteID:         siteID,
+		SiteSource:     siteSource,
+		SitePaths:      result.SitePaths,
+		SiteResources:  result.SiteResources,
+		SlurmResources: result.SlurmResources,
+	}, nil
+}
+
+func mergeResources(projectResources configv1.ProjectResources, siteResources configv1.ProjectResources) configv1.ProjectResources {
+	resolved := configv1.ProjectResources{
+		Defaults: projectResources.Defaults,
+		Phases:   make(map[string]configv1.ResourceSpec, len(projectResources.Phases)+len(siteResources.Phases)),
+	}
+	for phase, resourceSpec := range projectResources.Phases {
+		resolved.Phases[phase] = resourceSpec
+	}
+	resolved.Defaults = mergeResourceSpec(resolved.Defaults, siteResources.Defaults)
+	for phase, siteResourceSpec := range siteResources.Phases {
+		resolved.Phases[phase] = mergeResourceSpec(resolved.Phases[phase], siteResourceSpec)
+	}
+	if len(resolved.Phases) == 0 {
+		resolved.Phases = nil
+	}
+	return resolved
+}
+
+func mergeResourceSpec(projectResource configv1.ResourceSpec, siteResource configv1.ResourceSpec) configv1.ResourceSpec {
+	resolved := projectResource
+	if siteResource.Cores != 0 {
+		resolved.Cores = siteResource.Cores
+	}
+	if siteResource.Memory != "" {
+		resolved.Memory = siteResource.Memory
+	}
+	if siteResource.Time != "" {
+		resolved.Time = siteResource.Time
+	}
+	if siteResource.Partition != "" {
+		resolved.Partition = siteResource.Partition
+	}
+	return resolved
 }
 
 func resolveProjectPath(path string) (string, string, error) {

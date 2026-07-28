@@ -57,6 +57,13 @@ func assertCreatedAtIsYAMLString(t *testing.T, path string) {
 	t.Fatal("created_at node not found")
 }
 
+func TestDigestPathsRejectsMissingRequiredAssets(t *testing.T) {
+	requiredAssetPath := filepath.Join(t.TempDir(), "missing-workflow-asset")
+	if _, err := DigestPaths([]string{requiredAssetPath}); err == nil {
+		t.Fatal("expected a missing required workflow asset to fail closed")
+	}
+}
+
 func TestWriteSnapshotIsImmutableAndDetectsDigestDrift(t *testing.T) {
 	projectRoot := t.TempDir()
 	runID := "run-20260726T013245Z-abcdef"

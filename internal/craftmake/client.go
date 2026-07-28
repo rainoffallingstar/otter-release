@@ -50,6 +50,35 @@ type Result struct {
 	ExitCode int
 }
 
+// ExitCodeError preserves Craftmake's classified process status through Otter's executor boundary.
+type ExitCodeError struct {
+	Code    int
+	Command Command
+	Cause   error
+}
+
+func (errorValue *ExitCodeError) Error() string {
+	if errorValue.Cause != nil {
+		return fmt.Sprintf("Craftmake %s failed with exit code %d: %v", errorValue.Command, errorValue.Code, errorValue.Cause)
+	}
+	return fmt.Sprintf("Craftmake %s failed with exit code %d", errorValue.Command, errorValue.Code)
+}
+
+func (errorValue *ExitCodeError) Unwrap() error {
+	return errorValue.Cause
+}
+
+func (errorValue *ExitCodeError) ExitCode() int {
+	return errorValue.Code
+}
+
+func NewExitCodeError(command Command, exitCode int, cause error) error {
+	if exitCode <= 0 {
+		exitCode = 1
+	}
+	return &ExitCodeError{Code: exitCode, Command: command, Cause: cause}
+}
+
 func (result Result) Failed() bool {
 	return result.ExitCode != 0 || !result.Envelope.OK
 }
@@ -75,20 +104,23 @@ func Execute(ctx context.Context, request Request) (Result, error) {
 	case <-ctx.Done():
 		_ = syscall.Kill(-command.Process.Pid, syscall.SIGTERM)
 		<-processDone
-		return Result{ExitCode: 8, Stdout: standardOutput.String(), Stderr: standardError.String()}, ctx.Err()
+		return Result{ExitCode: 8, Stdout: standardOutput.String(), Stderr: standardError.String()}, NewExitCodeError(request.Command, 8, ctx.Err())
 	case waitErr := <-processDone:
 		result := Result{Stdout: standardOutput.String(), Stderr: standardError.String(), ExitCode: exitCode(waitErr)}
-		if parseErr := parseEnvelope(result.Stdout, &result.Envelope); parseErr != nil {
+		if parseErr := parseEnvelope(result.Stdout, request.Command, &result.Envelope); parseErr != nil {
 			if waitErr != nil {
-				return result, fmt.Errorf("Craftmake %s failed without a valid envelope: %w: %s", request.Command, waitErr, parseErr)
+				return result, NewExitCodeError(request.Command, result.ExitCode, fmt.Errorf("failed without a valid envelope: %w: %s", waitErr, parseErr))
 			}
 			return result, fmt.Errorf("Craftmake %s returned invalid JSON envelope: %w", request.Command, parseErr)
+		}
+		if waitErr != nil || result.Failed() {
+			return result, NewExitCodeError(request.Command, result.ExitCode, waitErr)
 		}
 		return result, nil
 	}
 }
 
-func parseEnvelope(output string, envelope *Envelope) error {
+func parseEnvelope(output string, expectedCommand Command, envelope *Envelope) error {
 	trimmedOutput := strings.TrimSpace(output)
 	if trimmedOutput == "" {
 		return errors.New("empty stdout")
@@ -101,6 +133,9 @@ func parseEnvelope(output string, envelope *Envelope) error {
 	}
 	if envelope.Command == "" {
 		return errors.New("missing command")
+	}
+	if envelope.Command != string(expectedCommand) {
+		return fmt.Errorf("unexpected command %q, expected %q", envelope.Command, expectedCommand)
 	}
 	return nil
 }
@@ -120,8 +155,12 @@ func exitCode(err error) int {
 
 func ResolveBinary(configuredPath string) (string, error) {
 	if strings.TrimSpace(configuredPath) != "" {
-		if _, err := os.Stat(configuredPath); err != nil {
+		fileInfo, err := os.Stat(configuredPath)
+		if err != nil {
 			return "", fmt.Errorf("inspect Craftmake binary %q: %w", configuredPath, err)
+		}
+		if fileInfo.IsDir() {
+			return "", fmt.Errorf("Craftmake binary path %q is a directory", configuredPath)
 		}
 		return configuredPath, nil
 	}

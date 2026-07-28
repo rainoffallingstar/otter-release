@@ -74,6 +74,13 @@ func (resolver Resolver) resolve(role configv1.ReferenceRole, selection configv1
 	if !supportsScenario(definition.Compatibility.Scenarios, scenario) {
 		return configv1.ResolvedReference{}, fmt.Errorf("reference %s does not support scenario %s", selection, scenario)
 	}
+	verification, err := VerifyRelease(releaseRoot, manifestDigest)
+	if err != nil {
+		return configv1.ResolvedReference{}, fmt.Errorf("verify reference %s checksums: %w", selection, err)
+	}
+	if !verification.Passed {
+		return configv1.ResolvedReference{}, fmt.Errorf("verify reference %s checksums: %s", selection, formatVerificationIssues(verification.Issues))
+	}
 
 	resolved := configv1.ResolvedReference{
 		Role:           role,
@@ -124,4 +131,12 @@ func supportsScenario(scenarios []configv1.Scenario, expected configv1.Scenario)
 		}
 	}
 	return false
+}
+
+func formatVerificationIssues(issues []VerificationIssue) string {
+	if len(issues) == 0 {
+		return "unknown verification failure"
+	}
+	firstIssue := issues[0]
+	return fmt.Sprintf("%s %s: expected %s, got %s", firstIssue.Asset, firstIssue.Path, firstIssue.Expected, firstIssue.Actual)
 }

@@ -23,6 +23,7 @@ func main() {
 	}()
 
 	if err := cmd.ExecuteContext(ctx); err != nil {
-		log.Fatal(err)
+		log.Print(err)
+		os.Exit(cmd.ExitCode(err))
 	}
 }

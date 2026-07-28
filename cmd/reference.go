@@ -1,16 +1,29 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
+	"time"
 
 	configv1 "github.com/rainoffallingstar/otter/internal/config/v1"
 	refpkg "github.com/rainoffallingstar/otter/internal/reference"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
+
+const referencePromotionAuditRelativePath = ".otter/reference-promotions.jsonl"
+
+type referencePromotionAuditRecord struct {
+	Timestamp    time.Time               `json:"timestamp"`
+	Action       string                  `json:"action"`
+	RunID        string                  `json:"run_id"`
+	LockPath     string                  `json:"lock_path"`
+	PreviousLock configv1.ReferencesLock `json:"previous_lock"`
+	PromotedLock configv1.ReferencesLock `json:"promoted_lock"`
+}
 
 var referenceCmd = &cobra.Command{
 	Use:   "reference",
@@ -43,8 +56,15 @@ func runReferencePromote(command *cobra.Command, runYamlPath string, confirm boo
 	if err != nil {
 		return err
 	}
-	projectRoot := filepath.Dir(filepath.Dir(filepath.Dir(runYamlPath)))
-	lockPath := filepath.Join(projectRoot, "references.lock.yaml")
+	absoluteRunPath, err := filepath.Abs(runYamlPath)
+	if err != nil {
+		return fmt.Errorf("resolve run snapshot path: %w", err)
+	}
+	expectedRunPath := filepath.Join(runSnapshot.Paths.RunRoot, "run.yaml")
+	if filepath.Clean(absoluteRunPath) != filepath.Clean(expectedRunPath) {
+		return fmt.Errorf("run snapshot path %q does not match immutable paths.run_root %q", absoluteRunPath, runSnapshot.Paths.RunRoot)
+	}
+	lockPath := filepath.Join(runSnapshot.Project.Root, "references.lock.yaml")
 	currentLock, err := configv1.LoadReferencesLock(lockPath)
 	if err != nil {
 		return fmt.Errorf("load current lock %q: %w", lockPath, err)
@@ -98,36 +118,93 @@ func runReferencePromote(command *cobra.Command, runYamlPath string, confirm boo
 		return nil
 	}
 
+	if err := configv1.ValidateReferencesLock(proposedLock); err != nil {
+		return fmt.Errorf("validate proposed reference lock: %w", err)
+	}
 	lockData, err := yaml.Marshal(proposedLock)
 	if err != nil {
 		return fmt.Errorf("marshal proposed lock: %w", err)
 	}
-	tmpPath := lockPath + ".tmp"
-	if err := os.WriteFile(tmpPath, lockData, 0o644); err != nil {
-		return fmt.Errorf("write temporary lock: %w", err)
+	if err := writeAtomicLock(lockPath, lockData); err != nil {
+		return err
 	}
-	if err := os.Rename(tmpPath, lockPath); err != nil {
-		os.Remove(tmpPath)
-		return fmt.Errorf("atomically update lock %q: %w", lockPath, err)
+	if err := appendReferencePromotionAudit(runSnapshot.Project.Root, lockPath, currentLock, proposedLock, runSnapshot.Run.ID); err != nil {
+		return fmt.Errorf("reference lock was updated but promotion audit could not be persisted: %w", err)
 	}
 	fmt.Fprintln(command.OutOrStdout(), "Lock updated successfully.")
 	fmt.Fprintf(command.OutOrStdout(), "Promoted from run: %s\n", runSnapshot.Run.ID)
 	return nil
 }
 
-func loadRunSnapshot(path string) (configv1.RunSnapshot, error) {
-	data, err := os.Open(path)
+func appendReferencePromotionAudit(projectRoot, lockPath string, previousLock, promotedLock configv1.ReferencesLock, runID string) error {
+	auditRecord := referencePromotionAuditRecord{
+		Timestamp:    time.Now().UTC(),
+		Action:       "reference_promote",
+		RunID:        runID,
+		LockPath:     lockPath,
+		PreviousLock: previousLock,
+		PromotedLock: promotedLock,
+	}
+	encodedRecord, err := json.Marshal(auditRecord)
 	if err != nil {
-		return configv1.RunSnapshot{}, fmt.Errorf("open run snapshot %q: %w", path, err)
+		return fmt.Errorf("encode promotion audit: %w", err)
 	}
-	defer data.Close()
-	var snapshot configv1.RunSnapshot
-	decoder := yaml.NewDecoder(data)
-	decoder.KnownFields(true)
-	if err := decoder.Decode(&snapshot); err != nil {
-		return configv1.RunSnapshot{}, fmt.Errorf("parse run snapshot %q: %w", path, err)
+	auditPath := filepath.Join(projectRoot, referencePromotionAuditRelativePath)
+	if err := os.MkdirAll(filepath.Dir(auditPath), 0o755); err != nil {
+		return fmt.Errorf("create promotion audit directory: %w", err)
 	}
-	return snapshot, nil
+	auditFile, err := os.OpenFile(auditPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		return fmt.Errorf("open promotion audit %q: %w", auditPath, err)
+	}
+	defer auditFile.Close()
+	if _, err := auditFile.Write(append(encodedRecord, '\n')); err != nil {
+		return fmt.Errorf("append promotion audit %q: %w", auditPath, err)
+	}
+	if err := auditFile.Sync(); err != nil {
+		return fmt.Errorf("sync promotion audit %q: %w", auditPath, err)
+	}
+	return nil
+}
+
+func writeAtomicLock(path string, content []byte) error {
+	temporaryFile, err := os.CreateTemp(filepath.Dir(path), ".references-lock-*")
+	if err != nil {
+		return fmt.Errorf("create temporary lock: %w", err)
+	}
+	temporaryPath := temporaryFile.Name()
+	defer os.Remove(temporaryPath)
+	if err := temporaryFile.Chmod(0o644); err != nil {
+		_ = temporaryFile.Close()
+		return fmt.Errorf("set temporary lock permissions: %w", err)
+	}
+	if _, err := temporaryFile.Write(content); err != nil {
+		_ = temporaryFile.Close()
+		return fmt.Errorf("write temporary lock: %w", err)
+	}
+	if err := temporaryFile.Sync(); err != nil {
+		_ = temporaryFile.Close()
+		return fmt.Errorf("sync temporary lock: %w", err)
+	}
+	if err := temporaryFile.Close(); err != nil {
+		return fmt.Errorf("close temporary lock: %w", err)
+	}
+	if err := os.Rename(temporaryPath, path); err != nil {
+		return fmt.Errorf("atomically update lock %q: %w", path, err)
+	}
+	directory, err := os.Open(filepath.Dir(path))
+	if err != nil {
+		return fmt.Errorf("open lock directory: %w", err)
+	}
+	defer directory.Close()
+	if err := directory.Sync(); err != nil {
+		return fmt.Errorf("sync lock directory: %w", err)
+	}
+	return nil
+}
+
+func loadRunSnapshot(path string) (configv1.RunSnapshot, error) {
+	return configv1.LoadRunSnapshot(path)
 }
 
 func buildLockDiff(currentLock *configv1.ReferencesLock, snapshot configv1.RunSnapshot) []string {
@@ -185,7 +262,7 @@ func resolvedReferenceForRole(references []configv1.ResolvedReference, role conf
 
 func verifyResolvedReferences(snapshot configv1.RunSnapshot) error {
 	for _, ref := range snapshot.References.Resolved {
-		report, err := refpkg.VerifyChecksums(ref.RegistryRoot)
+		report, err := refpkg.VerifyRelease(ref.RegistryRoot, ref.ManifestDigest)
 		if err != nil {
 			return fmt.Errorf("verify %s (%s@%s): %w", ref.Role, ref.ID, ref.Release, err)
 		}

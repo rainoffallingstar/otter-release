@@ -85,10 +85,7 @@ func DigestPaths(paths []string) (string, error) {
 	for _, path := range sortedPaths {
 		info, err := os.Stat(path)
 		if err != nil {
-			if os.IsNotExist(err) {
-				continue
-			}
-			return "", fmt.Errorf("inspect digest path %s: %w", path, err)
+			return "", fmt.Errorf("inspect required digest path %s: %w", path, err)
 		}
 		if info.IsDir() {
 			if _, err := io.WriteString(hasher, filepath.Base(path)+"/\x00"); err != nil {

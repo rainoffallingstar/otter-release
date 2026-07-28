@@ -51,7 +51,7 @@ func newConfigResolveCommand() *cobra.Command {
 		},
 	}
 	command.Flags().StringVar(&flags.ProjectPath, "project", "project.yaml", "Canonical project configuration")
-	command.Flags().StringVar(&flags.ReferenceRoot, "reference-root", "", "Absolute shared reference registry root")
+	command.Flags().StringVar(&flags.ReferenceRoot, "reference-root", "", "Absolute shared reference registry root; defaults to the selected site profile")
 	command.Flags().StringVar(&flags.Executor, "executor", "", "Override executor: craftmake or snakemake")
 	command.Flags().StringVar(&flags.Backend, "backend", "", "Resolved backend override: local or slurm")
 	command.Flags().StringVar(&flags.Site, "site", "", "Resolved site override")
@@ -60,7 +60,6 @@ func newConfigResolveCommand() *cobra.Command {
 	command.Flags().StringVar(&flags.HostReference, "reference-host", "", "Run-level host reference override as id@release")
 	command.Flags().StringVar(&flags.RunID, "run-id", "", "Explicit run ID matching run-YYYYMMDDTHHMMSSZ-abcdef")
 	command.Flags().StringVar(&flags.ParentRunID, "parent-run-id", "", "Optional lineage parent run ID")
-	command.MarkFlagRequired("reference-root")
 	return command
 }
 

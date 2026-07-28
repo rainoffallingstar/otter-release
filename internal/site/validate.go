@@ -98,32 +98,60 @@ func ValidateSlurmMaxJobs(maxJobs int) error {
 	return nil
 }
 
-func CheckComputeNodePath(path string) error {
+func CheckLoginNodePath(path string) error {
 	if strings.TrimSpace(path) == "" {
 		return fmt.Errorf("path cannot be empty")
 	}
-	cmd := exec.Command("bash", "-c", fmt.Sprintf("test -d %q && test -r %q", path, path))
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("path %q is not accessible on the login node", path)
+	if err := exec.Command("test", "-d", path).Run(); err != nil {
+		return fmt.Errorf("path %q is not a directory on the login node", path)
+	}
+	if err := exec.Command("test", "-r", path).Run(); err != nil {
+		return fmt.Errorf("path %q is not readable on the login node", path)
+	}
+	return nil
+}
+
+func CheckLoginNodeWritableDirectory(path string) error {
+	if err := CheckLoginNodePath(path); err != nil {
+		return err
+	}
+	if err := exec.Command("test", "-w", path).Run(); err != nil {
+		return fmt.Errorf("path %q is not writable on the login node", path)
 	}
 	return nil
 }
 
 func ValidateComputeNodePath(path string, partition string, account string) error {
+	return validateComputeNodeDirectory(path, partition, account, false)
+}
+
+func ValidateComputeNodeWritableDirectory(path string, partition string, account string) error {
+	return validateComputeNodeDirectory(path, partition, account, true)
+}
+
+func validateComputeNodeDirectory(path string, partition string, account string, requireWritable bool) error {
 	if strings.TrimSpace(path) == "" {
 		return fmt.Errorf("path cannot be empty")
+	}
+	checkCommand := `test -d "$1" && test -r "$1"`
+	if requireWritable {
+		checkCommand += ` && test -w "$1"`
 	}
 	args := []string{
 		"--ntasks=1",
 		"--partition=" + partition,
 		"--account=" + account,
-		"bash", "-c", fmt.Sprintf("test -d %q && test -r %q", path, path),
+		"bash", "-c", checkCommand, "--", path,
 	}
 	cmd := exec.Command("srun", args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("path %q is not accessible on compute nodes (partition %q, account %q): %w\n%s",
-			path, partition, account, err, string(output))
+		access := "accessible"
+		if requireWritable {
+			access = "readable and writable"
+		}
+		return fmt.Errorf("path %q is not %s on compute nodes (partition %q, account %q): %w\n%s",
+			path, access, partition, account, err, string(output))
 	}
 	return nil
 }

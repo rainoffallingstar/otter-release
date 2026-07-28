@@ -29,6 +29,25 @@ execution:
     value: production-cluster
     source: detection
   resources: {}
+  slurm:
+    partition:
+      value: compute
+      source: profile
+    account:
+      value: genomics
+      source: profile
+    qos:
+      value: normal
+      source: profile
+    max_jobs:
+      value: 64
+      source: profile
+    default_time:
+      value: "24:00:00"
+      source: profile
+    scratch_root:
+      value: /scratch/otter
+      source: profile
 
 samples:
   - id: S01
@@ -38,6 +57,10 @@ samples:
     batch: B1
     adapter_r1: AUTO
     adapter_r2: AUTO
+    r1_sha256: sha256:9999999999999999999999999999999999999999999999999999999999999999
+    r1_size_bytes: 1024
+    r2_sha256: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    r2_size_bytes: 1024
 
 references:
   project_selection:
@@ -72,6 +95,15 @@ paths:
   logs: /shared/projects/cohort-a/runs/run-20260726T013245Z-kxqjrm/logs
   state: /shared/projects/cohort-a/runs/run-20260726T013245Z-kxqjrm/state
   metrics: /shared/projects/cohort-a/runs/run-20260726T013245Z-kxqjrm/metrics
+  project_config: /shared/projects/cohort-a/project.yaml
+  samples_manifest: /shared/projects/cohort-a/samples.tsv
+  references_lock: /shared/projects/cohort-a/references.lock.yaml
+  workflow_assets:
+    - /shared/projects/cohort-a/workflows
+    - /shared/projects/cohort-a/rules
+    - /shared/projects/cohort-a/environments
+    - /shared/projects/cohort-a/schemas
+    - /shared/projects/cohort-a/project.lock.yaml
 
 digests:
   project: sha256:6666666666666666666666666666666666666666666666666666666666666666

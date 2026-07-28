@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -11,6 +12,7 @@ import (
 
 	configv1 "github.com/rainoffallingstar/otter/internal/config/v1"
 	craftmakeclient "github.com/rainoffallingstar/otter/internal/craftmake"
+	execution "github.com/rainoffallingstar/otter/internal/execution"
 	taskruntime "github.com/rainoffallingstar/otter/internal/task"
 	"github.com/spf13/cobra"
 )
@@ -55,7 +57,12 @@ func executeCraftmakeRun(command *cobra.Command) (runErr error) {
 			finalStatus := taskruntime.StatusCompleted
 			errorMessage := ""
 			if runErr != nil {
-				exitCode = 1
+				var craftmakeExitError *craftmakeclient.ExitCodeError
+				if errors.As(runErr, &craftmakeExitError) {
+					exitCode = craftmakeExitError.ExitCode()
+				} else {
+					exitCode = 1
+				}
 				finalStatus = taskruntime.StatusFailed
 				errorMessage = runErr.Error()
 			}
@@ -71,7 +78,7 @@ func executeCraftmakeRun(command *cobra.Command) (runErr error) {
 			})
 		}()
 	}
-	configPath, _, snapshot, err := loadCraftmakeSnapshot()
+	configPath, _, snapshot, err := loadCraftmakeSnapshot(command)
 	if err != nil {
 		return err
 	}
@@ -108,8 +115,8 @@ func executeCraftmakeRun(command *cobra.Command) (runErr error) {
 	})
 }
 
-func submitBackgroundCraftmakeRun() error {
-	configPath, projectDir, snapshot, err := loadCraftmakeSnapshot()
+func submitBackgroundCraftmakeRun(command *cobra.Command) error {
+	configPath, projectDir, snapshot, err := loadCraftmakeSnapshot(command)
 	if err != nil {
 		return err
 	}
@@ -186,23 +193,23 @@ func submitBackgroundCraftmakeRun() error {
 	return nil
 }
 
-func loadCraftmakeSnapshot() (string, string, configv1.RunSnapshot, error) {
-	configPath, projectDir, err := resolveRunPaths(runConfigFile, runProjectDir)
+func loadCraftmakeSnapshot(command *cobra.Command) (string, string, configv1.RunSnapshot, error) {
+	if err := rejectCraftmakeRuntimeOverrides(command); err != nil {
+		return "", "", configv1.RunSnapshot{}, err
+	}
+	configPath, _, err := resolveRunPaths(runConfigFile, runProjectDir)
 	if err != nil {
 		return "", "", configv1.RunSnapshot{}, err
 	}
-	snapshot, err := configv1.LoadRunSnapshot(configPath)
+	invocation, err := execution.LoadRunInvocation(configPath, configv1.ExecutorCraftmake)
 	if err != nil {
 		return "", "", configv1.RunSnapshot{}, fmt.Errorf("Craftmake executor requires an immutable otter.run/v1 run.yaml: %w", err)
 	}
-	if snapshot.Execution.Executor.Value != configv1.ExecutorCraftmake {
-		return "", "", configv1.RunSnapshot{}, fmt.Errorf("run snapshot selects executor %q, not craftmake", snapshot.Execution.Executor.Value)
-	}
-	resolvedBackend := string(snapshot.Execution.Backend.Value)
+	resolvedBackend := string(invocation.Snapshot.Execution.Backend.Value)
 	if runBackend != "auto" && runBackend != resolvedBackend {
 		return "", "", configv1.RunSnapshot{}, fmt.Errorf("--backend %s conflicts with immutable run backend %s", runBackend, resolvedBackend)
 	}
-	return configPath, projectDir, snapshot, nil
+	return invocation.SnapshotPath, invocation.ProjectDirectory, invocation.Snapshot, nil
 }
 
 func craftmakeRunArguments(configPath string, snapshot configv1.RunSnapshot) (craftmakeclient.Command, []string, error) {
@@ -239,8 +246,23 @@ func craftmakeRunArguments(configPath string, snapshot configv1.RunSnapshot) (cr
 		"--run-id", snapshot.Run.ID,
 		"--max-parallel", fmt.Sprintf("%d", parallelJobs),
 	)
-	if slurmPartition != "" {
-		arguments = append(arguments, "--partition", slurmPartition)
-	}
 	return craftmakeclient.CommandRun, arguments, nil
+}
+
+func rejectCraftmakeRuntimeOverrides(command *cobra.Command) error {
+	immutableFlags := []string{
+		"slurm-partition", "slurm-cores", "slurm-memory", "slurm-unified-partition",
+		"step1-cores", "step1-memory", "step1-partition",
+		"step2-cores", "step2-memory", "step2-partition",
+		"step3-cores", "step3-memory", "step3-partition",
+		"step2-checker-cores", "step2-checker-memory",
+		"step3-checker-cores", "step3-checker-memory",
+		"copy-fastq", "move-fastq", "compress-fastq",
+	}
+	for _, flagName := range immutableFlags {
+		if command.Flags().Changed(flagName) {
+			return fmt.Errorf("--%s cannot override an immutable run snapshot; resolve a new run.yaml instead", flagName)
+		}
+	}
+	return nil
 }

@@ -1,15 +1,15 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/rainoffallingstar/otter/internal/reference"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
-
-const fixtureReferenceDigest = "sha256:1111111111111111111111111111111111111111111111111111111111111111"
 
 func TestConfigResolveGoldenPathProducesImmutableRunSnapshot(t *testing.T) {
 	projectRoot := t.TempDir()
@@ -70,7 +70,7 @@ func TestConfigResolveGoldenPathProducesImmutableRunSnapshot(t *testing.T) {
 	}
 }
 
-func TestConfigResolveRejectsAutoBackendBeforeGateThree(t *testing.T) {
+func TestConfigResolveRejectsAutoAsResolvedBackendOverride(t *testing.T) {
 	projectRoot := t.TempDir()
 	referenceRoot := filepath.Join(projectRoot, "reference-registry")
 
@@ -82,7 +82,7 @@ func TestConfigResolveRejectsAutoBackendBeforeGateThree(t *testing.T) {
 		"--backend", "auto",
 	)
 	if output.exitCode == 0 {
-		t.Fatalf("expected config resolve with --backend auto to fail closed before Gate 3; got stdout=%q stderr=%q", output.stdout, output.stderr)
+		t.Fatalf("expected --backend auto to be rejected as a resolved backend override; got stdout=%q stderr=%q", output.stdout, output.stderr)
 	}
 }
 
@@ -119,19 +119,25 @@ observability:
 `
 	writeTestFile(t, filepath.Join(projectRoot, "project.yaml"), project)
 	writeTestFile(t, filepath.Join(projectRoot, "samples.tsv"), "sample_id\tr1\tr2\nS01\tdata/S01_R1.fastq.gz\tdata/S01_R2.fastq.gz\n")
-	lock := `schema_version: otter.references.lock/v1
-references:
-  primary:
-    id: hg38
-    release: GRCh38.p14
-    manifest_digest: ` + fixtureReferenceDigest + "\n"
-	writeTestFile(t, filepath.Join(projectRoot, "references.lock.yaml"), lock)
-	if err := os.MkdirAll(filepath.Join(projectRoot, "workflows"), 0o755); err != nil {
-		t.Fatal(err)
+	writeTestFile(t, filepath.Join(projectRoot, "data", "S01_R1.fastq.gz"), "@S01/1\nACGT\n+\nIIII\n")
+	writeTestFile(t, filepath.Join(projectRoot, "data", "S01_R2.fastq.gz"), "@S01/2\nTGCA\n+\nIIII\n")
+	for _, directoryName := range []string{"workflows", "rules", "environments", "schemas"} {
+		if err := os.MkdirAll(filepath.Join(projectRoot, directoryName), 0o755); err != nil {
+			t.Fatal(err)
+		}
 	}
 	writeTestFile(t, filepath.Join(projectRoot, "workflows", "rrbs.yaml"), "name: rrbs\n")
+	writeTestFile(t, filepath.Join(projectRoot, "project.lock.yaml"), "schema_version: otter.project.lock/v1\n")
 	releaseRoot := filepath.Join(referenceRoot, "genomes", "hg38", "GRCh38.p14")
-	definition := `schema_version: otter.reference/v1
+	fastaContent := ">chr1\nACGT\n"
+	fastaDigest := reference.ComputeDigest(fastaContent)
+	indexContent := "index\n"
+	indexDigest := reference.ComputeDigest(indexContent)
+	indexManifestDigest := reference.ComputeDigest("index.bin:" + indexDigest)
+	writeTestFile(t, filepath.Join(releaseRoot, "fasta", "genome.fa.gz"), fastaContent)
+	writeTestFile(t, filepath.Join(releaseRoot, "fasta", "genome.fa.gz.fai"), "chr1\t4\t0\t4\t5\n")
+	writeTestFile(t, filepath.Join(releaseRoot, "indexes", "bismark", "index.bin"), indexContent)
+	definition := fmt.Sprintf(`schema_version: otter.reference/v1
 reference:
   id: hg38
   release: GRCh38.p14
@@ -140,20 +146,38 @@ reference:
 assets:
   fasta:
     path: fasta/genome.fa.gz
-    sha256: ` + fixtureReferenceDigest + `
-    size_bytes: 1
+    sha256: %s
+    size_bytes: %d
     fai: fasta/genome.fa.gz.fai
   indexes:
     - type: bismark
       path: indexes/bismark
-      reference_fasta_sha256: ` + fixtureReferenceDigest + `
+      reference_fasta_sha256: %s
       tool: bismark
       tool_version: test
-      manifest_sha256: ` + fixtureReferenceDigest + `
+      manifest_sha256: %s
 compatibility:
   scenarios: [rrbs]
-`
+`, fastaDigest, len(fastaContent), fastaDigest, indexManifestDigest)
 	writeTestFile(t, filepath.Join(releaseRoot, "reference.yaml"), definition)
+	report, err := reference.BuildManifest(releaseRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := report.Write(""); err != nil {
+		t.Fatal(err)
+	}
+	manifestData, err := os.ReadFile(filepath.Join(releaseRoot, "manifest.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lock := `schema_version: otter.references.lock/v1
+references:
+  primary:
+    id: hg38
+    release: GRCh38.p14
+    manifest_digest: ` + reference.ComputeDigest(string(manifestData)) + "\n"
+	writeTestFile(t, filepath.Join(projectRoot, "references.lock.yaml"), lock)
 }
 
 func writeTestFile(t *testing.T, path string, content string) {

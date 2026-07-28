@@ -12,8 +12,7 @@ rule all:
     expand(os.path.join(config["output"]["trim_dir"], "{sample}_R1.fastq.gz_trimming_report.txt"),sample = SIDs),
     expand(os.path.join(config["output"]["trim_dir"], "{sample}_R2.fastq.gz_trimming_report.txt"),sample = SIDs),
     expand(os.path.join(config["directories"]["qc"]["after"], "{sample}_val_1_fastqcx", "fastqc_data.txt"), sample=SIDs),
-    expand(os.path.join(config["directories"]["qc"]["after"], "{sample}_val_2_fastqcx", "fastqc_data.txt"), sample=SIDs),
-    os.path.join(config["directories"]["sid_log"], "step1_success.txt")
+    expand(os.path.join(config["directories"]["qc"]["after"], "{sample}_val_2_fastqcx", "fastqc_data.txt"), sample=SIDs)
 
 # 第一次QC
 include: "rules/01fastqcxAtfirst.smk"
@@ -23,7 +22,3 @@ include: "rules/02fastq2trim.smk"
 
 # 第二次QC
 include: "rules/03-0-fastqcxAtclean.smk"
-
-# step checker
-
-include: "rules/rnaseq_step1_checker.smk"

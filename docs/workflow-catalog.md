@@ -1,16 +1,16 @@
 # Otter Workflow Catalog
 
-> 状态：目标 catalog，双轨实现已完成（Craftmake + Snakemake）。每个场景已拥有完整的 workflow YAML 和 snakefile。
+> 状态：四个 Craftmake workflow families（覆盖五个 scenario）和 Snakemake compatibility completion path 都可生成同一 immutable artifact manifest contract；但尚未满足完整 workflow orchestration、真实 Snakemake/SLURM execution、科学 parity 或 sbatch 生产验证的完成条件。
 
 ## 实施状态 (2026-07)
 
-| Scenario | Craftmake workflow YAML | Snakemake snakefile | Phase chain | 验证状态 |
+| Scenario | Craftmake workflow YAML | Snakemake snakefile | 当前 publish 状态 | 验证状态 |
 |---|---|---|---|---|
-| RRBS | `craftmake/workflows/BeaverBS/step1–3.yaml` (+ checks) | `inst/snakefiles/BeaverBS*.snakemake` | 7 phases | ✅ |
-| WGBS | 同上（共享 BeaverBS） | 同上 | 7 phases | ✅ |
-| RNA-seq | `craftmake/workflows/BeaverRNA/step1–2.yaml` (+ check) | `inst/snakefiles/BeaverRNA*.snakemake` | 7 phases (no step3) | ✅ |
-| BS-PDX | `craftmake/workflows/BeaverPDX/step1–3.yaml` (+ checks) | `inst/snakefiles/BeaverPDX*.snakemake` | 8 phases (+ separate) | ✅ |
-| RNA-PDX | `craftmake/workflows/BeaverRNASEQPDX/step1–3.yaml` (+ checks) | `inst/snakefiles/BeaverRNASEQPDX*.snakemake` | 8 phases (+ separate) | ✅ |
+| RRBS | `craftmake/workflows/BeaverBS/step1–3.yaml` (+ checks, `publish.yaml`) | `inst/snakefiles/BeaverBS*.snakemake` | Craftmake and post-success Snakemake compatibility stage Methrix HDF5、Bismark HTML 与 QC workbook through the shared immutable manifest API | contract-only |
+| WGBS | 同上（共享 BeaverBS） | 同上 | 同 RRBS；artifact declaration 未按 WGBS 单独分化 | contract-only |
+| RNA-seq | `craftmake/workflows/BeaverRNA/step1–2.yaml` (+ check, `publish.yaml`) | `inst/snakefiles/BeaverRNA*.snakemake` | Both paths publish count/normalized matrices、QC workbook 与 typed splicing outcome/实际 splicing files | contract-only |
+| BS-PDX | `craftmake/workflows/BeaverPDX/step1–3.yaml` (+ checks, `publish.yaml`) | `inst/snakefiles/BeaverPDX*.snakemake` | Both paths stage graft BAM/BAI、samtools mapped-read classification、Methrix HDF5、Bismark HTML 与 QC workbook | contract-only |
+| RNA-PDX | `craftmake/workflows/BeaverRNASEQPDX/step1–3.yaml` (+ checks, `publish.yaml`) | `inst/snakefiles/BeaverRNASEQPDX*.snakemake` | Both paths publish graft BAM/BAI、classification、matrices、QC 与 typed splicing outcome/实际 splicing files | contract-only |
 
 ## 正交维度
 
@@ -93,7 +93,7 @@ ingest → qc_raw → prepare → separate → align → quantify → qc_final �
 ingest → qc_raw → prepare → separate → align → quantify → qc_final → publish
 ```
 
-使用 RNA-specific species separation 与 STAR/GTF quantification。Snakemake 兼容资产中历史 `XenofilteR_RNA.smk` 引用在进入生产 matrix 前必须修正并锁定 digest。
+使用 RNA-specific species separation 与 STAR/GTF quantification。Snakemake compatibility assets use the immutable run's digest-bound Picard fixed-BAM and common Xenofilx filtered BAM/BAI contract; actual Snakemake execution remains required before it enters a production matrix.
 
 关键 artifact：classification counts、graft RNA FASTQ/BAM、STAR BAM、gene counts/matrix、splicing tables、QC summary。
 
@@ -114,18 +114,29 @@ ingest → qc_raw → prepare → separate → align → quantify → qc_final �
 
 ## Artifact contract
 
-每个发布 artifact 至少记录：
+发布器必须在 publish 边界写入 `<run>/results/artifacts.json`，其 JSON Schema 为 `docs/schema/otter-artifacts-v1.schema.json`。manifest 绑定 immutable `run_id`、`run.yaml` digest、scenario/toolchain/executor/backend；所有 artifact path 相对 `results/`，并固定 checksum 与比较器。
 
-```yaml
-id: methylation-matrix
-path: results/methylation/matrix.h5
-media_type: application/x-hdf5
-schema: methrix-se/v1
-checksum: sha256:...
-comparison:
-  tier: scientific
-  comparator: methrix-semantics/v1
+`otter artifact publish <run>/run.yaml <declarations.json>` 只接受 `docs/schema/otter-artifact-declarations-v1.schema.json` 定义的 versioned declaration document；该 document 声明 artifact metadata 与 comparator，但 checksum 只能由 publisher 在读取稳定 regular file 后计算。
+
+Phase-local sample validation uses `docs/schema/otter-sample-artifacts-validation-v1.schema.json` where migrated. `otter.sample-artifacts-validation/v1` records workflow/phase, validated sample dimensions, and every regular non-empty input file's path, media type, byte size, and SHA-256; it is not an artifact-publication manifest. PDX aggregate filtered BAM validation uses `docs/schema/otter-filtered-bam-validation-v1.schema.json`; `otter.filtered-bam-validation/v1` binds every graft sample to its regular filtered BAM/BAI paths, sizes, SHA-256 checksums, and mapped-read count.
+
+Craftmake `BeaverBS/publish.yaml`、`BeaverRNA/publish.yaml`、`BeaverPDX/publish.yaml`、`BeaverRNASEQPDX/publish.yaml` 与 Snakemake compatibility completion path 都使用相同的 versioned declaration / immutable manifest APIs。BeaverBS stage Methrix HDF5、Bismark summary 与 QC workbook；BeaverRNA stage count/normalized expression matrices、QC workbook、`otter.rna-splicing-outcome/v1` outcome 与 status 为 `produced` 时的实际 splicing files；两条 PDX producer 都验证每个 graft BAM/BAI pair 和 mapped-read count，并分别 stage 自己的科学产物。RNA-PDX 使用相同 typed outcome contract，不再将 success marker 声明为 scientific artifact。`inst/rules/` 与 `inst/rules_legacy/` 的 Snakemake splicing rule 也生成相同的 typed outcome，且当 splicing 工具成功但没有产生文件时 fail closed。兼容发布仅在 `ExecuteAll()` 成功后运行、重新验证 immutable snapshot、在 results-local staging 构建 producer-owned directories、以 create-only manifest publication 完成并立即 checksum verify；当前只有 fixture/local contract evidence，不能视作真实 Snakemake/SLURM publish 证据。
+
+```json
+{
+  "id": "methylation-matrix",
+  "path": "methylation/matrix.h5",
+  "media_type": "application/x-hdf5",
+  "schema": "methrix-se/v1",
+  "checksum": "sha256:...",
+  "comparison": {
+    "tier": "scientific",
+    "comparator": "methrix-semantics/v1"
+  }
+}
 ```
+
+`otter artifact verify <run>/run.yaml` 会重验 immutable snapshot、manifest identity 和所有已声明 artifact checksum。workflow 在生成真实 publish producer 前不得用 success marker 冒充 manifest。
 
 比较 tier：
 

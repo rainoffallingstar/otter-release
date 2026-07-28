@@ -1,6 +1,7 @@
 package reference
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -12,11 +13,11 @@ const fixtureDigest = "sha256:11111111111111111111111111111111111111111111111111
 
 func TestResolveMatchingLockSucceeds(t *testing.T) {
 	referenceRoot := t.TempDir()
-	writeReferenceFixture(t, referenceRoot, "hg38", "GRCh38.p14", false)
+	manifestDigest := writeReferenceFixture(t, referenceRoot, "hg38", "GRCh38.p14", true)
 	lock := configv1.ReferencesLock{
 		SchemaVersion: configv1.ReferencesLockSchemaVersion,
 		References: map[string]configv1.LockedReference{
-			"primary": {ID: "hg38", Release: "GRCh38.p14", ManifestDigest: fixtureDigest},
+			"primary": {ID: "hg38", Release: "GRCh38.p14", ManifestDigest: manifestDigest},
 		},
 	}
 	resolver := Resolver{RegistryRoot: referenceRoot, Lock: lock}
@@ -27,14 +28,64 @@ func TestResolveMatchingLockSucceeds(t *testing.T) {
 	if resolved.ID != "hg38" || resolved.Release != "GRCh38.p14" || resolved.Role != configv1.ReferenceRolePrimary {
 		t.Fatalf("unexpected resolved reference: %+v", resolved)
 	}
-	if resolved.Fasta.SHA256 != fixtureDigest {
+	if resolved.Fasta.SHA256 != ComputeDigest(">chr1\nACGT\n") {
 		t.Fatalf("unexpected fasta digest: %q", resolved.Fasta.SHA256)
 	}
-	if resolved.ManifestDigest != fixtureDigest {
+	if resolved.ManifestDigest != manifestDigest {
 		t.Fatalf("unexpected manifest digest: %q", resolved.ManifestDigest)
 	}
 	if resolved.RegistryRoot == "" {
 		t.Fatal("resolved reference must include registry root")
+	}
+}
+
+func TestVerifyReleaseRejectsReferenceDefinitionDriftNotReflectedInManifestDigest(t *testing.T) {
+	referenceRoot := t.TempDir()
+	manifestDigest := writeReferenceFixture(t, referenceRoot, "hg38", "GRCh38.p14", true)
+	releaseRoot := filepath.Join(referenceRoot, "genomes", "hg38", "GRCh38.p14")
+	definitionPath := filepath.Join(releaseRoot, "reference.yaml")
+	definitionData, err := os.ReadFile(definitionPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(definitionPath, append(definitionData, []byte("# altered after publication\n")...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := VerifyRelease(releaseRoot, manifestDigest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Passed {
+		t.Fatalf("expected reference.yaml drift to fail manifest verification: %#v", report)
+	}
+	if len(report.Issues) == 0 || report.Issues[0].Path != "reference.yaml" {
+		t.Fatalf("expected reference.yaml manifest issue, got %#v", report.Issues)
+	}
+}
+
+func TestVerifyReleaseRejectsUntrackedIndexFile(t *testing.T) {
+	referenceRoot := t.TempDir()
+	manifestDigest := writeReferenceFixture(t, referenceRoot, "hg38", "GRCh38.p14", true)
+	releaseRoot := filepath.Join(referenceRoot, "genomes", "hg38", "GRCh38.p14")
+	writeFile(t, filepath.Join(releaseRoot, "indexes", "bismark", "untracked.bin"), "untracked\n")
+
+	report, err := VerifyRelease(releaseRoot, manifestDigest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Passed {
+		t.Fatalf("expected untracked index file to fail manifest verification: %#v", report)
+	}
+	foundUntrackedFile := false
+	for _, issue := range report.Issues {
+		if issue.Path == "indexes/bismark/untracked.bin" {
+			foundUntrackedFile = true
+			break
+		}
+	}
+	if !foundUntrackedFile {
+		t.Fatalf("expected untracked index file issue, got %#v", report.Issues)
 	}
 }
 
@@ -170,35 +221,55 @@ func TestResolveOverrideRejectsMissingManifest(t *testing.T) {
 	}
 }
 
-func writeReferenceFixture(t *testing.T, referenceRoot string, id string, release string, includeManifest bool) {
+func writeReferenceFixture(t *testing.T, referenceRoot string, id string, release string, includeManifest bool) string {
 	t.Helper()
 	releaseRoot := filepath.Join(referenceRoot, "genomes", id, release)
-	definition := `schema_version: otter.reference/v1
+	fastaContent := ">chr1\nACGT\n"
+	fastaDigest := ComputeDigest(fastaContent)
+	indexContent := "index\n"
+	indexDigest := ComputeDigest(indexContent)
+	indexManifestDigest := ComputeDigest("index.bin:" + indexDigest)
+	writeFile(t, filepath.Join(releaseRoot, "fasta", "genome.fa.gz"), fastaContent)
+	writeFile(t, filepath.Join(releaseRoot, "fasta", "genome.fa.gz.fai"), "chr1\t4\t0\t4\t5\n")
+	writeFile(t, filepath.Join(releaseRoot, "indexes", "bismark", "index.bin"), indexContent)
+	definition := fmt.Sprintf(`schema_version: otter.reference/v1
 reference:
-  id: ` + id + `
-  release: ` + release + `
+  id: %s
+  release: %s
   organism: Homo sapiens
   assembly: test
 assets:
   fasta:
     path: fasta/genome.fa.gz
-    sha256: ` + fixtureDigest + `
-    size_bytes: 1
+    sha256: %s
+    size_bytes: %d
     fai: fasta/genome.fa.gz.fai
   indexes:
     - type: bismark
       path: indexes/bismark
-      reference_fasta_sha256: ` + fixtureDigest + `
+      reference_fasta_sha256: %s
       tool: bismark
       tool_version: test
-      manifest_sha256: ` + fixtureDigest + `
+      manifest_sha256: %s
 compatibility:
   scenarios: [rrbs]
-`
+`, id, release, fastaDigest, len(fastaContent), fastaDigest, indexManifestDigest)
 	writeFile(t, filepath.Join(releaseRoot, "reference.yaml"), definition)
-	if includeManifest {
-		writeFile(t, filepath.Join(releaseRoot, "manifest.json"), "{}\n")
+	if !includeManifest {
+		return ""
 	}
+	report, err := BuildManifest(releaseRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := report.Write(""); err != nil {
+		t.Fatal(err)
+	}
+	manifestData, err := os.ReadFile(filepath.Join(releaseRoot, "manifest.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ComputeDigest(string(manifestData))
 }
 
 func writeFile(t *testing.T, path string, content string) {

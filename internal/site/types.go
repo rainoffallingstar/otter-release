@@ -40,12 +40,13 @@ type SitePaths struct {
 }
 
 type DetectionResult struct {
-	Backend       configv1.Backend
-	SiteID        string
-	Evidence      configv1.BackendEvidence
-	Source        configv1.ValueSource
-	SitePaths     SitePaths
-	SiteResources configv1.ProjectResources
+	Backend        configv1.Backend
+	SiteID         string
+	Evidence       configv1.BackendEvidence
+	Source         configv1.ValueSource
+	SitePaths      SitePaths
+	SiteResources  configv1.ProjectResources
+	SlurmResources configv1.ResolvedSlurmResources
 }
 
 type Locator struct {
@@ -149,6 +150,15 @@ func LoadProfile(path string) (*SiteProfile, error) {
 	profile.Site.Backend = backend
 	if backend == "slurm" && profile.Slurm == nil {
 		return nil, fmt.Errorf("site profile %q has backend slurm but no slurm configuration", path)
+	}
+	if strings.TrimSpace(profile.Paths.ReferenceRoot) != "" && !filepath.IsAbs(profile.Paths.ReferenceRoot) {
+		return nil, fmt.Errorf("site profile %q paths.reference_root must be absolute", path)
+	}
+	if strings.TrimSpace(profile.Paths.ScratchRoot) != "" && !filepath.IsAbs(profile.Paths.ScratchRoot) {
+		return nil, fmt.Errorf("site profile %q paths.scratch_root must be absolute", path)
+	}
+	if backend == "slurm" && strings.TrimSpace(profile.Paths.ReferenceRoot) == "" {
+		return nil, fmt.Errorf("site profile %q requires paths.reference_root for slurm", path)
 	}
 	return &profile, nil
 }

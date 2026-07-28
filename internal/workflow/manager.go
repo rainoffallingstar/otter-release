@@ -79,6 +79,15 @@ func (m *Manager) SetLoadRatio(r float64) {
 	m.loadRatio = r
 }
 
+func (m *Manager) SetConfigFile(path string) error {
+	absolutePath, err := filepath.Abs(path)
+	if err != nil {
+		return fmt.Errorf("resolve workflow config file %q: %w", path, err)
+	}
+	m.configFileAbs = filepath.Clean(absolutePath)
+	return nil
+}
+
 func (m *Manager) ensureRuntimeCache() {
 	if m.cacheReady {
 		return

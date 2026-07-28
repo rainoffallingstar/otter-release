@@ -69,7 +69,8 @@ compatibility:
 
 ## Manifest 与 checksum
 
-- `manifest.json` 是 release 的规范化机器清单，按相对路径排序。
+- `manifest.json` 是 release 的规范化机器清单，按相对路径排序；它必须包含 `reference.yaml`，并覆盖 `fasta/`、`annotations/` 与 `indexes/` 下的每个普通文件。
+- 运行/恢复和 promote 会将 manifest 的已声明 entry 与重新构建的目录快照逐项比较；缺失、未跟踪或 digest 变化均 fail closed。
 - `checksums.sha256` 覆盖 metadata、FASTA、annotation 和 index 文件。
 - directory index 必须展开到文件级 manifest，不能只 hash 目录名。
 - registry 发布采用 staging、校验和原子 rename；已发布 release 不允许原地写入。
@@ -115,7 +116,7 @@ Workflow 不得自行拼接 FASTA/GTF/index 路径，只能消费 `run.yaml` 中
 2. 重新验证 registry 和兼容性。
 3. 生成 project/reference lock diff。
 4. 用户确认后原子更新 lock。
-5. 记录 promoted-from run ID 和旧/新 digest。
+5. 原子更新后将 run ID、旧/新 lock 和更新时间追加到项目的 `.otter/reference-promotions.jsonl`。
 
 ## Fail-closed 验证
 
@@ -129,6 +130,6 @@ Workflow 不得自行拼接 FASTA/GTF/index 路径，只能消费 `run.yaml` 中
 - BS-seq 有匹配 Bismark/Bowtie2 index；
 - PDX graft/host 资产分别完整；
 - scenario、workflow 和 toolchain 在 compatibility 中允许；
-- compute node 能访问 registry 与输出路径。
+- compute node 能访问实际解析出的 registry root；`config resolve --backend slurm` 会在写入 `run.yaml` 前执行 login/compute-node preflight。
 
 失败时不得调用 sbatch；诊断必须给出资产角色、期望值、实际路径和 digest 差异。

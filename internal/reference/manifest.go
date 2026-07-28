@@ -40,7 +40,10 @@ func BuildManifest(releaseRoot string) (*ManifestReport, error) {
 	if !filepath.IsAbs(releaseRoot) {
 		return nil, fmt.Errorf("release root must be absolute")
 	}
-	var entries []ManifestEntry
+	entries := make([]ManifestEntry, 0)
+	if err := appendManifestFile(releaseRoot, filepath.Join(releaseRoot, "reference.yaml"), &entries); err != nil {
+		return nil, fmt.Errorf("include reference definition: %w", err)
+	}
 	walkPaths := []string{
 		filepath.Join(releaseRoot, "fasta"),
 		filepath.Join(releaseRoot, "annotations"),
@@ -89,6 +92,29 @@ func BuildManifest(releaseRoot string) (*ManifestReport, error) {
 		Entries:      entries,
 		ManifestPath: filepath.Join(releaseRoot, "manifest.json"),
 	}, nil
+}
+
+func appendManifestFile(releaseRoot, path string, entries *[]ManifestEntry) error {
+	fileInfo, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("inspect %q: %w", path, err)
+	}
+	if !fileInfo.Mode().IsRegular() {
+		return fmt.Errorf("%q is not a regular file", path)
+	}
+	relativePath, err := filepath.Rel(releaseRoot, path)
+	if err != nil {
+		return fmt.Errorf("resolve relative path for %q: %w", path, err)
+	}
+	fileDigest, err := digestFile(path)
+	if err != nil {
+		return fmt.Errorf("digest %q: %w", path, err)
+	}
+	*entries = append(*entries, ManifestEntry{
+		Path:   filepath.ToSlash(relativePath),
+		SHA256: fileDigest,
+	})
+	return nil
 }
 
 func (report *ManifestReport) Write(path string) error {
@@ -146,6 +172,77 @@ func PublishRelease(releaseRoot string) (*ManifestReport, error) {
 	return report, nil
 }
 
+func VerifyRelease(releaseRoot string, expectedManifestDigest string) (*VerificationReport, error) {
+	manifestPath := filepath.Join(releaseRoot, "manifest.json")
+	actualManifestDigest, err := digestFile(manifestPath)
+	if err != nil {
+		return nil, fmt.Errorf("digest manifest %q: %w", manifestPath, err)
+	}
+	if expectedManifestDigest != "" && actualManifestDigest != expectedManifestDigest {
+		return nil, fmt.Errorf("manifest digest mismatch: expected %s, got %s", expectedManifestDigest, actualManifestDigest)
+	}
+	manifestReport, err := VerifyManifestEntries(releaseRoot, manifestPath)
+	if err != nil {
+		return nil, err
+	}
+	checksumReport, err := VerifyChecksums(releaseRoot)
+	if err != nil {
+		return nil, err
+	}
+	checksumReport.Issues = append(manifestReport.Issues, checksumReport.Issues...)
+	checksumReport.Passed = manifestReport.Passed && checksumReport.Passed
+	return checksumReport, nil
+}
+
+func VerifyManifestEntries(releaseRoot, manifestPath string) (*VerificationReport, error) {
+	manifestData, err := os.ReadFile(manifestPath)
+	if err != nil {
+		return nil, fmt.Errorf("read manifest %q: %w", manifestPath, err)
+	}
+	var declaredEntries []ManifestEntry
+	if err := json.Unmarshal(manifestData, &declaredEntries); err != nil {
+		return nil, fmt.Errorf("parse manifest %q: %w", manifestPath, err)
+	}
+	if len(declaredEntries) == 0 {
+		return nil, fmt.Errorf("manifest %q has no entries", manifestPath)
+	}
+	actualManifest, err := BuildManifest(releaseRoot)
+	if err != nil {
+		return nil, fmt.Errorf("build current manifest for %q: %w", releaseRoot, err)
+	}
+	declaredByPath := make(map[string]string, len(declaredEntries))
+	report := &VerificationReport{Passed: true}
+	for _, entry := range declaredEntries {
+		cleanPath := filepath.ToSlash(filepath.Clean(entry.Path))
+		if entry.Path == "" || filepath.IsAbs(entry.Path) || cleanPath == ".." || strings.HasPrefix(cleanPath, "../") || declaredByPath[cleanPath] != "" {
+			return nil, fmt.Errorf("manifest %q contains invalid or duplicate path %q", manifestPath, entry.Path)
+		}
+		declaredByPath[cleanPath] = entry.SHA256
+	}
+	actualByPath := make(map[string]string, len(actualManifest.Entries))
+	for _, entry := range actualManifest.Entries {
+		actualByPath[entry.Path] = entry.SHA256
+		declaredDigest, exists := declaredByPath[entry.Path]
+		if !exists {
+			report.Passed = false
+			report.Issues = append(report.Issues, VerificationIssue{Asset: "manifest", Path: entry.Path, Expected: "not present", Actual: entry.SHA256})
+			continue
+		}
+		if declaredDigest != entry.SHA256 {
+			report.Passed = false
+			report.Issues = append(report.Issues, VerificationIssue{Asset: "manifest", Path: entry.Path, Expected: declaredDigest, Actual: entry.SHA256})
+		}
+	}
+	for _, entry := range declaredEntries {
+		cleanPath := filepath.ToSlash(filepath.Clean(entry.Path))
+		if _, exists := actualByPath[cleanPath]; !exists {
+			report.Passed = false
+			report.Issues = append(report.Issues, VerificationIssue{Asset: "manifest", Path: cleanPath, Expected: entry.SHA256, Actual: "missing"})
+		}
+	}
+	return report, nil
+}
+
 func VerifyChecksums(releaseRoot string) (*VerificationReport, error) {
 	definitionPath := filepath.Join(releaseRoot, "reference.yaml")
 	definition, err := configv1.LoadReferenceDefinition(definitionPath)
@@ -168,9 +265,15 @@ func VerifyChecksums(releaseRoot string) (*VerificationReport, error) {
 	}
 	if definition.Assets.Fasta.FAI != "" {
 		faiPath := filepath.Join(releaseRoot, definition.Assets.Fasta.FAI)
-		if _, err := os.Stat(faiPath); err != nil {
+		faiFile, openErr := os.Open(faiPath)
+		if openErr != nil {
 			report.Issues = append(report.Issues, VerificationIssue{
-				Asset: "fai", Path: definition.Assets.Fasta.FAI, Expected: "readable FAI file", Actual: fmt.Sprintf("error: %v", err),
+				Asset: "fai", Path: definition.Assets.Fasta.FAI, Expected: "readable FAI file", Actual: fmt.Sprintf("error: %v", openErr),
+			})
+			report.Passed = false
+		} else if closeErr := faiFile.Close(); closeErr != nil {
+			report.Issues = append(report.Issues, VerificationIssue{
+				Asset: "fai", Path: definition.Assets.Fasta.FAI, Expected: "readable FAI file", Actual: fmt.Sprintf("error closing file: %v", closeErr),
 			})
 			report.Passed = false
 		}

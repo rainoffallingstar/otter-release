@@ -94,6 +94,38 @@
       }
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "workflow": {
+            "properties": {
+              "scenario": { "enum": ["bs-pdx", "rna-pdx"] }
+            },
+            "required": ["scenario"]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "references": {
+            "required": ["species"],
+            "not": { "required": ["primary"] },
+            "properties": {
+              "species": {
+                "minItems": 2,
+                "maxItems": 2,
+                "allOf": [
+                  { "contains": { "properties": { "role": { "const": "graft" } }, "required": ["role"] } },
+                  { "contains": { "properties": { "role": { "const": "host" } }, "required": ["role"] } }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
   "$defs": {
     "referenceSelection": {
       "type": "string",

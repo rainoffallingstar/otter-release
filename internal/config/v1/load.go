@@ -2,6 +2,7 @@ package v1
 
 import (
 	"fmt"
+	"io"
 	"os"
 
 	"gopkg.in/yaml.v3"
@@ -101,6 +102,13 @@ func decodeStrictYAML[T yamlDocument](path string) (T, error) {
 	decoder := yaml.NewDecoder(file)
 	decoder.KnownFields(true)
 	if err := decoder.Decode(&document); err != nil {
+		return document, fmt.Errorf("decode %s: %w", path, err)
+	}
+	var trailing yaml.Node
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		if err == nil {
+			return document, fmt.Errorf("decode %s: multiple YAML documents are not supported", path)
+		}
 		return document, fmt.Errorf("decode %s: %w", path, err)
 	}
 	return document, nil

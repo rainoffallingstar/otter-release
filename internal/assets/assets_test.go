@@ -182,7 +182,7 @@ func TestNewAssetCopier_Defaults(t *testing.T) {
 	}
 }
 
-func TestXenofilterSuccessMarkersRequireSuccessfulCommands(t *testing.T) {
+func TestPDXFilteringRulesDeclareValidatedBAMAndBAIOutputs(t *testing.T) {
 	rulePaths := []string{
 		filepath.Join("..", "..", "inst", "rules", "XenofilteR.smk"),
 		filepath.Join("..", "..", "inst", "rules_legacy", "XenofilteR.smk"),
@@ -192,8 +192,136 @@ func TestXenofilterSuccessMarkersRequireSuccessfulCommands(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read xenofilx rule %s: %v", rulePath, err)
 		}
-		if !strings.Contains(string(ruleContent), "&& touch {params.filter_root}/Filtered_bams/filtered_success.txt") {
-			t.Fatalf("xenofilx rule %s can create its success marker without an explicit successful-command guard", rulePath)
+		ruleText := string(ruleContent)
+		for _, requiredSnippet := range []string{
+			"graft_bams=expand(",
+			"{sample}_fixed_",
+			"filtered_bams=expand(",
+			"filtered_bais=expand(",
+			"samtools quickcheck -v",
+			"samtools index",
+			"test -s \"$filtered_bai\"",
+		} {
+			if !strings.Contains(ruleText, requiredSnippet) {
+				t.Fatalf("xenofilx rule %s is missing declared filtered BAM/BAI contract %q", rulePath, requiredSnippet)
+			}
+		}
+		for _, obsoleteMarker := range []string{"filtered_success.txt", "touch "} {
+			if strings.Contains(ruleText, obsoleteMarker) {
+				t.Fatalf("xenofilx rule %s still relies on marker-only completion %q", rulePath, obsoleteMarker)
+			}
+		}
+	}
+}
+
+func TestPDXPatchRulesDeclareFixedBAMOutputs(t *testing.T) {
+	rulePaths := []string{
+		filepath.Join("..", "..", "inst", "rules", "picard_pdx_patch.smk"),
+		filepath.Join("..", "..", "inst", "rules_legacy", "picard_pdx_patch.smk"),
+	}
+	for _, rulePath := range rulePaths {
+		ruleContent, err := os.ReadFile(rulePath)
+		if err != nil {
+			t.Fatalf("read Picard patch rule %s: %v", rulePath, err)
+		}
+		ruleText := string(ruleContent)
+		for _, requiredSnippet := range []string{"fixed_bam=", "{sample}_fixed_{species}.bam", "test -s {output.fixed_bam:q}"} {
+			if !strings.Contains(ruleText, requiredSnippet) {
+				t.Fatalf("Picard patch rule %s is missing fixed BAM contract %q", rulePath, requiredSnippet)
+			}
+		}
+		if strings.Contains(ruleText, "pdx_patch_success") || strings.Contains(ruleText, "touch ") {
+			t.Fatalf("Picard patch rule %s still relies on marker-only completion", rulePath)
+		}
+	}
+}
+
+func TestPDXStep2CheckersTargetDeclaredFilterOutputs(t *testing.T) {
+	checkerPaths := []string{
+		filepath.Join("..", "..", "inst", "snakefiles", "BeaverPDX_step2_checker.snakemake"),
+		filepath.Join("..", "..", "inst", "snakefiles", "BeaverRNASEQPDX_step2_checker.snakemake"),
+		filepath.Join("..", "..", "inst", "snakefiles", "BeaverPDX.snakemake"),
+		filepath.Join("..", "..", "inst", "snakefiles", "BeaverRNASEQPDX.snakemake"),
+		filepath.Join("..", "..", "testdata", "e2e", "test_init", "BeaverPDX_step2_checker.snakemake"),
+		filepath.Join("..", "..", "testdata", "e2e", "test_init", "BeaverRNASEQPDX_step2_checker.snakemake"),
+		filepath.Join("..", "..", "testdata", "e2e", "test_init", "BeaverPDX.snakemake"),
+		filepath.Join("..", "..", "testdata", "e2e", "test_init", "BeaverRNASEQPDX.snakemake"),
+	}
+	for _, checkerPath := range checkerPaths {
+		checkerContent, err := os.ReadFile(checkerPath)
+		if err != nil {
+			t.Fatalf("read PDX step2 checker %s: %v", checkerPath, err)
+		}
+		checkerText := string(checkerContent)
+		for _, requiredSnippet := range []string{
+			"rules/picard_pdx_patch.smk",
+			"rules/XenofilteR.smk",
+			"_fixed_",
+			"_Filtered.bam.bai",
+		} {
+			if !strings.Contains(checkerText, requiredSnippet) {
+				t.Fatalf("PDX step2 checker %s is missing producer contract %q", checkerPath, requiredSnippet)
+			}
+		}
+		for _, obsoleteMarker := range []string{"pdx_patch_success", "filtered_success.txt", "step2_success.txt", "PDXseq_step2_checker.smk", "XenofilteR_RNA.smk"} {
+			if strings.Contains(checkerText, obsoleteMarker) {
+				t.Fatalf("PDX step2 checker %s still targets marker-only completion %q", checkerPath, obsoleteMarker)
+			}
+		}
+	}
+}
+
+func TestRNASnakefilesTargetTypedSplicingOutcomes(t *testing.T) {
+	snakefilePaths := []string{
+		filepath.Join("..", "..", "inst", "snakefiles", "BeaverRNA.snakemake"),
+		filepath.Join("..", "..", "inst", "snakefiles", "BeaverRNA_step2_checker.snakemake"),
+		filepath.Join("..", "..", "inst", "snakefiles", "BeaverRNASEQPDX.snakemake"),
+		filepath.Join("..", "..", "inst", "snakefiles", "BeaverRNASEQPDX_step3.snakemake"),
+		filepath.Join("..", "..", "testdata", "e2e", "test_init", "BeaverRNA.snakemake"),
+		filepath.Join("..", "..", "testdata", "e2e", "test_init", "BeaverRNA_step2.snakemake"),
+		filepath.Join("..", "..", "testdata", "e2e", "test_init", "BeaverRNASEQPDX.snakemake"),
+		filepath.Join("..", "..", "testdata", "e2e", "test_init", "BeaverRNASEQPDX_step3.snakemake"),
+	}
+	for _, snakefilePath := range snakefilePaths {
+		snakefileContent, err := os.ReadFile(snakefilePath)
+		if err != nil {
+			t.Fatalf("read RNA snakefile %s: %v", snakefilePath, err)
+		}
+		snakefileText := string(snakefileContent)
+		if !strings.Contains(snakefileText, "splicing-outcome.json") {
+			t.Fatalf("RNA snakefile %s does not target the typed splicing outcome", snakefilePath)
+		}
+		for _, obsoleteMarker := range []string{"step2_success.txt", "RNASplicing_success.txt"} {
+			if strings.Contains(snakefileText, obsoleteMarker) {
+				t.Fatalf("RNA snakefile %s still targets marker-only completion %q", snakefilePath, obsoleteMarker)
+			}
+		}
+	}
+}
+
+func TestRNAsplicingRulesPublishTypedOutcomes(t *testing.T) {
+	rulePaths := []string{
+		filepath.Join("..", "..", "inst", "rules", "rnaseq_splicing.smk"),
+		filepath.Join("..", "..", "inst", "rules_legacy", "rnaseq_splicing.smk"),
+	}
+	for _, rulePath := range rulePaths {
+		ruleContent, err := os.ReadFile(rulePath)
+		if err != nil {
+			t.Fatalf("read RNA splicing rule %s: %v", rulePath, err)
+		}
+		ruleText := string(ruleContent)
+		for _, requiredSnippet := range []string{
+			"splicing-outcome.json",
+			"otter.rna-splicing-outcome/v1",
+			"\"status\": \"produced\"",
+			"\"status\": \"not_applicable\"",
+		} {
+			if !strings.Contains(ruleText, requiredSnippet) {
+				t.Errorf("RNA splicing rule %s is missing typed outcome contract %q", rulePath, requiredSnippet)
+			}
+		}
+		if strings.Contains(ruleText, "RNASplicing_success.txt") {
+			t.Errorf("RNA splicing rule %s still exposes a marker-only output", rulePath)
 		}
 	}
 }
@@ -213,7 +341,8 @@ func TestWorkflowCommandsQuotePathArguments(t *testing.T) {
 				"--pdata {input.pdata:q}",
 				"--seqlengthQC {params.seqlengthQC:q}",
 				"--gtf {input.gtf:q}",
-				"> {output.marker:q}",
+				"splicing-outcome.json",
+				"otter.rna-splicing-outcome/v1",
 			},
 			forbiddenSnippets: []string{
 				"--root {params.run_dir} ",

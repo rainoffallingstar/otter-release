@@ -15,9 +15,9 @@ type clusterNameGetter func() (string, bool)
 type slurmValidator func(*SiteProfile) error
 
 type Detector struct {
-	checkTool        toolChecker
-	getClusterName   clusterNameGetter
-	validateProfile  slurmValidator
+	checkTool       toolChecker
+	getClusterName  clusterNameGetter
+	validateProfile slurmValidator
 }
 
 type DetectorOption func(*Detector)
@@ -36,9 +36,9 @@ func WithSlurmValidator(validator slurmValidator) DetectorOption {
 
 func NewDetector(options ...DetectorOption) *Detector {
 	detector := &Detector{
-		checkTool:        defaultCheckTool,
-		getClusterName:   defaultGetClusterName,
-		validateProfile:  validateSlurmProfile,
+		checkTool:       defaultCheckTool,
+		getClusterName:  defaultGetClusterName,
+		validateProfile: validateSlurmProfile,
 	}
 	for _, option := range options {
 		option(detector)
@@ -96,12 +96,13 @@ func (detector *Detector) Detect(locator Locator, siteOverride string) (Detectio
 		evidence.Reason = fmt.Sprintf("full SLURM toolchain present on cluster %q; site profile %q", clusterName, profile.Site.ID)
 		siteResources := siteResourcesFromProfile(profile)
 		return DetectionResult{
-			Backend:       configv1.BackendSlurm,
-			SiteID:        profile.Site.ID,
-			Evidence:      evidence,
-			Source:        configv1.SourceDetection,
-			SitePaths:     profile.Paths,
-			SiteResources: siteResources,
+			Backend:        configv1.BackendSlurm,
+			SiteID:         profile.Site.ID,
+			Evidence:       evidence,
+			Source:         configv1.SourceDetection,
+			SitePaths:      profile.Paths,
+			SiteResources:  siteResources,
+			SlurmResources: resolvedSlurmResourcesFromProfile(profile),
 		}, nil
 	}
 
@@ -128,6 +129,33 @@ func (detector *Detector) Validate(requested configv1.Backend, locator Locator, 
 	if requested != configv1.BackendLocal && requested != configv1.BackendSlurm {
 		return DetectionResult{}, fmt.Errorf("cannot validate unsupported backend %q", requested)
 	}
+	if requested == configv1.BackendLocal {
+		result := DetectionResult{
+			Backend: configv1.BackendLocal,
+			SiteID:  defaultLocalSiteID,
+			Evidence: configv1.BackendEvidence{
+				Reason: "local backend explicitly selected",
+			},
+			Source: configv1.SourceCLI,
+		}
+		if siteOverride == "" || siteOverride == "auto" {
+			return result, nil
+		}
+		profile, err := locator.Find(siteOverride)
+		if err != nil {
+			return DetectionResult{}, err
+		}
+		if profile.Site.Backend != string(configv1.BackendLocal) {
+			return DetectionResult{}, fmt.Errorf("site profile %q uses backend %q, not local", profile.Site.ID, profile.Site.Backend)
+		}
+		result.SiteID = profile.Site.ID
+		result.SitePaths = profile.Paths
+		result.SiteResources = siteResourcesFromProfile(profile)
+		result.Source = configv1.SourceProfile
+		result.Evidence.Reason = fmt.Sprintf("local backend explicitly selected with site profile %q", profile.Site.ID)
+		return result, nil
+	}
+
 	detected, err := detector.Detect(locator, siteOverride)
 	if err != nil {
 		return DetectionResult{}, err
@@ -194,6 +222,20 @@ func siteResourcesFromProfile(profile *SiteProfile) configv1.ProjectResources {
 	return configv1.ProjectResources{Defaults: defaults}
 }
 
+func resolvedSlurmResourcesFromProfile(profile *SiteProfile) configv1.ResolvedSlurmResources {
+	if profile == nil || profile.Slurm == nil {
+		return configv1.ResolvedSlurmResources{}
+	}
+	return configv1.ResolvedSlurmResources{
+		Partition: configv1.ResolvedString{Value: profile.Slurm.Partition, Source: configv1.SourceProfile},
+		Account: configv1.ResolvedString{Value: profile.Slurm.Account, Source: configv1.SourceProfile},
+		QOS: configv1.ResolvedString{Value: profile.Slurm.QOS, Source: configv1.SourceProfile},
+		MaxJobs: configv1.ResolvedInt{Value: profile.Slurm.MaxJobs, Source: configv1.SourceProfile},
+		DefaultTime: configv1.ResolvedString{Value: profile.Slurm.DefaultTime, Source: configv1.SourceProfile},
+		ScratchRoot: configv1.ResolvedString{Value: profile.Paths.ScratchRoot, Source: configv1.SourceProfile},
+	}
+}
+
 func validateSlurmProfile(profile *SiteProfile) error {
 	if profile.Slurm == nil {
 		return fmt.Errorf("slurm backend requires slurm configuration")
@@ -224,11 +266,17 @@ func validateSlurmProfile(profile *SiteProfile) error {
 	if err := ValidateSlurmMaxJobs(profile.Slurm.MaxJobs); err != nil {
 		return err
 	}
-	if err := CheckComputeNodePath(profile.Paths.ReferenceRoot); err != nil {
+	if err := CheckLoginNodePath(profile.Paths.ReferenceRoot); err != nil {
+		return fmt.Errorf("reference_root: %w", err)
+	}
+	if err := ValidateComputeNodePath(profile.Paths.ReferenceRoot, profile.Slurm.Partition, profile.Slurm.Account); err != nil {
 		return fmt.Errorf("reference_root: %w", err)
 	}
 	if profile.Paths.ScratchRoot != "" {
-		if err := CheckComputeNodePath(profile.Paths.ScratchRoot); err != nil {
+		if err := CheckLoginNodePath(profile.Paths.ScratchRoot); err != nil {
+			return fmt.Errorf("scratch_root: %w", err)
+		}
+		if err := ValidateComputeNodePath(profile.Paths.ScratchRoot, profile.Slurm.Partition, profile.Slurm.Account); err != nil {
 			return fmt.Errorf("scratch_root: %w", err)
 		}
 	}
