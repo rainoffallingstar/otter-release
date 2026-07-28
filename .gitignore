@@ -47,6 +47,8 @@ temp/
 # Bioinformatics workflow outputs
 userspace/
 workflow/
+!internal/workflow/
+!internal/workflow/**
 analysis/
 saveRDS/
 www/
