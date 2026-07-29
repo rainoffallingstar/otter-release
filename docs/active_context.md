@@ -9,7 +9,7 @@
   - `reference.BuildRelease(BuildRequest): BuildResult`: copies FASTA/GTF, runs `samtools faidx`, builds selected real Bismark/Bowtie2/STAR indexes, writes typed metadata and verifies publication.
 - **Data Flow**: source FASTA + GTF → sibling staging release → FAI + selected indexes → `reference.yaml` + `manifest.json` + `checksums.sha256` → atomic directory rename.
 - **Dependencies**: `samtools`, selected index-build executables, shared registry filesystem.
-- **Status**: default registry root is `$OTTER_REFERENCE_ROOT`, else `~/.otter/references`; complete releases require at least one real index and are sealed read-only. Gate 6 still requires trusted source provenance and a Paracloud compute-node visibility preflight before any built release can be used. The first bounded mouse build is `mm10-canary@GRCm38-gencode-M25-chr19-MT`, derived from GENCODE contigs `19,MT` only; it is technical-canary-only and cannot stand in for a full `mm10`/`mm38` reference.
+- **Status**: default registry root is `$OTTER_REFERENCE_ROOT`, else `~/.otter/references`; complete releases require at least one real index and are sealed read-only. Gate 6 still requires trusted source provenance and a Paracloud compute-node visibility preflight before any built release can be used. The first bounded mouse build is `mm10-canary@GRCm38-gencode-M25-chr19`, using Ensembl GRCm38 chromosome `19` FASTA and a GENCODE M25 GTF filtered to `19`; it is technical-canary-only and cannot stand in for a full `mm10`/`mm38` reference.
 
 ### Typed run resolver
 - **Path**: `internal/config/v1/`, `internal/config/resolver/`, `internal/run/`
@@ -52,7 +52,7 @@
 |---|---|---|---|
 | `ProjectConfig` / `RunSnapshot` | `internal/config/v1/types.go` | workflow, execution, paths, references | canonical project/run contract |
 | `BuildRequest` / `BuildResult` | `internal/reference/build_types.go` | source FASTA/GTF, registry identity, selected indexes, published paths/digest | immutable reference-release build |
-| `ReferenceBuild` configuration | `craftmake/workflows/ReferenceBuild/build.yaml` | source URLs/MD5, allowed contigs, release/tool paths, evidence paths | Gate 6 Slurm reference-build DAG |
+| `ReferenceBuild` configuration | `craftmake/workflows/ReferenceBuild/build.yaml` | source URLs/checksums, allowed contigs, release/tool paths, evidence paths | Gate 6 Slurm reference-build DAG |
 | `RunInvocation` | `internal/execution/invocation.go` | snapshot path, project/run/state/results paths | executor-neutral run boundary |
 | `SnakemakeArtifactPublicationRequest` | `internal/workflow/snakemake_artifacts.go` | immutable snapshot, snapshot path, samtools/declaration paths | post-success compatibility publication |
 | `ExitCodeError` | `internal/craftmake/client.go` | command, classified code, cause | retain Craftmake exit classification |
