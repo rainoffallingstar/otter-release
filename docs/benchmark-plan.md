@@ -1,6 +1,6 @@
 # Otter Benchmark Plan
 
-> 状态：Gate 6 实施计划。本地可实施部分（failure injection + metrics schema）已完成；集群 canary/representative/scale 需 SLURM 环境。
+> 状态：Gate 6 实施计划。Paracloud compute-node runtime 与 SRA metadata-only canary selection 已完成；本地 failure injection + metrics schema 已完成。真实集群 canary、representative 与 scale 尚未执行，先决条件是经校验且 compute-node 可见的 reference registry 与冻结的 canary FASTQ。
 
 ## 1. Benchmark Matrix
 
@@ -27,13 +27,27 @@
 
 | Gate 6 子项 | 集群需求 | 状态 |
 |---|---|---|
-| canary | SLURM + otter-core env + reference registry + 1 套测试 FASTQ (RRBS/WGBS/RNA/PDX 各 1) | 阻塞（需集群） |
-| representative | SLURM + 20-cell 数据 + 每 cell ≥ 3 次重复运行 | 阻塞（需 60 次 SLURM 提交） |
-| failure injection | 可在 local backend 验证 cancel/test-failure/digest-drift；controller-loss 需 sbatch | 本地已完成框架 |
-| scale | 生产规模 + scheduler pressure 监控 | 阻塞（需生产数据） |
+| canary | 已接受的 Paracloud runtime + reference registry + 受控、已校验的测试 FASTQ (RRBS/WGBS/RNA/PDX 各 1) | 阻塞：reference registry 与 FASTQ acquisition/downsampling；真实 run 未开始 |
+| representative | SLURM + 20-cell 数据 + 每 cell ≥ 3 次重复运行 | 阻塞：canary/parity 通过后需 60 次 SLURM 提交 |
+| failure injection | 可在 local backend 验证 cancel/test-failure/digest-drift；controller-loss 需 sbatch | 本地已完成框架；真实 workflow recovery 待 canary |
+| scale | 生产规模 + scheduler pressure 监控 | 阻塞：真实 canary/representative 与生产数据 |
 | metrics | 报告格式和生成器已实现 | ✅ |
 
-## 4. Benchmark Metrics Schema
+## 4. Gate 6 Reference-build Baseline
+
+Gate 6 reference releases are built on Paracloud compute nodes, not login nodes. `mm10` and `mm38` are aliases for the same `GRCm38` assembly and therefore share one immutable release rather than creating divergent duplicate indexes.
+
+| Logical ID | Assembly / annotation | Source release | Gate 6 aliases | Required assets |
+|---|---|---|---|---|
+| `hg19` | GRCh37.p13 / GENCODE v19 | GENCODE human release 19 | `human`, `grch37` | FASTA, FAI, GTF, Bismark/Bowtie2/STAR indexes |
+| `hg38` | GRCh38 / GENCODE v44 | GENCODE human release 44 | `human`, `grch38` | FASTA, FAI, GTF, Bismark/Bowtie2/STAR indexes |
+| `mm10` | GRCm38 / GENCODE M25 | GENCODE mouse release M25 | `mouse`, `mm10`, `mm38`, `grcm38` | FASTA, FAI, GTF, Bismark/Bowtie2/STAR indexes |
+
+The candidate GENCODE source URLs and provider MD5 values were independently reachable from Paracloud on 2026-07-29. Before acceptance, the compute-node build must download to a controlled cache, verify the provider MD5, decompress to the canonical build inputs, record SHA-256, construct indexes with the accepted `otter-core` runtime, atomically publish through `otter reference build`, and verify the final release plus compute-node visibility. A build run must retain its Craftmake state, controller log, Slurm accounting, generated source-manifest, and final manifest digest as immutable Gate 6 evidence.
+
+The first bounded build is `mm10-canary@GRCm38-gencode-M25-chr19-MT`: GENCODE M25's contigs `19,MT` only, with Bismark/Bowtie2/STAR indexes. This is deliberately a technical canary for Craftmake/Slurm/index/publication/recovery validation; it must never be reported as a full `mm10`/`mm38` result or used for scientific parity. A successful canary de-risks the larger `mm10`/`mm38` release but does not satisfy its acceptance criteria.
+
+## 5. Benchmark Metrics Schema
 
 ```json
 {
@@ -66,7 +80,7 @@
 }
 ```
 
-## 5. Failure Injection Tests (local backend)
+## 6. Failure Injection Tests (local backend)
 
 | 测试 | 场景 | 预期行为 | 状态 |
 |---|---|---|---|
@@ -76,7 +90,7 @@
 | `controller loss` | 进程崩溃后 resume | orphan task 检测 → 重新调度 → 复用 cache | ✅ 已实现（`resume_integration_test.go`） |
 | `reference digest mismatch` | reference.yaml 声明 digest ≠ 实际文件 | `VerifyChecksums` 失败 → fail before sbatch | ✅ 已实现（`manifest.go`） |
 
-## 6. Run Metrics Collection
+## 7. Run Metrics Collection
 
 每个 run 写入 `run.yaml` 后，Craftmake 执行过程中产生：
 
@@ -86,7 +100,7 @@
 
 benchmark 聚合工具读取 N 个 run 的 metrics 并生成 `benchmark.json`。
 
-## 7. 实施检查清单
+## 8. 实施检查清单
 
 - [x] 6.1 — Benchmark plan + metrics schema
 - [x] 6.2 — Failure injection tests (local) 

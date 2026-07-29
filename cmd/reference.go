@@ -30,6 +30,21 @@ var referenceCmd = &cobra.Command{
 	Short: "Manage reference registry assets",
 }
 
+var referenceBuildCmd = &cobra.Command{
+	Use:   "build",
+	Short: "Build and atomically publish an immutable reference release",
+	Long: `Copy a FASTA and GTF into a staged reference release, generate its FAI,
+build real Bismark, Bowtie2, and STAR indexes by default, then write
+reference.yaml, manifest.json, and checksums.sha256 before atomically publishing.
+
+The default registry root is $OTTER_REFERENCE_ROOT when set, otherwise
+~/.otter/references. A release that already exists is never overwritten.`,
+	Args: cobra.NoArgs,
+	RunE: func(command *cobra.Command, args []string) error {
+		return runReferenceBuild(command)
+	},
+}
+
 var referencePromoteCmd = &cobra.Command{
 	Use:   "promote <run-yaml-path>",
 	Short: "Promote a run's effective reference selection to the project lock",
@@ -46,9 +61,75 @@ The run ID is recorded as promoted_from_run_id for audit.`,
 }
 
 func init() {
+	referenceBuildCmd.Flags().String("registry-root", "", "Registry root (default: $OTTER_REFERENCE_ROOT or ~/.otter/references)")
+	referenceBuildCmd.Flags().String("id", "", "Stable reference identifier, for example hg38")
+	referenceBuildCmd.Flags().String("release", "", "Immutable reference release, for example GRCh38.p14")
+	referenceBuildCmd.Flags().String("organism", "", "Scientific organism name")
+	referenceBuildCmd.Flags().String("assembly", "", "Assembly name")
+	referenceBuildCmd.Flags().String("fasta", "", "Source FASTA file")
+	referenceBuildCmd.Flags().String("gtf", "", "Source GTF file")
+	referenceBuildCmd.Flags().StringSlice("alias", nil, "Optional reference alias; may be repeated")
+	referenceBuildCmd.Flags().StringSlice("indexes", nil, "Indexes to build: bismark,bowtie2,star (default: all)")
+	referenceBuildCmd.Flags().StringSlice("scenario", nil, "Supported scenario; defaults from selected indexes")
+	referenceBuildCmd.Flags().String("samtools", "samtools", "samtools executable used for FASTA indexing")
+	referenceBuildCmd.Flags().String("bismark-genome-preparation", "bismark_genome_preparation", "Bismark genome-preparation executable")
+	referenceBuildCmd.Flags().String("bowtie2-build", "bowtie2-build", "bowtie2-build executable")
+	referenceBuildCmd.Flags().String("star", "STAR", "STAR executable")
+	referenceBuildCmd.Flags().Int("star-sjdb-overhang", 149, "STAR sjdbOverhang used for genome generation")
+
 	referencePromoteCmd.Flags().Bool("confirm", false, "Apply the promotion (default is preview-only)")
 	rootCmd.AddCommand(referenceCmd)
+	referenceCmd.AddCommand(referenceBuildCmd)
 	referenceCmd.AddCommand(referencePromoteCmd)
+}
+
+func runReferenceBuild(command *cobra.Command) error {
+	registryRoot, _ := command.Flags().GetString("registry-root")
+	referenceID, _ := command.Flags().GetString("id")
+	release, _ := command.Flags().GetString("release")
+	organism, _ := command.Flags().GetString("organism")
+	assembly, _ := command.Flags().GetString("assembly")
+	sourceFastaPath, _ := command.Flags().GetString("fasta")
+	sourceGTFPath, _ := command.Flags().GetString("gtf")
+	aliases, _ := command.Flags().GetStringSlice("alias")
+	indexes, _ := command.Flags().GetStringSlice("indexes")
+	scenarioValues, _ := command.Flags().GetStringSlice("scenario")
+	scenarios := make([]configv1.Scenario, 0, len(scenarioValues))
+	for _, scenarioValue := range scenarioValues {
+		scenarios = append(scenarios, configv1.Scenario(scenarioValue))
+	}
+	samtoolsBinary, _ := command.Flags().GetString("samtools")
+	bismarkBinary, _ := command.Flags().GetString("bismark-genome-preparation")
+	bowtie2Binary, _ := command.Flags().GetString("bowtie2-build")
+	starBinary, _ := command.Flags().GetString("star")
+	starSJDBOverhang, _ := command.Flags().GetInt("star-sjdb-overhang")
+
+	result, err := refpkg.BuildRelease(refpkg.BuildRequest{
+		Context:          command.Context(),
+		RegistryRoot:     registryRoot,
+		ReferenceID:      referenceID,
+		Release:          release,
+		Organism:         organism,
+		Assembly:         assembly,
+		Aliases:          aliases,
+		SourceFastaPath:  sourceFastaPath,
+		SourceGTFPath:    sourceGTFPath,
+		Scenarios:        scenarios,
+		Indexes:          indexes,
+		SamtoolsBinary:   samtoolsBinary,
+		BismarkBinary:    bismarkBinary,
+		Bowtie2Binary:    bowtie2Binary,
+		STARBinary:       starBinary,
+		STARSJDBOverhang: starSJDBOverhang,
+	})
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(command.OutOrStdout(), "Reference release published: %s\n", result.ReleaseRoot)
+	fmt.Fprintf(command.OutOrStdout(), "reference.yaml: %s\n", result.DefinitionPath)
+	fmt.Fprintf(command.OutOrStdout(), "manifest.json: %s\n", result.ManifestPath)
+	fmt.Fprintf(command.OutOrStdout(), "manifest digest: %s\n", result.ManifestDigest)
+	return nil
 }
 
 func runReferencePromote(command *cobra.Command, runYamlPath string, confirm bool) error {

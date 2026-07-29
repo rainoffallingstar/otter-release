@@ -25,6 +25,35 @@ $OTTER_REFERENCE_ROOT/
 - release 目录不可变；任何资产修订必须生成新 release 或新 manifest digest。
 - 项目 lock 不硬编码集群 mount path；site resolver 在生成 `run.yaml` 时解析实际路径。
 
+## Build a release
+
+`otter reference build` 将用户提供的 FASTA 与 GTF 复制到 staging release，在该 staging 中生成 FAI 和真实 index，校验后将整个 release 目录原子 rename 到 registry。它生成规范的 `reference.yaml`、`manifest.json` 与 `checksums.sha256`；已有 release 不会被覆盖。
+
+默认 registry root 为 `$OTTER_REFERENCE_ROOT`。该环境变量未设置时，默认值是 `~/.otter/references`。对 Gate 6 shared registry 必须显式设置环境变量或传入 `--registry-root`，并在发布后另行执行 compute-node visibility preflight。
+
+```bash
+export OTTER_REFERENCE_ROOT=/shared/otter/references
+
+otter reference build \
+  --id hg38 \
+  --release GRCh38.p14-gencode-v44 \
+  --organism 'Homo sapiens' \
+  --assembly GRCh38 \
+  --alias human \
+  --fasta /staging/GRCh38.primary_assembly.genome.fa.gz \
+  --gtf /staging/gencode.v44.primary_assembly.annotation.gtf.gz
+```
+
+默认会调用 `samtools faidx`，并构建 `bismark`、`bowtie2` 与 `star` indexes。通过 `--indexes bismark,bowtie2,star` 可显式选择；按选择推导兼容场景。`--indexes star` 仅生成 RNA-seq/RNA-PDX 兼容 release，`--indexes bismark` 仅生成 RRBS/WGBS/BS-PDX 兼容 release。完整 release 不能跳过真实 index 构建：schema 要求至少一个 index，命令不会以 placeholder 文件替代工具输出。
+
+默认 STAR `sjdbOverhang` 为 149；可用 `--star-sjdb-overhang` 指定 read-length 对应值。工具路径可通过 `--samtools`、`--bismark-genome-preparation`、`--bowtie2-build` 与 `--star` 覆盖。每个 index 的工具版本、输入 FASTA digest 与构建参数均写入 `reference.yaml`。
+
+### Gate 6 Craftmake reference builds
+
+Gate 6 source acquisition、provider checksum validation、canary FASTA/GTF derivation and immutable release publication are compiled by the dedicated Craftmake `ReferenceBuild/build` workflow. It uses the explicit `--reference-build-config` contract rather than the historical `--legacy-config` adapter, and its immutable configuration fixes the release identity, URLs, provider MD5 values, accepted tool paths, registry root, evidence directory and allowed contigs. The workflow records Craftmake state/controller logs, Slurm accounting, compressed-source SHA-256 and derived-asset SHA-256 before `otter reference build` atomically publishes the release.
+
+`mm10-canary` is the intentionally small Gate 6 technical reference. It is derived from GENCODE M25/GRCm38 but includes only GENCODE contigs `19` and `MT` (not UCSC-style `chr19`/`chrM`). It is suitable only for scheduler, index, publication, interruption/recovery and minimal pipeline-canary checks. It is **not** an `mm10`/`mm38` substitute for production analysis, full-genome scientific parity, or a project default lock.
+
 ## Reference metadata
 
 `reference.yaml` 描述身份、资产和兼容性：

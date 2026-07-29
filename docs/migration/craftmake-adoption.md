@@ -47,7 +47,7 @@
 
 实现入口：`internal/site/types.go`（SiteProfile + `otter.site/v1` schema）、`internal/site/detect.go`（Detector 状态机 + mockable tool/exec 注入）、`internal/site/validate.go`（partition/account/QOS/path 校验）、`internal/config/resolver/resolver.go`（resolveBackendAndSite 集成，site reference root/resource 注入）。
 
-通过条件：Local contract tests 完整（已实现：auto-detection → local、partial SLURM fail-closed、explicit backend validation、named profile path/resource resolution）；集群 canary 验证 submit/status/cancel/accounting（待 Gate 6 集群环境执行）。
+通过条件：Local contract tests 完整（已实现：auto-detection → local、partial SLURM fail-closed、explicit backend validation、named profile path/resource resolution）；Gate 6 已在 Paracloud compute nodes 验证 runtime provisioning、Slurm submission 与 accounting。对真实 workflow 的 submit/status/cancel/accounting 证据仍待 canary 运行。
 
 ## Gate 4：Reference registry（代码完成，集群 preflight 待执行）
 
@@ -105,7 +105,9 @@ Artifact contract 定义在 `docs/workflow-catalog.md`：每 scenario 声明 pha
 4. [ ] scale：生产规模 throughput 与 scheduler pressure（需生产数据）。
 5. [x] 发布不可变 metrics schema（`docs/benchmark-plan.md`）、parity 报告格式和差异 tier（exact/structural/scientific/informational）。
 
-通过条件：五场景科学 parity、恢复和性能门禁全部通过或有明确限期 waiver（failure injection × local 已全部通过；canary/representative/scale 阻塞于集群可用性）。
+Gate 6 preflight evidence（截至 2026-07-29）：Paracloud compute-node 上的 `otter-core`、`otter-snakemake`、`otter-extra` runtime 已接受；五场景 SRA metadata-only canary selection 已冻结在远端 immutable evidence。该选择不代表 FASTQ acquisition、下采样、reference compatibility 或 workflow 执行已通过。当前硬阻塞是发布并校验具备 FASTA、annotation、Bismark/Bowtie2/STAR indexes、manifest/checksums 的 reference registry，且确认 compute-node visibility；其后依次冻结 canary FASTQ、运行真实双 executor canary、恢复测试、representative 和 scale。
+
+通过条件：五场景科学 parity、恢复和性能门禁全部通过或有明确限期 waiver（failure injection × local 已全部通过；真实 canary/representative/scale 尚未执行）。
 
 ## Gate 7：默认稳定与兼容退场评估
 

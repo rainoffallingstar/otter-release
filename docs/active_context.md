@@ -1,6 +1,15 @@
-# System Context (Updated: 2026-07-28)
+# System Context (Updated: 2026-07-29)
 
 ## 1. 已实现的核心模块 (Modules)
+
+### Reference release builder
+- **Path**: `cmd/reference.go`, `internal/reference/build.go`, `internal/reference/build_types.go`
+- **Public Methods**:
+  - `otter reference build`: stages and atomically publishes a reference release.
+  - `reference.BuildRelease(BuildRequest): BuildResult`: copies FASTA/GTF, runs `samtools faidx`, builds selected real Bismark/Bowtie2/STAR indexes, writes typed metadata and verifies publication.
+- **Data Flow**: source FASTA + GTF → sibling staging release → FAI + selected indexes → `reference.yaml` + `manifest.json` + `checksums.sha256` → atomic directory rename.
+- **Dependencies**: `samtools`, selected index-build executables, shared registry filesystem.
+- **Status**: default registry root is `$OTTER_REFERENCE_ROOT`, else `~/.otter/references`; complete releases require at least one real index and are sealed read-only. Gate 6 still requires trusted source provenance and a Paracloud compute-node visibility preflight before any built release can be used. The first bounded mouse build is `mm10-canary@GRCm38-gencode-M25-chr19-MT`, derived from GENCODE contigs `19,MT` only; it is technical-canary-only and cannot stand in for a full `mm10`/`mm38` reference.
 
 ### Typed run resolver
 - **Path**: `internal/config/v1/`, `internal/config/resolver/`, `internal/run/`
@@ -42,6 +51,8 @@
 | Type Name | File Path | Key Fields | 使用场景 |
 |---|---|---|---|
 | `ProjectConfig` / `RunSnapshot` | `internal/config/v1/types.go` | workflow, execution, paths, references | canonical project/run contract |
+| `BuildRequest` / `BuildResult` | `internal/reference/build_types.go` | source FASTA/GTF, registry identity, selected indexes, published paths/digest | immutable reference-release build |
+| `ReferenceBuild` configuration | `craftmake/workflows/ReferenceBuild/build.yaml` | source URLs/MD5, allowed contigs, release/tool paths, evidence paths | Gate 6 Slurm reference-build DAG |
 | `RunInvocation` | `internal/execution/invocation.go` | snapshot path, project/run/state/results paths | executor-neutral run boundary |
 | `SnakemakeArtifactPublicationRequest` | `internal/workflow/snakemake_artifacts.go` | immutable snapshot, snapshot path, samtools/declaration paths | post-success compatibility publication |
 | `ExitCodeError` | `internal/craftmake/client.go` | command, classified code, cause | retain Craftmake exit classification |
@@ -53,6 +64,7 @@
 | Command | Input Type | Response Type |
 |---|---|---|
 | `otter config resolve` | project v1 inputs | immutable `run.yaml` |
+| `otter reference build` | FASTA + GTF + build/index options | immutable reference release and digest |
 | `otter run` | immutable `run.yaml` | Craftmake or explicit Snakemake task |
 | `otter artifact publish` | `run.yaml` + declarations | immutable manifest |
 | `otter artifact verify` | `run.yaml` | verification report |
@@ -64,5 +76,5 @@
 - [ ] Gate 5: run genuine Snakemake compatibility publish and interruption/retry evidence on real workflows.
 - [ ] Gate 5: retain the content-bearing Craftmake validation-manifest coverage, replace any newly identified marker-only inter-phase edges, and obtain genuine runtime evidence for the declared PDX/RNA-PDX Snakemake fixed/filtered BAM contracts. The all-in-one RNA-PDX entrypoint now uses the digest-bound Picard fixed-BAM and common Xenofilx filtered BAM/BAI assets, but still requires a real Snakemake execution.
 - [ ] Gate 5: complete scientific-semantic comparison for Methrix, BAM/BAI, XLSX QC, and splicing outputs before scientific parity claims; current structural checks do not substitute for it.
-- [ ] Gate 6: run 20-cell sbatch parity matrix, failure/recovery evidence and benchmark; local tests are not substitutes.
+- [ ] Gate 6: Paracloud compute-node runtime provisioning is accepted for `otter-core`, `otter-snakemake`, and `otter-extra` (`gate6-runtime-acceptance.json`). Canary metadata-accessibility selection is immutable evidence at `gate6-canary-accessions-resolved-v1.json` (SHA-256 `d02f4ceeca9c8cb6f5a2bd25326db3467f345adcdae0d392df1047083b0fd43e`): RRBS `SRR31480456`, WGBS `SRR6373947`, RNA-seq `SRR1039508`, BS-PDX `SRR23802966`, and RNA-PDX `SRR30880970`. It does not establish data acquisition, downsampling, reference compatibility, workflow execution, recovery, or scientific parity. Acquire/checksum/downsample sources; publish and validate compute-visible reference registry assets; then run real dual-executor canaries, recovery evidence, the 20-cell sbatch parity matrix, and benchmark. Local tests are not substitutes.
 - [ ] Gate 7: independently evaluate Snakemake retirement after stable Gate 6 evidence.
