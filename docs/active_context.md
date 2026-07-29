@@ -9,7 +9,7 @@
   - `reference.BuildRelease(BuildRequest): BuildResult`: copies FASTA/GTF, runs `samtools faidx`, builds selected real Bismark/Bowtie2/STAR indexes, writes typed metadata and verifies publication.
 - **Data Flow**: source FASTA + GTF → sibling staging release → FAI + selected indexes → `reference.yaml` + `manifest.json` + `checksums.sha256` → atomic directory rename.
 - **Dependencies**: `samtools`, selected index-build executables, shared registry filesystem.
-- **Status**: default registry root is `$OTTER_REFERENCE_ROOT`, else `~/.otter/references`; complete releases require at least one real index and are sealed read-only. Gate 6 still requires trusted source provenance and a Paracloud compute-node visibility preflight before any built release can be used. The first bounded mouse build is `mm10-canary@GRCm38-gencode-M25-chr19`, using Ensembl GRCm38 chromosome `19` FASTA and a GENCODE M25 GTF filtered to `19`; it is technical-canary-only and cannot stand in for a full `mm10`/`mm38` reference.
+- **Status**: default registry root is `$OTTER_REFERENCE_ROOT`, else `~/.otter/references`; complete releases require at least one real index and are sealed read-only. Gate 6 still requires trusted source provenance and a Paracloud compute-node visibility preflight before any built release can be used. The first bounded mouse build is `mm10-canary@GRCm38-ensembl-100-chr19`, using matching Ensembl release 100 GRCm38 chromosome `19` FASTA and GTF assets filtered to `19`; it is technical-canary-only and cannot stand in for a full `mm10`/`mm38` reference.
 
 ### Typed run resolver
 - **Path**: `internal/config/v1/`, `internal/config/resolver/`, `internal/run/`

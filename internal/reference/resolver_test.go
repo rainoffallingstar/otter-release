@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	configv1 "github.com/rainoffallingstar/otter/internal/config/v1"
@@ -36,6 +37,52 @@ func TestResolveMatchingLockSucceeds(t *testing.T) {
 	}
 	if resolved.RegistryRoot == "" {
 		t.Fatal("resolved reference must include registry root")
+	}
+}
+
+func TestResolveAliasUsesCanonicalReleaseWithoutDuplicatingAssets(t *testing.T) {
+	referenceRoot := t.TempDir()
+	writeReferenceFixture(t, referenceRoot, "mm10", "GRCm38", false)
+	releaseRoot := filepath.Join(referenceRoot, "genomes", "mm10", "GRCm38")
+	definitionPath := filepath.Join(releaseRoot, "reference.yaml")
+	definitionData, err := os.ReadFile(definitionPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	aliasedDefinition := strings.Replace(string(definitionData), "  release: GRCm38\n", "  release: GRCm38\n  aliases: [mm38]\n", 1)
+	if err := os.WriteFile(definitionPath, []byte(aliasedDefinition), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	report, err := BuildManifest(releaseRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := report.Write(""); err != nil {
+		t.Fatal(err)
+	}
+	manifestData, err := os.ReadFile(filepath.Join(releaseRoot, "manifest.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifestDigest := ComputeDigest(string(manifestData))
+	resolver := Resolver{
+		RegistryRoot: referenceRoot,
+		Lock: configv1.ReferencesLock{
+			SchemaVersion: configv1.ReferencesLockSchemaVersion,
+			References: map[string]configv1.LockedReference{
+				"primary": {ID: "mm38", Release: "GRCm38", ManifestDigest: manifestDigest},
+			},
+		},
+	}
+	resolved, err := resolver.Resolve(configv1.ReferenceRolePrimary, "mm38@GRCm38", configv1.ScenarioRRBS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolved.ID != "mm38" {
+		t.Fatalf("expected requested alias to remain visible in the resolved selection, got %q", resolved.ID)
+	}
+	if resolved.RegistryRoot != releaseRoot {
+		t.Fatalf("expected mm38 alias to reuse the canonical mm10 release root %q, got %q", releaseRoot, resolved.RegistryRoot)
 	}
 }
 

@@ -46,8 +46,11 @@ func (resolver Resolver) ResolveOverride(role configv1.ReferenceRole, selection 
 	if err != nil {
 		return configv1.ResolvedReference{}, err
 	}
-	manifestPath := filepath.Join(resolver.RegistryRoot, "genomes", id, release, "manifest.json")
-	manifestDigest, err := digestFile(manifestPath)
+	releaseRoot, _, err := resolver.locateRelease(id, release)
+	if err != nil {
+		return configv1.ResolvedReference{}, err
+	}
+	manifestDigest, err := digestFile(filepath.Join(releaseRoot, "manifest.json"))
 	if err != nil {
 		return configv1.ResolvedReference{}, fmt.Errorf("resolve override manifest: %w", err)
 	}
@@ -62,13 +65,11 @@ func (resolver Resolver) resolve(role configv1.ReferenceRole, selection configv1
 	if err != nil {
 		return configv1.ResolvedReference{}, err
 	}
-	releaseRoot := filepath.Join(resolver.RegistryRoot, "genomes", id, release)
-	definitionPath := filepath.Join(releaseRoot, "reference.yaml")
-	definition, err := configv1.LoadReferenceDefinition(definitionPath)
+	releaseRoot, definition, err := resolver.locateRelease(id, release)
 	if err != nil {
 		return configv1.ResolvedReference{}, err
 	}
-	if definition.Reference.ID != id || definition.Reference.Release != release {
+	if definition.Reference.Release != release || !referenceIdentityMatches(definition.Reference, id) {
 		return configv1.ResolvedReference{}, fmt.Errorf("reference definition identity does not match %s", selection)
 	}
 	if !supportsScenario(definition.Compatibility.Scenarios, scenario) {
@@ -109,6 +110,73 @@ func (resolver Resolver) resolve(role configv1.ReferenceRole, selection configv1
 		})
 	}
 	return resolved, nil
+}
+
+func (resolver Resolver) locateRelease(requestedID, release string) (string, configv1.ReferenceDefinition, error) {
+	if !filepath.IsAbs(resolver.RegistryRoot) {
+		return "", configv1.ReferenceDefinition{}, fmt.Errorf("reference registry root must be absolute")
+	}
+
+	directReleaseRoot := filepath.Join(resolver.RegistryRoot, "genomes", requestedID, release)
+	directDefinitionPath := filepath.Join(directReleaseRoot, "reference.yaml")
+	if _, err := os.Stat(directDefinitionPath); err == nil {
+		definition, loadErr := configv1.LoadReferenceDefinition(directDefinitionPath)
+		if loadErr != nil {
+			return "", configv1.ReferenceDefinition{}, loadErr
+		}
+		return directReleaseRoot, definition, nil
+	} else if !os.IsNotExist(err) {
+		return "", configv1.ReferenceDefinition{}, fmt.Errorf("inspect reference definition %s: %w", directDefinitionPath, err)
+	}
+
+	genomesRoot := filepath.Join(resolver.RegistryRoot, "genomes")
+	genomeEntries, err := os.ReadDir(genomesRoot)
+	if err != nil {
+		return "", configv1.ReferenceDefinition{}, fmt.Errorf("list reference registry %s: %w", genomesRoot, err)
+	}
+
+	var aliasReleaseRoot string
+	var aliasDefinition configv1.ReferenceDefinition
+	for _, genomeEntry := range genomeEntries {
+		if !genomeEntry.IsDir() || genomeEntry.Name() == requestedID {
+			continue
+		}
+		candidateReleaseRoot := filepath.Join(genomesRoot, genomeEntry.Name(), release)
+		candidateDefinitionPath := filepath.Join(candidateReleaseRoot, "reference.yaml")
+		if _, statErr := os.Stat(candidateDefinitionPath); os.IsNotExist(statErr) {
+			continue
+		} else if statErr != nil {
+			return "", configv1.ReferenceDefinition{}, fmt.Errorf("inspect reference definition %s: %w", candidateDefinitionPath, statErr)
+		}
+		candidateDefinition, loadErr := configv1.LoadReferenceDefinition(candidateDefinitionPath)
+		if loadErr != nil {
+			return "", configv1.ReferenceDefinition{}, loadErr
+		}
+		if candidateDefinition.Reference.Release != release || !referenceIdentityMatches(candidateDefinition.Reference, requestedID) {
+			continue
+		}
+		if aliasReleaseRoot != "" {
+			return "", configv1.ReferenceDefinition{}, fmt.Errorf("reference alias %q@%s is ambiguous between %s and %s", requestedID, release, aliasReleaseRoot, candidateReleaseRoot)
+		}
+		aliasReleaseRoot = candidateReleaseRoot
+		aliasDefinition = candidateDefinition
+	}
+	if aliasReleaseRoot == "" {
+		return "", configv1.ReferenceDefinition{}, fmt.Errorf("reference %q@%s is not present in registry %s", requestedID, release, resolver.RegistryRoot)
+	}
+	return aliasReleaseRoot, aliasDefinition, nil
+}
+
+func referenceIdentityMatches(identity configv1.ReferenceIdentity, requestedID string) bool {
+	if identity.ID == requestedID {
+		return true
+	}
+	for _, alias := range identity.Aliases {
+		if alias == requestedID {
+			return true
+		}
+	}
+	return false
 }
 
 func digestFile(path string) (string, error) {
