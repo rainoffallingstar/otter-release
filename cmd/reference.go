@@ -76,6 +76,7 @@ func init() {
 	referenceBuildCmd.Flags().String("bowtie2-build", "bowtie2-build", "bowtie2-build executable")
 	referenceBuildCmd.Flags().String("star", "STAR", "STAR executable")
 	referenceBuildCmd.Flags().Int("star-sjdb-overhang", 149, "STAR sjdbOverhang used for genome generation")
+	referenceBuildCmd.Flags().Int("index-build-threads", 1, "Threads for Bowtie2 and STAR; Bismark uses half per CT/GA indexer")
 
 	referencePromoteCmd.Flags().Bool("confirm", false, "Apply the promotion (default is preview-only)")
 	rootCmd.AddCommand(referenceCmd)
@@ -103,24 +104,26 @@ func runReferenceBuild(command *cobra.Command) error {
 	bowtie2Binary, _ := command.Flags().GetString("bowtie2-build")
 	starBinary, _ := command.Flags().GetString("star")
 	starSJDBOverhang, _ := command.Flags().GetInt("star-sjdb-overhang")
+	indexBuildThreads, _ := command.Flags().GetInt("index-build-threads")
 
 	result, err := refpkg.BuildRelease(refpkg.BuildRequest{
-		Context:          command.Context(),
-		RegistryRoot:     registryRoot,
-		ReferenceID:      referenceID,
-		Release:          release,
-		Organism:         organism,
-		Assembly:         assembly,
-		Aliases:          aliases,
-		SourceFastaPath:  sourceFastaPath,
-		SourceGTFPath:    sourceGTFPath,
-		Scenarios:        scenarios,
-		Indexes:          indexes,
-		SamtoolsBinary:   samtoolsBinary,
-		BismarkBinary:    bismarkBinary,
-		Bowtie2Binary:    bowtie2Binary,
-		STARBinary:       starBinary,
-		STARSJDBOverhang: starSJDBOverhang,
+		Context:           command.Context(),
+		RegistryRoot:      registryRoot,
+		ReferenceID:       referenceID,
+		Release:           release,
+		Organism:          organism,
+		Assembly:          assembly,
+		Aliases:           aliases,
+		SourceFastaPath:   sourceFastaPath,
+		SourceGTFPath:     sourceGTFPath,
+		Scenarios:         scenarios,
+		Indexes:           indexes,
+		SamtoolsBinary:    samtoolsBinary,
+		BismarkBinary:     bismarkBinary,
+		Bowtie2Binary:     bowtie2Binary,
+		STARBinary:        starBinary,
+		STARSJDBOverhang:  starSJDBOverhang,
+		IndexBuildThreads: indexBuildThreads,
 	})
 	if err != nil {
 		return err

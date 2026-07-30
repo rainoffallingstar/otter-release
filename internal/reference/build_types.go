@@ -30,12 +30,13 @@ type BuildRequest struct {
 	SourceGTFPath   string
 	Scenarios       []configv1.Scenario
 
-	Indexes          []string
-	SamtoolsBinary   string
-	BismarkBinary    string
-	Bowtie2Binary    string
-	STARBinary       string
-	STARSJDBOverhang int
+	Indexes           []string
+	SamtoolsBinary    string
+	BismarkBinary     string
+	Bowtie2Binary     string
+	STARBinary        string
+	STARSJDBOverhang  int
+	IndexBuildThreads int
 }
 
 // BuildResult identifies the immutable release created by BuildRelease.

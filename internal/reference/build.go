@@ -166,6 +166,9 @@ func prepareBuildRequest(request BuildRequest) (BuildRequest, error) {
 	if request.STARSJDBOverhang < 1 {
 		request.STARSJDBOverhang = 149
 	}
+	if request.IndexBuildThreads < 1 {
+		request.IndexBuildThreads = 1
+	}
 	request.SamtoolsBinary = defaultBinary(request.SamtoolsBinary, "samtools")
 	request.BismarkBinary = defaultBinary(request.BismarkBinary, "bismark_genome_preparation")
 	request.Bowtie2Binary = defaultBinary(request.Bowtie2Binary, "bowtie2-build")
@@ -250,8 +253,18 @@ func buildIndexes(request BuildRequest, stagingReleaseDirectory, stagedFastaPath
 		switch indexType {
 		case ReferenceIndexBismark:
 			toolBinary = request.BismarkBinary
-			parameters.Arguments = []string{"--bowtie2"}
-			if err := buildBismarkIndex(request.Context, toolBinary, stagedFastaPath, indexDirectory); err != nil {
+			bismarkThreads := max(1, request.IndexBuildThreads/2)
+			parameters.Arguments = []string{
+				"--bowtie2",
+				"--parallel", fmt.Sprintf("%d", bismarkThreads),
+			}
+			if err := buildBismarkIndex(
+				request.Context,
+				toolBinary,
+				stagedFastaPath,
+				indexDirectory,
+				bismarkThreads,
+			); err != nil {
 				return nil, err
 			}
 			if err := requireNonEmptyDirectory(filepath.Join(indexDirectory, "genome", "Bisulfite_Genome", "CT_conversion"), "Bismark converted genome output"); err != nil {
@@ -259,11 +272,19 @@ func buildIndexes(request BuildRequest, stagingReleaseDirectory, stagedFastaPath
 			}
 		case ReferenceIndexBowtie2:
 			toolBinary = request.Bowtie2Binary
-			parameters.Arguments = []string{"genome"}
+			parameters.Arguments = []string{
+				"--threads", fmt.Sprintf("%d", request.IndexBuildThreads), "genome",
+			}
 			if err := os.MkdirAll(indexDirectory, 0o755); err != nil {
 				return nil, fmt.Errorf("create Bowtie2 index directory: %w", err)
 			}
-			if err := runTool(request.Context, toolBinary, stagedFastaPath, filepath.Join(indexDirectory, "genome")); err != nil {
+			if err := runTool(
+				request.Context,
+				toolBinary,
+				"--threads", fmt.Sprintf("%d", request.IndexBuildThreads),
+				stagedFastaPath,
+				filepath.Join(indexDirectory, "genome"),
+			); err != nil {
 				return nil, fmt.Errorf("build Bowtie2 index: %w", err)
 			}
 			if err := requireOneRegularFile([]string{
@@ -275,7 +296,10 @@ func buildIndexes(request BuildRequest, stagingReleaseDirectory, stagedFastaPath
 		case ReferenceIndexSTAR:
 			toolBinary = request.STARBinary
 			parameters.SJDBOverhang = request.STARSJDBOverhang
-			parameters.Arguments = []string{"--runMode", "genomeGenerate", "--runThreadN", "1"}
+			parameters.Arguments = []string{
+				"--runMode", "genomeGenerate",
+				"--runThreadN", fmt.Sprintf("%d", request.IndexBuildThreads),
+			}
 			if err := os.MkdirAll(indexDirectory, 0o755); err != nil {
 				return nil, fmt.Errorf("create STAR index directory: %w", err)
 			}
@@ -285,7 +309,7 @@ func buildIndexes(request BuildRequest, stagingReleaseDirectory, stagedFastaPath
 				"--genomeFastaFiles", stagedFastaPath,
 				"--sjdbGTFfile", stagedGTFPath,
 				"--sjdbOverhang", fmt.Sprintf("%d", request.STARSJDBOverhang),
-				"--runThreadN", "1",
+				"--runThreadN", fmt.Sprintf("%d", request.IndexBuildThreads),
 			); err != nil {
 				return nil, fmt.Errorf("build STAR index: %w", err)
 			}
@@ -316,7 +340,7 @@ func buildIndexes(request BuildRequest, stagingReleaseDirectory, stagedFastaPath
 	return indexes, nil
 }
 
-func buildBismarkIndex(ctx context.Context, bismarkBinary, stagedFastaPath, indexDirectory string) error {
+func buildBismarkIndex(ctx context.Context, bismarkBinary, stagedFastaPath, indexDirectory string, indexBuildThreads int) error {
 	genomeDirectory := filepath.Join(indexDirectory, "genome")
 	if err := os.MkdirAll(genomeDirectory, 0o755); err != nil {
 		return fmt.Errorf("create Bismark genome directory: %w", err)
@@ -325,7 +349,13 @@ func buildBismarkIndex(ctx context.Context, bismarkBinary, stagedFastaPath, inde
 	if err := copyRegularFile(stagedFastaPath, bismarkFastaPath); err != nil {
 		return fmt.Errorf("copy FASTA for Bismark preparation: %w", err)
 	}
-	if err := runTool(ctx, bismarkBinary, "--bowtie2", genomeDirectory); err != nil {
+	if err := runTool(
+		ctx,
+		bismarkBinary,
+		"--bowtie2",
+		"--parallel", fmt.Sprintf("%d", indexBuildThreads),
+		genomeDirectory,
+	); err != nil {
 		return fmt.Errorf("build Bismark index: %w", err)
 	}
 	return nil

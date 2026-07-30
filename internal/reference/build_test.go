@@ -18,20 +18,21 @@ func TestBuildReleasePublishesVerifiedImmutableRegistryRelease(t *testing.T) {
 	toolDirectory := filepath.Join(temporaryDirectory, "tools")
 
 	result, err := BuildRelease(BuildRequest{
-		Context:          context.Background(),
-		RegistryRoot:     registryRoot,
-		ReferenceID:      "testgenome",
-		Release:          "v1",
-		Organism:         "Test organism",
-		Assembly:         "TestAssembly",
-		Aliases:          []string{"test", "testgenome"},
-		SourceFastaPath:  sourceFastaPath,
-		SourceGTFPath:    sourceGTFPath,
-		SamtoolsBinary:   writeFakeSamtools(t, toolDirectory),
-		BismarkBinary:    writeFakeBismark(t, toolDirectory, false),
-		Bowtie2Binary:    writeFakeBowtie2(t, toolDirectory),
-		STARBinary:       writeFakeSTAR(t, toolDirectory, false),
-		STARSJDBOverhang: 99,
+		Context:           context.Background(),
+		RegistryRoot:      registryRoot,
+		ReferenceID:       "testgenome",
+		Release:           "v1",
+		Organism:          "Test organism",
+		Assembly:          "TestAssembly",
+		Aliases:           []string{"test", "testgenome"},
+		SourceFastaPath:   sourceFastaPath,
+		SourceGTFPath:     sourceGTFPath,
+		SamtoolsBinary:    writeFakeSamtools(t, toolDirectory),
+		BismarkBinary:     writeFakeBismark(t, toolDirectory, false),
+		Bowtie2Binary:     writeFakeBowtie2(t, toolDirectory),
+		STARBinary:        writeFakeSTAR(t, toolDirectory, false),
+		STARSJDBOverhang:  99,
+		IndexBuildThreads: 8,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -62,6 +63,22 @@ func TestBuildReleasePublishesVerifiedImmutableRegistryRelease(t *testing.T) {
 	}
 	if definition.Assets.Indexes[2].Type != ReferenceIndexSTAR || definition.Assets.Indexes[2].Parameters.SJDBOverhang != 99 {
 		t.Fatalf("STAR index configuration was not recorded: %#v", definition.Assets.Indexes[2])
+	}
+	expectedIndexArguments := [][]string{
+		{"--bowtie2", "--parallel", "4"},
+		{"--threads", "8", "genome"},
+		{"--runMode", "genomeGenerate", "--runThreadN", "8"},
+	}
+	for indexPosition, expectedArguments := range expectedIndexArguments {
+		actualArguments := definition.Assets.Indexes[indexPosition].Parameters.Arguments
+		if strings.Join(actualArguments, " ") != strings.Join(expectedArguments, " ") {
+			t.Fatalf(
+				"index %s recorded arguments %q, expected %q",
+				definition.Assets.Indexes[indexPosition].Type,
+				actualArguments,
+				expectedArguments,
+			)
+		}
 	}
 	for _, requiredPath := range []string{
 		"fasta/genome.fa",
@@ -243,7 +260,8 @@ if [ "$1" = "--version" ]; then
   echo "bowtie2 2.5.4"
   exit 0
 fi
-printf 'bowtie index\n' > "$2.1.bt2"
+output_prefix="${!#}"
+printf 'bowtie index\n' > "$output_prefix.1.bt2"
 `)
 }
 
