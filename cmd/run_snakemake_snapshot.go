@@ -5,6 +5,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
+	"strings"
 	"syscall"
 	"time"
 
@@ -17,6 +19,7 @@ import (
 	taskruntime "github.com/rainoffallingstar/otter/internal/task"
 	"github.com/rainoffallingstar/otter/internal/workflow"
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 )
 
 type snakemakeSnapshotInvocation struct {
@@ -25,6 +28,23 @@ type snakemakeSnapshotInvocation struct {
 	Snapshot            configv1.RunSnapshot
 	Configuration       *config.OtterConfig
 	CompatibilityConfig string
+}
+
+func snakemakeStepForPhase(phase string) (int, error) {
+	switch strings.ToLower(strings.TrimSpace(phase)) {
+	case "step1":
+		return 1, nil
+	case "step2":
+		return 2, nil
+	case "step2-check":
+		return 102, nil
+	case "step3":
+		return 3, nil
+	case "step3-check":
+		return 103, nil
+	default:
+		return 0, fmt.Errorf("unsupported Snakemake compatibility phase %q; expected step1, step2, step2-check, step3, or step3-check", phase)
+	}
 }
 
 func executeSnakemakeSnapshotRun(command *cobra.Command) (runErr error) {
@@ -54,6 +74,22 @@ func executeSnakemakeSnapshotRun(command *cobra.Command) (runErr error) {
 	}
 	if err := manager.SetConfigFile(invocation.CompatibilityConfig); err != nil {
 		return err
+	}
+
+	selectedStep := 0
+	if runPhase != "" {
+		selectedStep, err = snakemakeStepForPhase(runPhase)
+		if err != nil {
+			return err
+		}
+		phaseResource, found := invocation.Configuration.StepResources[selectedStep]
+		if !found || phaseResource == nil {
+			return fmt.Errorf("Snakemake compatibility phase %s has no resolved resource envelope", runPhase)
+		}
+		invocation.Configuration.Engine.Slurm.Cores = phaseResource.Cores
+		invocation.Configuration.Engine.Slurm.Memory = phaseResource.Memory
+		invocation.Configuration.Engine.Slurm.Time = phaseResource.Time
+		invocation.Configuration.Engine.Slurm.Partition = phaseResource.Partition
 	}
 
 	executionEngine, err := engine.CreateEngineFromConfig(invocation.Configuration)
@@ -95,10 +131,16 @@ func executeSnakemakeSnapshotRun(command *cobra.Command) (runErr error) {
 			logger.Warnf("Failed to restore working directory %s: %v", originalDirectory, restoreErr)
 		}
 	}()
-	if err := manager.ExecuteAll(); err != nil {
-		return fmt.Errorf("Snakemake workflow execution failed: %w", err)
+	if runPhase == "" {
+		if err := manager.ExecuteAll(); err != nil {
+			return fmt.Errorf("Snakemake workflow execution failed: %w", err)
+		}
+	} else {
+		if err := manager.ExecuteSelectedSteps([]int{selectedStep}); err != nil {
+			return fmt.Errorf("Snakemake phase %s execution failed: %w", runPhase, err)
+		}
 	}
-	if dryRun {
+	if dryRun || runPhase != "" {
 		return nil
 	}
 	publicationResult, err := workflow.PublishSnakemakeArtifacts(workflow.SnakemakeArtifactPublicationRequest{
@@ -196,7 +238,7 @@ func loadSnakemakeSnapshotInvocation(command *cobra.Command) (snakemakeSnapshotI
 	if err != nil {
 		return snakemakeSnapshotInvocation{}, err
 	}
-	compatibilityConfigPath, err := writeSnakemakeCompatibilityConfig(invocation.Snapshot, configuration)
+	compatibilityConfigPath, err := writeLegacyRuntimeConfig(invocation.Snapshot, configuration)
 	if err != nil {
 		return snakemakeSnapshotInvocation{}, err
 	}
@@ -234,27 +276,245 @@ func rejectSnakemakeRuntimeOverrides(command *cobra.Command, snapshot configv1.R
 	return nil
 }
 
-func writeSnakemakeCompatibilityConfig(snapshot configv1.RunSnapshot, configuration *config.OtterConfig) (string, error) {
+func legacyRuntimeSpeciesIdentifier(snapshot configv1.RunSnapshot, fallback string) string {
+	for _, reference := range snapshot.References.Resolved {
+		if reference.Role == configv1.ReferenceRolePrimary && strings.TrimSpace(reference.ID) != "" {
+			return reference.ID
+		}
+	}
+	return fallback
+}
+
+func legacyRuntimeSpeciesIdentifiers(snapshot configv1.RunSnapshot, fallback string) []string {
+	identifiers := make([]string, 0, 3)
+	seenIdentifiers := make(map[string]struct{})
+	for _, reference := range snapshot.References.Resolved {
+		switch reference.Role {
+		case configv1.ReferenceRolePrimary, configv1.ReferenceRoleGraft, configv1.ReferenceRoleHost, configv1.ReferenceRoleSecondary:
+		default:
+			continue
+		}
+		identifier := strings.TrimSpace(reference.ID)
+		if identifier == "" {
+			continue
+		}
+		if _, alreadyAdded := seenIdentifiers[identifier]; alreadyAdded {
+			continue
+		}
+		seenIdentifiers[identifier] = struct{}{}
+		identifiers = append(identifiers, identifier)
+	}
+	if len(identifiers) == 0 {
+		identifiers = append(identifiers, fallback)
+	}
+	return identifiers
+}
+
+func writeLegacyRuntimeConfig(snapshot configv1.RunSnapshot, configuration *config.OtterConfig) (string, error) {
 	encoded, err := config.MarshalWithMapstructureTags(configuration)
 	if err != nil {
 		return "", err
 	}
-	path := filepath.Join(snapshot.Paths.State, "snakemake-config.yaml")
+	compatibilityDocument := yaml.Node{}
+	if err := yaml.Unmarshal(encoded, &compatibilityDocument); err != nil {
+		return "", fmt.Errorf("decode legacy runtime config: %w", err)
+	}
+	if len(compatibilityDocument.Content) != 1 || compatibilityDocument.Content[0].Kind != yaml.MappingNode {
+		return "", fmt.Errorf("legacy runtime config must be a YAML mapping")
+	}
+
+	rootMapping := compatibilityDocument.Content[0]
+	runtimeSpeciesIdentifier := legacyRuntimeSpeciesIdentifier(snapshot, configuration.Workflow.Species.Primary)
+	runtimeSpeciesIdentifiers := legacyRuntimeSpeciesIdentifiers(snapshot, runtimeSpeciesIdentifier)
+	setYAMLMappingValue(rootMapping, "SIDs", yamlStringSequence(configuration.Metadata.SampleIDs))
+	setYAMLMappingValue(rootMapping, "species", yamlStringScalar(runtimeSpeciesIdentifier))
+	setYAMLMappingValue(rootMapping, "outdir_qualimap", yamlStringScalar(configuration.Directories.Qualimap))
+	setYAMLMappingValue(rootMapping, "outDir_mCall", yamlStringScalar(configuration.Directories.MethylationCall))
+	setYAMLMappingValue(rootMapping, "graft", yamlStringScalar(configuration.Workflow.Species.Graft))
+	setYAMLMappingValue(rootMapping, "qc_summary", yamlStringScalar(configuration.Directories.QCSummary))
+
+	workflowNode, found := yamlMappingValue(rootMapping, "workflow")
+	if !found || workflowNode.Kind != yaml.MappingNode {
+		return "", fmt.Errorf("legacy runtime config has no workflow mapping")
+	}
+	workflowSpeciesNode, found := yamlMappingValue(workflowNode, "species")
+	if !found || workflowSpeciesNode.Kind != yaml.MappingNode {
+		return "", fmt.Errorf("legacy runtime config has no workflow.species mapping")
+	}
+	setYAMLMappingValue(workflowSpeciesNode, "primary", yamlStringScalar(runtimeSpeciesIdentifier))
+	setYAMLMappingValue(workflowSpeciesNode, "expression", yamlStringScalar(configuration.Workflow.Species.Expression))
+	setYAMLMappingValue(workflowSpeciesNode, "name", yamlStringSequence(runtimeSpeciesIdentifiers))
+
+	directoriesNode, found := yamlMappingValue(rootMapping, "directories")
+	if !found || directoriesNode.Kind != yaml.MappingNode {
+		return "", fmt.Errorf("legacy runtime config has no directories mapping")
+	}
+	setYAMLMappingValue(directoriesNode, "qc", yamlQCMapping(configuration.Directories.QC))
+	setYAMLMappingValue(directoriesNode, "bsmap", yamlBSMAPMapping(configuration.Directories.BSMAP))
+	setYAMLMappingValue(directoriesNode, "qualimap", yamlStringScalar(configuration.Directories.Qualimap))
+	setYAMLMappingValue(directoriesNode, "work", yamlStringScalar(configuration.Directories.Work))
+	setYAMLMappingValue(directoriesNode, "selfconfig", yamlStringScalar(snapshot.Paths.State))
+	setYAMLMappingValue(
+		directoriesNode,
+		"qctb_config",
+		yamlStringScalar(filepath.Join(snapshot.Paths.RunRoot, "run.yaml")),
+	)
+	setYAMLMappingValue(directoriesNode, "methylation_call", yamlStringScalar(configuration.Directories.MethylationCall))
+
+	referenceNode, found := yamlMappingValue(rootMapping, "reference")
+	if !found || referenceNode.Kind != yaml.MappingNode {
+		return "", fmt.Errorf("legacy runtime config has no reference mapping")
+	}
+	referenceIndicesNode, found := yamlMappingValue(referenceNode, "indices")
+	if !found || referenceIndicesNode.Kind != yaml.MappingNode {
+		return "", fmt.Errorf("legacy runtime config has no reference.indices mapping")
+	}
+	setYAMLMappingValue(referenceIndicesNode, "genome", yamlStringSequence(configuration.Reference.Indices.Genome))
+
+	metadataNode, found := yamlMappingValue(rootMapping, "metadata")
+	if !found || metadataNode.Kind != yaml.MappingNode {
+		return "", fmt.Errorf("legacy runtime config has no metadata mapping")
+	}
+	setYAMLMappingValue(metadataNode, "sample_ids", yamlStringSequence(configuration.Metadata.SampleIDs))
+	setYAMLMappingValue(metadataNode, "group_levels", yamlIntegerScalar(configuration.Metadata.GroupLevels))
+
+	encoded, err = yaml.Marshal(&compatibilityDocument)
+	if err != nil {
+		return "", fmt.Errorf("encode legacy runtime config: %w", err)
+	}
+	path := filepath.Join(snapshot.Paths.State, "config.yaml")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return "", fmt.Errorf("create Snakemake compatibility config directory: %w", err)
+		return "", fmt.Errorf("create legacy runtime config directory: %w", err)
 	}
 	if existingContent, err := os.ReadFile(path); err == nil {
-		if string(existingContent) != string(encoded) {
-			return "", fmt.Errorf("Snakemake compatibility config already exists with different content: %s", path)
+		equivalent, comparisonErr := equivalentYAMLDocuments(existingContent, encoded)
+		if comparisonErr != nil {
+			return "", fmt.Errorf("compare existing legacy runtime config %s: %w", path, comparisonErr)
+		}
+		if equivalent {
+			return path, nil
+		}
+		matchesSnapshot, validationErr := legacyRuntimeConfigMatchesSnapshot(existingContent, snapshot)
+		if validationErr != nil {
+			return "", fmt.Errorf("validate existing legacy runtime config %s: %w", path, validationErr)
+		}
+		if !matchesSnapshot {
+			return "", fmt.Errorf("legacy runtime config already exists with different content: %s", path)
 		}
 		return path, nil
 	} else if !os.IsNotExist(err) {
-		return "", fmt.Errorf("inspect Snakemake compatibility config: %w", err)
+		return "", fmt.Errorf("inspect legacy runtime config: %w", err)
 	}
 	if err := os.WriteFile(path, encoded, 0o444); err != nil {
-		return "", fmt.Errorf("write Snakemake compatibility config: %w", err)
+		return "", fmt.Errorf("write legacy runtime config: %w", err)
 	}
 	return path, nil
+}
+
+func equivalentYAMLDocuments(leftDocument, rightDocument []byte) (bool, error) {
+	var leftValue interface{}
+	if err := yaml.Unmarshal(leftDocument, &leftValue); err != nil {
+		return false, fmt.Errorf("decode existing YAML: %w", err)
+	}
+	var rightValue interface{}
+	if err := yaml.Unmarshal(rightDocument, &rightValue); err != nil {
+		return false, fmt.Errorf("decode generated YAML: %w", err)
+	}
+	return reflect.DeepEqual(leftValue, rightValue), nil
+}
+
+func legacyRuntimeConfigMatchesSnapshot(document []byte, snapshot configv1.RunSnapshot) (bool, error) {
+	compatibilityDocument := yaml.Node{}
+	if err := yaml.Unmarshal(document, &compatibilityDocument); err != nil {
+		return false, fmt.Errorf("decode YAML: %w", err)
+	}
+	if len(compatibilityDocument.Content) != 1 || compatibilityDocument.Content[0].Kind != yaml.MappingNode {
+		return false, fmt.Errorf("legacy runtime config must be a YAML mapping")
+	}
+
+	rootMapping := compatibilityDocument.Content[0]
+	workflowNode, found := yamlMappingValue(rootMapping, "workflow")
+	if !found || workflowNode.Kind != yaml.MappingNode {
+		return false, nil
+	}
+	workflowJobID, found := yamlMappingValue(workflowNode, "jobid")
+	if !found || workflowJobID.Value != snapshot.Run.ID {
+		return false, nil
+	}
+
+	outputNode, found := yamlMappingValue(rootMapping, "output")
+	if !found || outputNode.Kind != yaml.MappingNode {
+		return false, nil
+	}
+	outputBaseDirectory, found := yamlMappingValue(outputNode, "base_dir")
+	if !found || outputBaseDirectory.Value != snapshot.Paths.RunRoot {
+		return false, nil
+	}
+
+	directoriesNode, found := yamlMappingValue(rootMapping, "directories")
+	if !found || directoriesNode.Kind != yaml.MappingNode {
+		return false, nil
+	}
+	selfConfigDirectory, found := yamlMappingValue(directoriesNode, "selfconfig")
+	if !found || selfConfigDirectory.Value != snapshot.Paths.State {
+		return false, nil
+	}
+	qctbConfigurationPath, found := yamlMappingValue(directoriesNode, "qctb_config")
+	if !found || qctbConfigurationPath.Value != filepath.Join(snapshot.Paths.RunRoot, "run.yaml") {
+		return false, nil
+	}
+	return true, nil
+}
+
+func yamlMappingValue(mapping *yaml.Node, key string) (*yaml.Node, bool) {
+	for nodeIndex := 0; nodeIndex < len(mapping.Content); nodeIndex += 2 {
+		if mapping.Content[nodeIndex].Value == key {
+			return mapping.Content[nodeIndex+1], true
+		}
+	}
+	return nil, false
+}
+
+func setYAMLMappingValue(mapping *yaml.Node, key string, value *yaml.Node) {
+	for nodeIndex := 0; nodeIndex < len(mapping.Content); nodeIndex += 2 {
+		if mapping.Content[nodeIndex].Value == key {
+			mapping.Content[nodeIndex+1] = value
+			return
+		}
+	}
+	mapping.Content = append(mapping.Content, yamlStringScalar(key), value)
+}
+
+func yamlStringScalar(value string) *yaml.Node {
+	return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: value}
+}
+
+func yamlIntegerScalar(value int) *yaml.Node {
+	return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: fmt.Sprintf("%d", value)}
+}
+
+func yamlStringSequence(values []string) *yaml.Node {
+	sequence := &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"}
+	for _, value := range values {
+		sequence.Content = append(sequence.Content, yamlStringScalar(value))
+	}
+	return sequence
+}
+
+func yamlQCMapping(qualityControl config.QCConfig) *yaml.Node {
+	mapping := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+	setYAMLMappingValue(mapping, "main", yamlStringScalar(qualityControl.Main))
+	setYAMLMappingValue(mapping, "before", yamlStringScalar(qualityControl.Before))
+	setYAMLMappingValue(mapping, "after", yamlStringScalar(qualityControl.After))
+	return mapping
+}
+
+func yamlBSMAPMapping(bsmap config.BSMAPConfig) *yaml.Node {
+	mapping := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+	setYAMLMappingValue(mapping, "main", yamlStringScalar(bsmap.Main))
+	setYAMLMappingValue(mapping, "bamtmp", yamlStringScalar(bsmap.Temp))
+	setYAMLMappingValue(mapping, "Filtered_bams", yamlStringScalar(bsmap.Filtered))
+	return mapping
 }
 
 func verifyProjectAssets(projectDirectory string) error {

@@ -27,11 +27,12 @@ type WorkflowConfig struct {
 
 // SpeciesConfig represents species configuration
 type SpeciesConfig struct {
-	Primary   string `mapstructure:"primary"`
-	Secondary string `mapstructure:"secondary"`
-	Graft     string `mapstructure:"graft"`
-	Host      string `mapstructure:"host"`
-	Name      string `mapstructure:"name"`
+	Primary    string `mapstructure:"primary"`
+	Secondary  string `mapstructure:"secondary"`
+	Graft      string `mapstructure:"graft"`
+	Host       string `mapstructure:"host"`
+	Name       string `mapstructure:"name"`
+	Expression string `mapstructure:"expression"`
 }
 
 // AdapterConfig represents adapter configuration
@@ -193,11 +194,13 @@ type EngineConfig struct {
 
 // SlurmConfig represents Slurm cluster configuration
 type SlurmConfig struct {
-	Partition  string `mapstructure:"partition"`
-	Cores      int    `mapstructure:"cores"`
-	Memory     string `mapstructure:"memory"`
-	JobName    string `mapstructure:"job_name"`
-	MaxRetries int    `mapstructure:"max_retries"`
+	Partition   string `mapstructure:"partition"`
+	Cores       int    `mapstructure:"cores"`
+	Memory      string `mapstructure:"memory"`
+	Time        string `mapstructure:"time"`
+	JobName     string `mapstructure:"job_name"`
+	MaxRetries  int    `mapstructure:"max_retries"`
+	WaitTimeout string `mapstructure:"wait_timeout"`
 }
 
 // LocalConfig represents local execution configuration
@@ -210,6 +213,7 @@ type LocalConfig struct {
 type StepResource struct {
 	Cores     int    `mapstructure:"cores"`
 	Memory    string `mapstructure:"memory"`
+	Time      string `mapstructure:"time"`
 	Partition string `mapstructure:"partition"`
 	Threads   int    `mapstructure:"threads"`
 	JobArray  bool   `mapstructure:"job_array"`

@@ -10,15 +10,34 @@ import (
 )
 
 func SnapshotToLegacyConfig(snapshot configv1.RunSnapshot) (*config.OtterConfig, error) {
-	if snapshot.Execution.Executor.Value != configv1.ExecutorSnakemake {
-		return nil, fmt.Errorf("snapshot executor must be snakemake, got %q", snapshot.Execution.Executor.Value)
+	if snapshot.Execution.Executor.Value != configv1.ExecutorSnakemake && snapshot.Execution.Executor.Value != configv1.ExecutorCraftmake {
+		return nil, fmt.Errorf("snapshot executor must be craftmake or snakemake, got %q", snapshot.Execution.Executor.Value)
 	}
 	primaryReference, graftReference, hostReference := selectSnapshotReferences(snapshot)
 	if primaryReference == nil {
-		return nil, fmt.Errorf("snapshot requires a primary reference for Snakemake compatibility")
+		return nil, fmt.Errorf("snapshot requires a primary reference for legacy runtime configuration")
+	}
+
+	if strings.TrimSpace(primaryReference.Organism) == "" {
+		return nil, fmt.Errorf(
+			"primary reference %s@%s has no organism metadata; resolve a new snapshot from a complete reference registry entry",
+			primaryReference.ID,
+			primaryReference.Release,
+		)
 	}
 
 	mode, err := snapshotMode(snapshot.Workflow.Scenario)
+	if err != nil {
+		return nil, err
+	}
+	expressionReference := primaryReference
+	if snapshot.Workflow.Scenario == configv1.ScenarioRNAPDX {
+		expressionReference = graftReference
+	}
+	if expressionReference == nil {
+		return nil, fmt.Errorf("snapshot requires an expression reference for scenario %q", snapshot.Workflow.Scenario)
+	}
+	expressionSpecies, err := seq2matSpeciesForReference(expressionReference)
 	if err != nil {
 		return nil, err
 	}
@@ -30,10 +49,11 @@ func SnapshotToLegacyConfig(snapshot configv1.RunSnapshot) (*config.OtterConfig,
 			JobID:   snapshot.Run.ID,
 			Samples: snapshotSamples(snapshot.Samples),
 			Species: config.SpeciesConfig{
-				Primary: primaryReference.ID,
-				Name:    primaryReference.ID,
+				Primary:    primaryReference.Organism,
+				Name:       primaryReference.Organism,
+				Expression: expressionSpecies,
 			},
-			Adapters: config.AdapterConfig{ErrorRate: 0.2},
+			Adapters:  config.AdapterConfig{ErrorRate: 0.2},
 			Alignment: config.AlignmentConfig{},
 		},
 		Input: config.InputConfig{FastqDir: fastqDirectory},
@@ -56,7 +76,8 @@ func SnapshotToLegacyConfig(snapshot configv1.RunSnapshot) (*config.OtterConfig,
 		},
 		Directories: snapshotDirectories(snapshot, primaryReference, graftReference, hostReference),
 		Metadata: config.MetadataConfig{
-			SampleIDs: sampleIDs(snapshot.Samples),
+			SampleIDs:   sampleIDs(snapshot.Samples),
+			GroupLevels: snapshotGroupLevelCount(snapshot.Samples),
 		},
 		Engine: config.EngineConfig{Type: string(snapshot.Execution.Backend.Value)},
 	}
@@ -92,6 +113,7 @@ func SnapshotToLegacyConfig(snapshot configv1.RunSnapshot) (*config.OtterConfig,
 	configuration.StepResources = snapshotStepResources(snapshot.Execution.Resources)
 	configuration.Engine.Slurm.Partition = snapshot.Execution.Resources.Defaults.Partition
 	configuration.Engine.Slurm.Memory = snapshot.Execution.Resources.Defaults.Memory
+	configuration.Engine.Slurm.Time = snapshot.Execution.Resources.Defaults.Time
 	configuration.Engine.Slurm.Cores = snapshot.Execution.Resources.Defaults.Cores
 	return configuration, nil
 }
@@ -165,9 +187,12 @@ func snapshotDirectories(snapshot configv1.RunSnapshot, primaryReference, graftR
 }
 
 func snapshotStepResources(resources configv1.ProjectResources) map[int]*config.StepResource {
-	stepResources := make(map[int]*config.StepResource, len(resources.Phases)+1)
+	stepResources := make(map[int]*config.StepResource, len(resources.Phases)+3)
 	if resources.Defaults != (configv1.ResourceSpec{}) {
-		stepResources[1] = resourceSpecToStepResource(resources.Defaults)
+		defaultResource := resourceSpecToStepResource(resources.Defaults)
+		for _, stepNumber := range []int{1, 2, 3} {
+			stepResources[stepNumber] = cloneStepResource(defaultResource)
+		}
 	}
 	for phase, resource := range resources.Phases {
 		step, ok := compatibilityStepNumber(phase)
@@ -200,8 +225,17 @@ func resourceSpecToStepResource(resource configv1.ResourceSpec) *config.StepReso
 	return &config.StepResource{
 		Cores:     resource.Cores,
 		Memory:    resource.Memory,
+		Time:      resource.Time,
 		Partition: resource.Partition,
 	}
+}
+
+func cloneStepResource(resource *config.StepResource) *config.StepResource {
+	if resource == nil {
+		return nil
+	}
+	copy := *resource
+	return &copy
 }
 
 func sampleIDs(samples []configv1.SampleRecord) []string {
@@ -210,6 +244,34 @@ func sampleIDs(samples []configv1.SampleRecord) []string {
 		ids = append(ids, sample.ID)
 	}
 	return ids
+}
+
+func snapshotGroupLevelCount(samples []configv1.SampleRecord) int {
+	groupNames := make(map[string]struct{}, len(samples))
+	for _, sample := range samples {
+		groupName := strings.TrimSpace(sample.Group)
+		if groupName != "" {
+			groupNames[groupName] = struct{}{}
+		}
+	}
+	return len(groupNames)
+}
+
+func seq2matSpeciesForReference(reference *configv1.ResolvedReference) (string, error) {
+	normalizedOrganism := strings.ToLower(strings.TrimSpace(reference.Organism))
+	switch normalizedOrganism {
+	case "human", "homo sapiens":
+		return "human", nil
+	case "mouse", "mus musculus":
+		return "mouse", nil
+	default:
+		return "", fmt.Errorf(
+			"reference %s@%s has unsupported organism %q for seq2mat",
+			reference.ID,
+			reference.Release,
+			reference.Organism,
+		)
+	}
 }
 
 func snapshotSamples(samples []configv1.SampleRecord) []config.SampleConfig {
@@ -234,6 +296,9 @@ func selectReferenceIndex(reference *configv1.ResolvedReference, mode string) st
 	}
 	for _, index := range reference.Indexes {
 		if strings.EqualFold(index.Type, preferredType) {
+			if strings.EqualFold(index.Type, "bismark") {
+				return bismarkExecutionGenomeDirectory(index.Path)
+			}
 			return index.Path
 		}
 	}
@@ -241,6 +306,13 @@ func selectReferenceIndex(reference *configv1.ResolvedReference, mode string) st
 		return reference.Indexes[0].Path
 	}
 	return ""
+}
+
+func bismarkExecutionGenomeDirectory(indexRoot string) string {
+	if strings.TrimSpace(indexRoot) == "" {
+		return ""
+	}
+	return filepath.Join(indexRoot, "genome")
 }
 
 func selectReferenceAnnotation(reference *configv1.ResolvedReference, annotationType string) string {
