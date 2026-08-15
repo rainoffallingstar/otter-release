@@ -9,6 +9,7 @@
   `srun: error: Unable to confirm allocation for job ...: Unexpected message received`.
   This is the same transient controller fault class previously recorded for SRA decode. The task attempt dirs contain only `srun-launch.err` and no worker result, confirming the allocation-confirmation failure rather than a workflow defect.
 - **Recovery**: resume controller `41458109` was submitted for the same immutable run (`run-20260815T134119Z-vdwxod`), phase `step2`, so the cached STAR BAM is reused and only `qualimap`/`count_expression` are re-attempted.
+- **Second incident (same fault class)**: `rna-pdx-SRR30880970` step2 (controller `41458053`) also failed with exit code 5. Its `map_and_sort/species=hg38` and `qualimap/species=hg38` succeeded, but `map_and_sort/species=mm10` (job `41458071`) failed with the same transient `srun: Unable to confirm allocation ... Unexpected message received` error. Resume controller `41458152` was submitted for `run-20260815T132155Z-vhesje` phase `step2`, reusing the cached hg38 BAM.
 
 ## Running state
 
