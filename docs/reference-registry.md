@@ -46,7 +46,7 @@ otter reference build \
 
 默认会调用 `samtools faidx`，并构建 `bismark`、`bowtie2` 与 `star` indexes。通过 `--indexes bismark,bowtie2,star` 可显式选择；按选择推导兼容场景。`--indexes star` 仅生成 RNA-seq/RNA-PDX 兼容 release，`--indexes bismark` 仅生成 RRBS/WGBS/BS-PDX 兼容 release。完整 release 不能跳过真实 index 构建：schema 要求至少一个 index，命令不会以 placeholder 文件替代工具输出。
 
-默认 STAR `sjdbOverhang` 为 149；可用 `--star-sjdb-overhang` 指定 read-length 对应值。工具路径可通过 `--samtools`、`--bismark-genome-preparation`、`--bowtie2-build` 与 `--star` 覆盖。每个 index 的工具版本、输入 FASTA digest 与构建参数均写入 `reference.yaml`。
+All future production `ReferenceBuild` runs use the doubled resource policy: `acquire_sources` requests 2 CPUs/8 GiB, `prepare_assets` requests 4 CPUs/32 GiB, and `publish_release` requests 16 CPUs/192 GiB. Its immutable configuration must set `index_build_threads: 16`, causing Bismark to invoke `--parallel 8` for each concurrent CT/GA conversion indexer while Bowtie2 and STAR use 16 threads. The completed Gate 6 releases remain immutable historical evidence built under their original 8 CPU/96 GiB policy. See [Gate 6 Paracloud Operations](gate6-paracloud-operations.md) for access commands, accepted release evidence, and local-first SRA acquisition policy.
 
 ### Gate 6 Craftmake reference builds
 

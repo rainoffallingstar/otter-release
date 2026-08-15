@@ -17,7 +17,7 @@ rule all:
     expand(os.path.join(config["directories"]["qc"]["after"], "{sample}_val_2_fastqc.zip"), sample=SIDs),
     expand(os.path.join(config["directories"]["qc"]["after"], "{sample}_val_1_fastqc.html"), sample=SIDs),
     expand(os.path.join(config["directories"]["qc"]["after"], "{sample}_val_2_fastqc.html"), sample=SIDs),
-    expand(os.path.join(config["directories"]["qc"]["main"], "{sample}_seqkit_stat.txt"), sample=SIDs)
+    expand(os.path.join(config["directories"]["qc"]["main"], "{sample}_seqkit_stat.txt"), sample=SIDs) 
 
 # 第一次QC
 include: "rules/01fastqcAtfirst.smk"
@@ -31,3 +31,6 @@ include: "rules/03-0-fastqcAtclean.smk"
 #seqkit
 
 include: "rules/03-1-seqkit.smk"
+
+
+

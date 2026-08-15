@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -158,6 +159,28 @@ func (Resolver) Resolve(options Options) (configv1.RunSnapshot, error) {
 		filepath.Join(projectRoot, "schemas"),
 		filepath.Join(projectRoot, "project.lock.yaml"),
 	}
+	for _, rootWorkflowAsset := range []string{"snakefile"} {
+		rootWorkflowAssetPath := filepath.Join(projectRoot, rootWorkflowAsset)
+		if info, statErr := os.Stat(rootWorkflowAssetPath); statErr == nil && !info.IsDir() {
+			workflowAssets = append(workflowAssets, rootWorkflowAssetPath)
+		} else if statErr != nil && !os.IsNotExist(statErr) {
+			return configv1.RunSnapshot{}, fmt.Errorf("inspect workflow asset %q: %w", rootWorkflowAssetPath, statErr)
+		}
+	}
+	rootSnakefiles, err := filepath.Glob(filepath.Join(projectRoot, "*.snakemake"))
+	if err != nil {
+		return configv1.RunSnapshot{}, fmt.Errorf("discover root Snakemake assets: %w", err)
+	}
+	for _, rootSnakefilePath := range rootSnakefiles {
+		fileInfo, statErr := os.Stat(rootSnakefilePath)
+		if statErr != nil {
+			return configv1.RunSnapshot{}, fmt.Errorf("inspect root Snakemake asset %q: %w", rootSnakefilePath, statErr)
+		}
+		if !fileInfo.Mode().IsRegular() {
+			continue
+		}
+		workflowAssets = append(workflowAssets, rootSnakefilePath)
+	}
 	workflowDigest, err := runstate.DigestPaths(workflowAssets)
 	if err != nil {
 		return configv1.RunSnapshot{}, err
@@ -173,6 +196,10 @@ func (Resolver) Resolve(options Options) (configv1.RunSnapshot, error) {
 		overrideSource = configv1.OverrideSourceCLI
 	}
 	runRoot := options.RunDirectory.Root
+	parity := configv1.ParityConfig{}
+	if backendResolution.Backend == configv1.BackendSlurm && len(resolvedResources.Phases) > 0 {
+		parity.Policy = configv1.ParityPolicyExecutorPhaseEnvelope
+	}
 	snapshot := configv1.RunSnapshot{
 		SchemaVersion: configv1.RunSchemaVersion,
 		Run: configv1.RunMetadata{
@@ -226,7 +253,7 @@ func (Resolver) Resolve(options Options) (configv1.RunSnapshot, error) {
 			References:     referencesDigest,
 		},
 		Observability: project.Observability,
-		Parity:        configv1.ParityConfig{},
+		Parity:        parity,
 	}
 	if err := configv1.ValidateRunSnapshot(snapshot); err != nil {
 		return configv1.RunSnapshot{}, err
@@ -249,21 +276,19 @@ func validateSlurmComputePaths(
 		return fmt.Errorf("effective reference root %q is not accessible on the login node: %w", referenceRoot, err)
 	}
 	computePathValidator := options.ComputePathValidator
-	if computePathValidator == nil {
-		computePathValidator = site.ValidateComputeNodePath
-	}
-	if err := computePathValidator(referenceRoot, partition, account); err != nil {
-		return fmt.Errorf("effective reference root %q is not accessible on Slurm compute nodes: %w", referenceRoot, err)
+	if computePathValidator != nil {
+		if err := computePathValidator(referenceRoot, partition, account); err != nil {
+			return fmt.Errorf("effective reference root %q failed the requested compute-node preflight: %w", referenceRoot, err)
+		}
 	}
 	if err := site.CheckLoginNodeWritableDirectory(runRoot); err != nil {
 		return fmt.Errorf("run output root %q is not writable on the login node: %w", runRoot, err)
 	}
 	computeWritablePathValidator := options.ComputeWritablePathValidator
-	if computeWritablePathValidator == nil {
-		computeWritablePathValidator = site.ValidateComputeNodeWritableDirectory
-	}
-	if err := computeWritablePathValidator(runRoot, partition, account); err != nil {
-		return fmt.Errorf("run output root %q is not writable on Slurm compute nodes: %w", runRoot, err)
+	if computeWritablePathValidator != nil {
+		if err := computeWritablePathValidator(runRoot, partition, account); err != nil {
+			return fmt.Errorf("run output root %q failed the requested compute-node preflight: %w", runRoot, err)
+		}
 	}
 	return nil
 }

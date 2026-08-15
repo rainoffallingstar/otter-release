@@ -67,6 +67,36 @@ references:
 			shouldBeValid: true,
 		},
 		{
+			name:       "executor phase envelope requires all resource dimensions",
+			schemaPath: filepath.Join(repositoryRoot, "docs", "schema", "otter-run-v1.schema.json"),
+			fixture: strings.NewReplacer(
+				"  resources: {}",
+				"  resources:\n    phases:\n      align:\n        cores: 8\n        memory: 32GiB\n        time: \"04:00:00\"\n        partition: compute",
+				"parity: {}",
+				"parity:\n  policy: executor-phase-envelope/v1",
+			).Replace(mustReadFile(t, filepath.Join(repositoryRoot, "docs", "examples", "run.v1.yaml"))),
+			loadWithGo: func(path string) error {
+				_, err := LoadRunSnapshot(path)
+				return err
+			},
+			shouldBeValid: true,
+		},
+		{
+			name:       "executor phase envelope rejects missing time",
+			schemaPath: filepath.Join(repositoryRoot, "docs", "schema", "otter-run-v1.schema.json"),
+			fixture: strings.NewReplacer(
+				"  resources: {}",
+				"  resources:\n    phases:\n      align:\n        cores: 8\n        memory: 32GiB\n        partition: compute",
+				"parity: {}",
+				"parity:\n  policy: executor-phase-envelope/v1",
+			).Replace(mustReadFile(t, filepath.Join(repositoryRoot, "docs", "examples", "run.v1.yaml"))),
+			loadWithGo: func(path string) error {
+				_, err := LoadRunSnapshot(path)
+				return err
+			},
+			shouldBeValid: false,
+		},
+		{
 			name:       "run rejects malformed identifier",
 			schemaPath: filepath.Join(repositoryRoot, "docs", "schema", "otter-run-v1.schema.json"),
 			fixture: strings.ReplaceAll(

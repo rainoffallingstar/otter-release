@@ -280,6 +280,13 @@ func (m *Manager) ExecuteStep(step int) error {
 	resolvedSnakefile := executor.GetResolvedSnakefilePath()
 	configFile := executor.ConfigFile
 
+	// Dry runs validate the environment and command construction without submitting compute work.
+	if m.dryRun {
+		logger.Infof("Dry run: validated step %d resources (cores=%d, memory=%s, time=%s, partition=%s)", step, stepResource.Cores, stepResource.Memory, stepResource.Time, stepResource.Partition)
+		stepSucceeded = true
+		return nil
+	}
+
 	// Unified parallelization strategy based on --parallel-jobs / --load-ratio parameters
 	// Step 2 and 3 use single-sample mode, Step 1 and checkers use all-samples mode
 	if m.shouldUseSingleSampleMode(step) {
@@ -420,6 +427,41 @@ func (m *Manager) executeStepWithLocalParallel(step int, resource *config.StepRe
 	// Fallback to regular engine
 	logger.Warn("LocalEngine parallel execution not available, falling back to regular execution")
 	return m.workflow.Engine.Execute(cmd)
+}
+
+// ExecuteSelectedSteps executes an explicit ordered subset of workflow steps.
+// Selected execution is used by bounded compatibility canaries; callers must
+// provide only the steps they intend to run and any required predecessors.
+func (m *Manager) ExecuteSelectedSteps(steps []int) error {
+	if len(steps) == 0 {
+		return fmt.Errorf("at least one workflow step must be selected")
+	}
+	if err := m.Initialize(); err != nil {
+		return err
+	}
+
+	m.state = NewState(m.workflow.Config.Output.BaseDir, m.workflow.Config.Workflow.JobID)
+	if err := m.initializeState(); err != nil {
+		logger.Warnf("Failed to initialize state: %v (continuing without state tracking)", err)
+	}
+
+	for _, step := range steps {
+		if err := m.ExecuteStep(step); err != nil {
+			if m.state != nil {
+				_ = m.state.MarkFailed()
+			}
+			return fmt.Errorf("failed to execute selected step %d: %w", step, err)
+		}
+	}
+
+	m.workflow.Status.State = engine.StatusCompleted
+	m.workflow.Status.Message = "Selected workflow steps completed"
+	m.workflow.Status.EndTime = time.Now()
+	if m.state != nil {
+		_ = m.state.MarkCompleted()
+	}
+	logger.Info("Selected workflow steps completed successfully")
+	return nil
 }
 
 // ExecuteAll executes all workflow steps
@@ -687,14 +729,20 @@ func (m *Manager) createSlurmArrayEngine(stepResource *config.StepResource) (*en
 		logger.Infof("Batch size set to %d (MaxSubmitJobs=%d)", maxBatchSize, limits.MaxSubmitJobs)
 	}
 
-	// Create SlurmArrayEngine with samples, step resources, and batch size
-	return factory.NewSlurmArrayEngineWithResources(
+	arrayEngine, err := factory.NewSlurmArrayEngineWithResources(
 		&m.workflow.Config.Engine,
 		m.samples,
 		stepResource,
 		maxBatchSize,
 		m.loadRatio,
 	)
+	if err != nil {
+		return nil, err
+	}
+	if err := arrayEngine.SetLogDir(m.workflow.Config.Output.LogDir); err != nil {
+		return nil, fmt.Errorf("set Slurm array log directory: %w", err)
+	}
+	return arrayEngine, nil
 }
 
 // getPartition returns the partition to use for SLURM jobs

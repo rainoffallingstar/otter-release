@@ -11,7 +11,7 @@ rule qcsummary:
     expand(os.path.join(config["directories"]["qualimap"], "{sample}_" + config["workflow"]["species"]["graft"], "genome_results.txt"), sample=config["metadata"]["sample_ids"]),
     os.path.join(config["directories"]["methylation_call"], "methrixh5", "CpG_coverage.xlsx"),
     os.path.join(config["directories"]["methylation_call"], "methrixh5", "CpG_annotation_report.xlsx"),
-    config_file=os.path.join(config["directories"]["selfconfig"], "config.yaml")
+    config_file=config["directories"]["qctb_config"]
   output:
     summary=os.path.join(config["directories"]["qc_summary"],"qc_summary.xlsx")
   threads:5

@@ -635,7 +635,7 @@ func validateRNAsplicingDependencies(cfg *config.OtterConfig) error {
 	// Determine the environment name, preferring the configured conda environment.
 	rnaEnv := cfg.Engine.CondaEnv
 	if rnaEnv == "" {
-		rnaEnv = "otter-core"
+		rnaEnv = "otter-core-bismark-rust-3.1.0-r2"
 	}
 
 	if _, err := exec.LookPath("enva"); err != nil {
@@ -657,9 +657,9 @@ func validateRNAsplicingDependencies(cfg *config.OtterConfig) error {
 		if err != nil {
 			return fmt.Errorf(
 				"RNA splicing preflight failed while running `%s`: %w\noutput:\n%s\n"+
-					"Required for rnaseq_splicing: enva + otter-core with matsrun and rmats.py.\n"+
-					"Try: enva run otter-core -- matsrun --help\n"+
-					"Try: enva run otter-core -- rmats.py --help",
+					"Required for rnaseq_splicing: enva + otter-core-bismark-rust-3.1.0-r2 with matsrun and rmats.py.\n"+
+					"Try: enva run otter-core-bismark-rust-3.1.0-r2 -- matsrun --help\n"+
+					"Try: enva run otter-core-bismark-rust-3.1.0-r2 -- rmats.py --help",
 				strings.Join(check, " "), err, string(output))
 		}
 	}

@@ -221,7 +221,7 @@ func (e *SlurmArrayEngine) generateSingleSampleScript(
 #SBATCH --mem={{.Memory}}
 #SBATCH --output={{.OutputFile}}
 #SBATCH --error={{.ErrorFile}}
-#SBATCH --time=24:00:00
+#SBATCH --time={{.Time}}
 
 set -e
 
@@ -246,18 +246,23 @@ SAMPLE_NAME="{{.SampleName}}"
 			memory = e.stepResource.Memory
 		}
 	}
+	slurmMemory, err := formatSlurmMemory(memory)
+	if err != nil {
+		return "", err
+	}
 
 	data := struct {
-		JobName, Partition, Memory, WorkDir string
-		Cores                               int
-		OutputFile, ErrorFile               string
-		SampleName, CondaCommand            string
-		WorkflowFile, ConfigFile            string
+		JobName, Partition, Memory, Time, WorkDir string
+		Cores                                     int
+		OutputFile, ErrorFile                     string
+		SampleName, CondaCommand                  string
+		WorkflowFile, ConfigFile                  string
 	}{
 		JobName:      fmt.Sprintf("%s_step%d_%s", e.jobName, step, sample),
 		Partition:    e.partition,
 		Cores:        cores,
-		Memory:       memory,
+		Memory:       slurmMemory,
+		Time:         e.timeLimit,
 		WorkDir:      e.getWorkDir(),
 		OutputFile:   filepath.Join(tmpDir, fmt.Sprintf("%s_step%d_%s_%%j.out", e.jobName, step, sample)),
 		ErrorFile:    filepath.Join(tmpDir, fmt.Sprintf("%s_step%d_%s_%%j.err", e.jobName, step, sample)),
@@ -283,25 +288,9 @@ SAMPLE_NAME="{{.SampleName}}"
 	return scriptPath, nil
 }
 
-// submitSingleJob 提交单个 SLURM 脚本并返回 jobID。
+// submitSingleJob submits a single SLURM script and returns its job ID.
 func (e *SlurmArrayEngine) submitSingleJob(scriptPath string) (string, error) {
-	cmd := exec.Command("sbatch", scriptPath)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("sbatch failed: %w\nstderr: %s", err, stderr.String())
-	}
-	// "Submitted batch job 12345"
-	parts := strings.Fields(strings.TrimSpace(stdout.String()))
-	if len(parts) >= 4 {
-		jobID := parts[3]
-		if err := taskruntime.RegisterCurrentSlurmJob(jobID); err != nil {
-			logger.Warnf("Failed to persist SLURM job %s: %v", jobID, err)
-		}
-		return jobID, nil
-	}
-	return "", fmt.Errorf("failed to parse job ID from sbatch output: %s", stdout.String())
+	return e.submitSlurmScript(scriptPath, "single-sample job")
 }
 
 // executeStepWithBatches 将样本分批提交，每批独立提交并等待完成
@@ -381,7 +370,7 @@ func (e *SlurmArrayEngine) generateArrayScript(step int, condaEnv string, workfl
 #SBATCH --output={{.OutputFile}}
 #SBATCH --error={{.ErrorFile}}
 #SBATCH --array=0-{{.ArraySize}}{{.MaxArrayJobs}}
-#SBATCH --time=24:00:00
+#SBATCH --time={{.Time}}
 
 set -e
 
@@ -401,11 +390,17 @@ SAMPLE_NAME=${SAMPLES[$SLURM_ARRAY_TASK_ID]}
 touch {{.SuccessFile}}.$SLURM_ARRAY_TASK_ID
 `
 
+	slurmMemory, err := formatSlurmMemory(e.stepResource.Memory)
+	if err != nil {
+		return "", err
+	}
+
 	data := struct {
 		JobName      string
 		Partition    string
 		Cores        int
 		Memory       string
+		Time         string
 		WorkDir      string
 		OutputFile   string
 		ErrorFile    string
@@ -421,7 +416,8 @@ touch {{.SuccessFile}}.$SLURM_ARRAY_TASK_ID
 		JobName:     fmt.Sprintf("%s_step%d_array", e.jobName, step),
 		Partition:   e.partition,
 		Cores:       e.stepResource.Cores,
-		Memory:      e.stepResource.Memory,
+		Memory:      slurmMemory,
+		Time:        e.timeLimit,
 		WorkDir:     e.getWorkDir(),
 		OutputFile:  filepath.Join(tmpDir, fmt.Sprintf("%s_step%d_array_%%A_%%a.out", e.jobName, step)),
 		ErrorFile:   filepath.Join(tmpDir, fmt.Sprintf("%s_step%d_array_%%A_%%a.err", e.jobName, step)),
@@ -496,7 +492,7 @@ func (e *SlurmArrayEngine) generateArrayScriptForBatch(step int, condaEnv string
 #SBATCH --output={{.OutputFile}}
 #SBATCH --error={{.ErrorFile}}
 #SBATCH --array=0-{{.ArraySize}}{{.MaxArrayJobs}}
-#SBATCH --time=24:00:00
+#SBATCH --time={{.Time}}
 
 set -e
 
@@ -516,11 +512,17 @@ SAMPLE_NAME=${SAMPLES[$SLURM_ARRAY_TASK_ID]}
 touch {{.SuccessFile}}.$SLURM_ARRAY_TASK_ID
 `
 
+	slurmMemory, err := formatSlurmMemory(e.stepResource.Memory)
+	if err != nil {
+		return "", err
+	}
+
 	data := struct {
 		JobName      string
 		Partition    string
 		Cores        int
 		Memory       string
+		Time         string
 		WorkDir      string
 		OutputFile   string
 		ErrorFile    string
@@ -536,7 +538,8 @@ touch {{.SuccessFile}}.$SLURM_ARRAY_TASK_ID
 		JobName:     fmt.Sprintf("%s_step%d_array_b%d", e.jobName, step, batchIdx),
 		Partition:   e.partition,
 		Cores:       e.stepResource.Cores,
-		Memory:      e.stepResource.Memory,
+		Memory:      slurmMemory,
+		Time:        e.timeLimit,
 		WorkDir:     e.getWorkDir(),
 		OutputFile:  filepath.Join(tmpDir, fmt.Sprintf("%s_step%d_batch%d_array_%%A_%%a.out", e.jobName, step, batchIdx)),
 		ErrorFile:   filepath.Join(tmpDir, fmt.Sprintf("%s_step%d_batch%d_array_%%A_%%a.err", e.jobName, step, batchIdx)),
@@ -582,34 +585,7 @@ touch {{.SuccessFile}}.$SLURM_ARRAY_TASK_ID
 
 // submitArrayJob submits a SLURM Job Array batch job
 func (e *SlurmArrayEngine) submitArrayJob(scriptPath string) (string, error) {
-	cmd := exec.Command("sbatch", scriptPath)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	err := cmd.Run()
-	if err != nil {
-		stderrStr := stderr.String()
-		stdoutStr := stdout.String()
-		if stderrStr != "" {
-			return "", fmt.Errorf("sbatch command failed: %w\nstderr: %s", err, stderrStr)
-		}
-		return "", fmt.Errorf("sbatch command failed: %w\nstdout: %s", err, stdoutStr)
-	}
-
-	// Parse job ID from output
-	outputStr := strings.TrimSpace(stdout.String())
-	// Expected format: "Submitted batch job 12345[0-9]"
-	parts := strings.Fields(outputStr)
-	if len(parts) >= 4 {
-		jobID := parts[3]
-		if err := taskruntime.RegisterCurrentSlurmJob(jobID); err != nil {
-			logger.Warnf("Failed to persist SLURM job %s: %v", jobID, err)
-		}
-		return jobID, nil
-	}
-
-	return "", fmt.Errorf("failed to parse Job Array ID from output: %s", outputStr)
+	return e.submitSlurmScript(scriptPath, "job array")
 }
 
 // waitForArrayJob waits for the SLURM Job Array to complete
@@ -681,6 +657,11 @@ func (e *SlurmArrayEngine) checkArrayJobStatus(jobID string) (*ArrayJobStatus, e
 	}
 
 	outputStr := strings.TrimSpace(string(output))
+	if outputStr == "" {
+		// An empty queue result means the array may have left the queue; use
+		// accounting rather than interpreting it as zero completed tasks.
+		return e.getArrayJobFinalStatus(baseJobID)
+	}
 	lines := strings.Split(outputStr, "\n")
 
 	status := &ArrayJobStatus{
@@ -696,14 +677,14 @@ func (e *SlurmArrayEngine) checkArrayJobStatus(jobID string) (*ArrayJobStatus, e
 			continue
 		}
 
-		switch line {
-		case "RUNNING":
+		switch normalizeSlurmState(line) {
+		case "RUNNING", "CONFIGURING", "COMPLETING":
 			status.Running++
 		case "PENDING":
 			status.Pending++
 		case "COMPLETED":
 			status.Completed++
-		case "FAILED", "CANCELLED", "TIMEOUT":
+		case "FAILED", "CANCELLED", "TIMEOUT", "OUT_OF_MEMORY", "NODE_FAIL", "PREEMPTED":
 			status.Failed++
 		}
 	}
@@ -735,10 +716,10 @@ func (e *SlurmArrayEngine) getArrayJobFinalStatus(jobID string) (*ArrayJobStatus
 			continue
 		}
 
-		switch line {
+		switch normalizeSlurmState(line) {
 		case "COMPLETED":
 			status.Completed++
-		case "FAILED", "CANCELLED", "TIMEOUT":
+		case "FAILED", "CANCELLED", "TIMEOUT", "OUT_OF_MEMORY", "NODE_FAIL", "PREEMPTED":
 			status.Failed++
 		}
 	}

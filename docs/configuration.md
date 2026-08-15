@@ -21,6 +21,7 @@ project.yaml + samples.tsv + references.lock.yaml
 - `references.lock.yaml`：项目默认 reference 的 release 与 manifest digest。
 - `run.yaml`：完全展开、不可变、唯一可执行配置。
 - Craftmake 只解析 `run.yaml`；不读取项目文件或 legacy config。
+- QCTB 直接解析同一不可变 `run.yaml`：`qctb --config <run.yaml>`，或 `qctb --config-dir <run-root>`（等价于 `<run-root>/run.yaml`）。QCTB 不读取 Snakemake compatibility YAML。
 
 ## Canonical project v1
 

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"testing"
+	"time"
 
 	"github.com/rainoffallingstar/otter/internal/config"
 	"github.com/rainoffallingstar/otter/internal/logger"
@@ -37,6 +38,51 @@ func TestNewEngine_Slurm(t *testing.T) {
 
 	if engine.GetName() != EngineSlurm {
 		t.Errorf("Expected engine name to be SLURM, got %s", engine.GetName())
+	}
+}
+
+func TestNewEngineSlurmPassesConfiguredWaitTimeout(t *testing.T) {
+	factory := &EngineFactory{}
+	engineCfg := &config.EngineConfig{
+		Type: "slurm",
+		Slurm: config.SlurmConfig{
+			Partition:   "compute",
+			Cores:       16,
+			Memory:      "32G",
+			JobName:     "timeout-test",
+			MaxRetries:  3,
+			WaitTimeout: "45m",
+		},
+	}
+
+	engine, err := factory.NewEngine(EngineSlurm, engineCfg)
+	if err != nil {
+		t.Fatalf("NewEngine() returned unexpected error: %v", err)
+	}
+	slurmEngine, ok := engine.(*SlurmEngine)
+	if !ok {
+		t.Fatalf("NewEngine() returned %T, want *SlurmEngine", engine)
+	}
+	if slurmEngine.waitTimeout != 45*time.Minute {
+		t.Fatalf("waitTimeout = %s, want 45m", slurmEngine.waitTimeout)
+	}
+}
+
+func TestNewEngineRejectsInvalidSlurmWaitTimeout(t *testing.T) {
+	factory := &EngineFactory{}
+	engineCfg := &config.EngineConfig{
+		Type: "slurm",
+		Slurm: config.SlurmConfig{
+			WaitTimeout: "not-a-duration",
+		},
+	}
+
+	engine, err := factory.NewEngine(EngineSlurm, engineCfg)
+	if err == nil {
+		t.Fatal("NewEngine() succeeded with an invalid wait_timeout")
+	}
+	if engine != nil {
+		t.Fatalf("NewEngine() returned %T with an invalid wait_timeout", engine)
 	}
 }
 

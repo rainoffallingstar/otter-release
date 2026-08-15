@@ -101,7 +101,7 @@ ingest → qc_raw → prepare → separate → align → quantify → qc_final �
 
 | 领域 | Modern | Legacy-equivalent | 主 parity |
 |---|---|---|---|
-| FASTQ QC | `fastqcx` | FastQC/MultiQC compatible path | 是 |
+| FASTQ QC | `fastqcx` | FastQC-compatible outputs; MultiQC remains an external-format compatibility consumer | 是 |
 | PDX separation | `xenofilx` | XenofilteR-compatible path | 是 |
 | paired BAM | `pairbam`/`bamdriver` | Paireads-compatible path | 是 |
 | count matrix | `seq2mat` | legacy HTSeq matrix path | 是 |
@@ -109,6 +109,8 @@ ingest → qc_raw → prepare → separate → align → quantify → qc_final �
 | methylation | `methx` | legacy Methrix/R path | 是 |
 | QC aggregate | `qctb` | legacy report path | 是 |
 | CluBCpG/mHap/CCGG/insert length | 无完整一一替代 | legacy extension | 否，单列 |
+
+`pairbam`/`bamdriver` 的适用范围固定为 BS（RRBS/WGBS）和 BS-PDX 的 paired-BAM 阶段；RNA-seq 与 RNA-PDX 不调度这些工具。七个 ready FASTQ 的比较配置必须由 Otter `config validate`/`config resolve` 生成 immutable `otter.run/v1` snapshot，再通过 `otter run --executor craftmake` 进入 Craftmake 的 plan/run/resume/status/log/report 控制面。共同 Trim Galore 是 modern/legacy 两条链路之间的固定预处理，不是本轮 trimming 比较轴；Snakemake 只保留单独的 compatibility/recovery 收尾。
 
 “等价”要求输入、reference、工具参数和 artifact schema 可比，不要求内部实现或字节序列完全相同。
 
@@ -144,6 +146,19 @@ Craftmake `BeaverBS/publish.yaml`、`BeaverRNA/publish.yaml`、`BeaverPDX/publis
 - `structural`：文件格式、字段、维度、样本顺序、reference identity 一致。
 - `scientific`：采用领域容差和 invariant。
 - `informational`：日志、图像渲染、时间戳等只保存，不阻断。
+
+## Gate 6 Comparison Ownership
+
+Executor parity fixes `workflow.toolchain` and compares only Craftmake-default with explicit Snakemake compatibility using the same immutable canary input, reference digest, Bismark Rust/Bowtie2 runtime, parameters, and resolved resources. Toolchain parity fixes `execution.executor` and compares modern with legacy-equivalent implementations. Perl Bismark is excluded from both comparisons.
+
+| Scenario | Blocking semantic/QC indicators | Structural blockers | Informational only |
+|---|---|---|---|
+| RRBS | CpG beta and coverage distributions, conversion metrics, trimmed-read retention, mapping rate | paired BAM/BAI, coverage/HDF5 schema, sample/reference identity | Bismark HTML and rendered QC assets |
+| RNA-seq | feature/count concordance, assignment rate, splicing outcome and PSI where emitted, mapping rate | matrix headers/order, BAM/BAI, typed splicing outcome | rendered QC assets |
+| BS-PDX | graft/host/ambiguous proportions, graft mapped reads, CpG beta/coverage, conversion metrics | graft BAM/BAI, classification rows bound to manifest, reference roles | Bismark/Qualimap HTML/PDF assets |
+| RNA-PDX | graft/host/ambiguous proportions, graft count concordance, assignment rate, splicing outcome/PSI | graft BAM/BAI, classification rows, matrix and typed outcome identity | rendered QC assets |
+
+A completed manifest is necessary but never enough for scientific parity. The current comparator registry must fail closed when an artifact declares an unavailable comparator. Byte or signature checks for HDF5, BAM/BAI, XLSX, HTML, or splicing metadata must be reported as their actual tier and cannot be represented as a tolerance-based scientific result until the relevant semantic comparator is implemented.
 
 ## 完成定义
 

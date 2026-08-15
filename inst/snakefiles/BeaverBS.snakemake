@@ -23,7 +23,6 @@ rule all:
     expand(os.path.join(config["directories"]["qc"]["main"],"GCbias","{sample}_{species}", "gc_bias_metrics.txt"),sample=SIDs,species = species),
     expand(os.path.join(config["directories"]["qc"]["main"],"GCbias","{sample}_{species}", "gc_bias_metrics.pdf"),sample=SIDs,species = species),
     expand(os.path.join(config["directories"]["qc"]["main"],"GCbias","{sample}_{species}", "summary_metrics.txt"),sample=SIDs,species = species),
-    os.path.join(config["qc_summary"], "multiqc_report.html"),
     expand(os.path.join(config["outDir_mCall"], "{sample}_nsort.bismark.cov.gz"),sample = SIDs),
     expand(os.path.join(config["directories"]["bsmap"]["main"], "{sample}_nsort.bam"),sample =SIDs ),
     os.path.join(config["outDir_mCall"], "methrixh5","assays.h5"),
@@ -57,10 +56,6 @@ include:"rules/05-3-qualimap.smk"
 # GCbias
 
 include:"rules/collectGCbias.smk"
-
-# multiqc
-
-include:"rules/multiqc.smk"
 
 # 第一次QC
 include: "rules/01fastqcAtfirst.smk"

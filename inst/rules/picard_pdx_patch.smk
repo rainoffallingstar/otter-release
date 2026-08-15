@@ -19,7 +19,7 @@ rule picard_pdx_patch:
   shell:
     """
     set -euo pipefail
-    enva run otter-core -- picard SetNmMdAndUqTags \
+    enva run otter-core-bismark-rust-3.1.0-r2 -- picard SetNmMdAndUqTags \
       I={input.bam_sorted:q} \
       O={output.fixed_bam:q} \
       R={params.fasta:q} \

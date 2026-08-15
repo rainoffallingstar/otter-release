@@ -21,7 +21,7 @@ func TestSelectedRunExecutorDefaultsToCraftmake(t *testing.T) {
 	}
 }
 
-func TestCraftmakeRunArgumentsPreserveSnapshotIdentity(t *testing.T) {
+func TestCraftmakeRunArgumentsScopeControllerRunToPhase(t *testing.T) {
 	originalPhase := runPhase
 	originalWorkflowPath := runWorkflowPath
 	originalCatalog := runWorkflowCatalog
@@ -60,8 +60,14 @@ func TestCraftmakeRunArgumentsPreserveSnapshotIdentity(t *testing.T) {
 		t.Fatalf("unexpected command %q", command)
 	}
 	expectedStateDirectory := filepath.Join(snapshot.Paths.RunRoot, "state")
-	assertArgumentPair(t, arguments, "--run-id", snapshot.Run.ID)
+	for index, argument := range arguments {
+		if argument == "--run-id" {
+			t.Fatalf("Otter must let Craftmake derive its phase-scoped controller ID: %#v", arguments[index:])
+		}
+	}
 	assertArgumentPair(t, arguments, "--backend", "slurm")
+	assertArgumentAbsent(t, arguments, "--legacy-config")
+	assertArgumentPair(t, arguments, "--config", "/shared/project/runs/run-20260726T013245Z-kxqjrm/run.yaml")
 	assertArgumentPair(t, arguments, "--state-dir", expectedStateDirectory)
 	assertArgumentPair(t, arguments, "--phase", "step1")
 	for _, immutableResourceFlag := range []string{"--partition", "--account", "--qos", "--time", "--scratch-root"} {
@@ -71,6 +77,29 @@ func TestCraftmakeRunArgumentsPreserveSnapshotIdentity(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestCraftmakeResumeScopesControllerRunToPhase(t *testing.T) {
+	originalPhase := runPhase
+	originalResume := resumeFlag
+	t.Cleanup(func() {
+		runPhase = originalPhase
+		resumeFlag = originalResume
+	})
+	runPhase = "step2"
+	resumeFlag = true
+	snapshot := configv1.RunSnapshot{
+		Run:   configv1.RunMetadata{ID: "run-20260726T013245Z-kxqjrm"},
+		Paths: configv1.RunPaths{State: "/shared/project/runs/run-20260726T013245Z-kxqjrm/state"},
+	}
+	command, arguments, err := craftmakeRunArguments("/shared/project/run.yaml", snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if command != craftmakeclient.CommandResume {
+		t.Fatalf("unexpected command %q", command)
+	}
+	assertArgumentPair(t, arguments, "--run", "run-20260726T013245Z-kxqjrm--step2")
 }
 
 func TestCraftmakeRunArgumentsRequireExplicitCompilationEntry(t *testing.T) {
@@ -91,6 +120,15 @@ func TestCraftmakeRunArgumentsRequireExplicitCompilationEntry(t *testing.T) {
 	_, _, err := craftmakeRunArguments("/tmp/run.yaml", configv1.RunSnapshot{})
 	if err == nil {
 		t.Fatal("expected missing phase or workflow to fail")
+	}
+}
+
+func assertArgumentAbsent(t *testing.T, arguments []string, unexpectedArgument string) {
+	t.Helper()
+	for _, argument := range arguments {
+		if argument == unexpectedArgument {
+			t.Fatalf("argument %s must not be present in %#v", unexpectedArgument, arguments)
+		}
 	}
 }
 

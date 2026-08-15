@@ -35,7 +35,7 @@ rule rnaseq_splicing:
         if config["metadata"]["group_levels"] >= 2:
             shell(
                 """
-                enva run otter-core -- \
+                enva run otter-core-bismark-rust-3.1.0-r2 -- \
                   matsrun run \
                   --root {params.run_dir:q} \
                   --threads {threads} \

@@ -172,6 +172,58 @@ func PublishRelease(releaseRoot string) (*ManifestReport, error) {
 	return report, nil
 }
 
+func VerifyReleaseIdentity(releaseRoot string, expectedManifestDigest string) error {
+	if !filepath.IsAbs(releaseRoot) {
+		return fmt.Errorf("release root must be absolute")
+	}
+	manifestPath := filepath.Join(releaseRoot, "manifest.json")
+	actualManifestDigest, err := digestFile(manifestPath)
+	if err != nil {
+		return fmt.Errorf("digest manifest %q: %w", manifestPath, err)
+	}
+	if expectedManifestDigest != "" && actualManifestDigest != expectedManifestDigest {
+		return fmt.Errorf("manifest digest mismatch: expected %s, got %s", expectedManifestDigest, actualManifestDigest)
+	}
+
+	definition, err := configv1.LoadReferenceDefinition(filepath.Join(releaseRoot, "reference.yaml"))
+	if err != nil {
+		return fmt.Errorf("load reference definition: %w", err)
+	}
+	if err := validateReleaseIdentityAssets(releaseRoot, definition); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateReleaseIdentityAssets(releaseRoot string, definition configv1.ReferenceDefinition) error {
+	assetPaths := []string{definition.Assets.Fasta.Path}
+	if definition.Assets.Fasta.FAI != "" {
+		assetPaths = append(assetPaths, definition.Assets.Fasta.FAI)
+	}
+	for _, annotation := range definition.Assets.Annotations {
+		assetPaths = append(assetPaths, annotation.Path)
+	}
+	for _, assetPath := range assetPaths {
+		fileInfo, err := os.Stat(filepath.Join(releaseRoot, assetPath))
+		if err != nil {
+			return fmt.Errorf("inspect declared asset %q: %w", assetPath, err)
+		}
+		if !fileInfo.Mode().IsRegular() {
+			return fmt.Errorf("declared asset %q is not a regular file", assetPath)
+		}
+	}
+	for _, index := range definition.Assets.Indexes {
+		indexInfo, err := os.Stat(filepath.Join(releaseRoot, index.Path))
+		if err != nil {
+			return fmt.Errorf("inspect declared index %q: %w", index.Path, err)
+		}
+		if !indexInfo.IsDir() {
+			return fmt.Errorf("declared index %q is not a directory", index.Path)
+		}
+	}
+	return nil
+}
+
 func VerifyRelease(releaseRoot string, expectedManifestDigest string) (*VerificationReport, error) {
 	manifestPath := filepath.Join(releaseRoot, "manifest.json")
 	actualManifestDigest, err := digestFile(manifestPath)

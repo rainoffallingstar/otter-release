@@ -277,9 +277,14 @@ func rejectSnakemakeRuntimeOverrides(command *cobra.Command, snapshot configv1.R
 }
 
 func legacyRuntimeSpeciesIdentifier(snapshot configv1.RunSnapshot, fallback string) string {
-	for _, reference := range snapshot.References.Resolved {
-		if reference.Role == configv1.ReferenceRolePrimary && strings.TrimSpace(reference.ID) != "" {
-			return reference.ID
+	for _, preferredRole := range []configv1.ReferenceRole{
+		configv1.ReferenceRolePrimary,
+		configv1.ReferenceRoleGraft,
+	} {
+		for _, reference := range snapshot.References.Resolved {
+			if reference.Role == preferredRole && strings.TrimSpace(reference.ID) != "" {
+				return reference.ID
+			}
 		}
 	}
 	return fallback
@@ -310,6 +315,32 @@ func legacyRuntimeSpeciesIdentifiers(snapshot configv1.RunSnapshot, fallback str
 	return identifiers
 }
 
+func setPDXReferenceFASTAMappings(referenceNode *yaml.Node, snapshot configv1.RunSnapshot) error {
+	graftReference, hostReference := legacyRuntimeReferenceByRole(snapshot, configv1.ReferenceRoleGraft), legacyRuntimeReferenceByRole(snapshot, configv1.ReferenceRoleHost)
+	if graftReference != nil {
+		setYAMLMappingValue(referenceNode, "graft_fasta", yamlStringScalar(graftReference.Fasta.Path))
+	}
+	if hostReference != nil {
+		setYAMLMappingValue(referenceNode, "host_fasta", yamlStringScalar(hostReference.Fasta.Path))
+	}
+	if snapshot.Workflow.Scenario == configv1.ScenarioBSPDX || snapshot.Workflow.Scenario == configv1.ScenarioRNAPDX {
+		if graftReference == nil || hostReference == nil {
+			return fmt.Errorf("PDX snapshot requires graft and host FASTA references")
+		}
+	}
+	return nil
+}
+
+func legacyRuntimeReferenceByRole(snapshot configv1.RunSnapshot, role configv1.ReferenceRole) *configv1.ResolvedReference {
+	for referenceIndex := range snapshot.References.Resolved {
+		reference := &snapshot.References.Resolved[referenceIndex]
+		if reference.Role == role && strings.TrimSpace(reference.Fasta.Path) != "" {
+			return reference
+		}
+	}
+	return nil
+}
+
 func writeLegacyRuntimeConfig(snapshot configv1.RunSnapshot, configuration *config.OtterConfig) (string, error) {
 	encoded, err := config.MarshalWithMapstructureTags(configuration)
 	if err != nil {
@@ -324,6 +355,7 @@ func writeLegacyRuntimeConfig(snapshot configv1.RunSnapshot, configuration *conf
 	}
 
 	rootMapping := compatibilityDocument.Content[0]
+	setYAMLMappingValue(rootMapping, "mode", yamlStringScalar(configuration.Workflow.Mode))
 	runtimeSpeciesIdentifier := legacyRuntimeSpeciesIdentifier(snapshot, configuration.Workflow.Species.Primary)
 	runtimeSpeciesIdentifiers := legacyRuntimeSpeciesIdentifiers(snapshot, runtimeSpeciesIdentifier)
 	setYAMLMappingValue(rootMapping, "SIDs", yamlStringSequence(configuration.Metadata.SampleIDs))
@@ -370,6 +402,9 @@ func writeLegacyRuntimeConfig(snapshot configv1.RunSnapshot, configuration *conf
 		return "", fmt.Errorf("legacy runtime config has no reference.indices mapping")
 	}
 	setYAMLMappingValue(referenceIndicesNode, "genome", yamlStringSequence(configuration.Reference.Indices.Genome))
+	if err := setPDXReferenceFASTAMappings(referenceNode, snapshot); err != nil {
+		return "", err
+	}
 
 	metadataNode, found := yamlMappingValue(rootMapping, "metadata")
 	if !found || metadataNode.Kind != yaml.MappingNode {

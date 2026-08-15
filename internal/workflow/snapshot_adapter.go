@@ -30,6 +30,10 @@ func SnapshotToLegacyConfig(snapshot configv1.RunSnapshot) (*config.OtterConfig,
 	if err != nil {
 		return nil, err
 	}
+	legacyMode := mode
+	if snapshot.Workflow.Scenario == configv1.ScenarioBSPDX {
+		legacyMode = "PDX"
+	}
 	expressionReference := primaryReference
 	if snapshot.Workflow.Scenario == configv1.ScenarioRNAPDX {
 		expressionReference = graftReference
@@ -44,7 +48,7 @@ func SnapshotToLegacyConfig(snapshot configv1.RunSnapshot) (*config.OtterConfig,
 	fastqDirectory := filepath.Dir(snapshot.Samples[0].R1)
 	configuration := &config.OtterConfig{
 		Workflow: config.WorkflowConfig{
-			Mode:    mode,
+			Mode:    legacyMode,
 			UserID:  snapshot.Project.ID,
 			JobID:   snapshot.Run.ID,
 			Samples: snapshotSamples(snapshot.Samples),

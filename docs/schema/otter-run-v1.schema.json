@@ -132,6 +132,31 @@
     "observability": { "$ref": "#/$defs/observability" },
     "parity": { "$ref": "#/$defs/parity" }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "parity": {
+            "properties": {
+              "policy": { "const": "executor-phase-envelope/v1" }
+            },
+            "required": ["policy"]
+          }
+        },
+        "required": ["parity"]
+      },
+      "then": {
+        "properties": {
+          "execution": {
+            "properties": {
+              "resources": { "$ref": "#/$defs/parityPhaseResources" }
+            },
+            "required": ["resources"]
+          }
+        }
+      }
+    }
+  ],
   "$defs": {
     "source": { "enum": ["default", "project", "cli", "profile", "detection"] },
     "resourceSpec": {
@@ -152,6 +177,24 @@
         "phases": {
           "type": "object",
           "additionalProperties": { "$ref": "#/$defs/resourceSpec" }
+        }
+      }
+    },
+    "parityPhaseResources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["phases"],
+      "properties": {
+        "defaults": { "$ref": "#/$defs/resourceSpec" },
+        "phases": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "allOf": [
+              { "$ref": "#/$defs/resourceSpec" },
+              { "required": ["cores", "memory", "time", "partition"] }
+            ]
+          }
         }
       }
     },
@@ -186,7 +229,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "policy": { "type": "string" }
+        "policy": { "enum": ["executor-phase-envelope/v1"] }
       }
     },
     "resolvedString": {
@@ -255,6 +298,7 @@
         "role": { "enum": ["primary", "secondary", "graft", "host"] },
         "id": { "type": "string", "minLength": 1 },
         "release": { "type": "string", "minLength": 1 },
+        "organism": { "type": "string", "minLength": 1 },
         "registry_root": { "type": "string", "pattern": "^/" },
         "manifest_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
         "fasta": { "$ref": "#/$defs/resolvedAsset" },

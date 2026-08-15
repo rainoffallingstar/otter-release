@@ -10,17 +10,15 @@ rule bismarkreport:
     alignment_log = lambda wildcards: os.path.join(config["directories"]["bsmap"]["main"], config["workflow"]["species"]["graft"],f"{wildcards.sample}_val_1_bismark_bt2_PE_report.txt"),
     split_log = lambda wildcards:os.path.join(config["directories"]["methylation_call"],f"{wildcards.sample}_nsort_splitting_report.txt"),
     mbias_log = lambda wildcards:os.path.join(config["directories"]["methylation_call"],f"{wildcards.sample}_nsort.M-bias.txt"),
-    samplename = lambda wildcards:f"{wildcards.sample}.html",
-    nucleotide_log = lambda wildcards:os.path.join(config["directories"]["bsmap"]["main"],config["workflow"]["species"]["graft"],f"{wildcards.sample}_val_1_bismark_bt2_pe.nucleotide_stats.txt")
+    samplename = lambda wildcards:f"{wildcards.sample}.html"
     
-  threads:10
+  threads:1
   shell:
     """
-    enva run bismark -- bismark2report --dir {params.outDir} \
+    enva run otter-core-bismark-rust-3.1.0-r2 -- bismark2report --dir {params.outDir} \
     --output {params.samplename} \
     --alignment_report {params.alignment_log} \
     --splitting_report {params.split_log} \
-    --mbias_report {params.mbias_log} \
-    --nucleotide_report {params.nucleotide_log}
+    --mbias_report {params.mbias_log}
     
     """

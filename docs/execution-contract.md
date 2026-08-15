@@ -39,7 +39,7 @@ craftmake cancel   --state <state.sqlite> --run-id <id> --format json
 craftmake report   --state <state.sqlite> --run-id <id> --format json
 ```
 
-Craftmake 只解析一个 `run.yaml`；不读取 `project.yaml`、samples、reference registry、site profile 或 legacy fields。
+Craftmake 只解析一个 `run.yaml`；不读取 `project.yaml`、samples、reference registry、site profile 或 legacy fields。QCTB 同样只从该 immutable snapshot 派生其运行配置：workflow 应声明 `run.yaml` 作为输入并调用 `qctb --config <run.yaml>`；人工调用可使用 `qctb --config-dir <run-root>`。`--config-dir` 仅解析 `<run-root>/run.yaml`，不是多文件配置目录。
 
 ## JSON envelope
 
@@ -87,12 +87,28 @@ Otter task ID
 
 这些 ID 必须可从 Otter task record、Craftmake SQLite、controller JSONL 和 manifest 双向追溯。
 
+## Runtime Incident Evidence
+
+A failed or cancelled task attempt creates an `otter.runtime-incident/v1` record. Its stable classifier is independent from human-readable stderr and includes category, scope, retry safety/policy, owner, escalation rule, remediation status, first-observed timestamp, executor/backend and backend job IDs, exit code/signal, and bounded diagnostic/evidence paths.
+
+The initial categories are `input_reference_digest`, `environment_tool`, `scheduler_submission`, `queue_timeout`, `resource_exhaustion`, `filesystem_io`, `network_acquisition`, `tool_invocation`, `scientific_qc`, `artifact_integrity`, `cancellation_recovery`, and `internal_unknown`. A retry can be automatic only for bounded transient scheduler submission or acquisition failures. Any `internal_unknown` incident blocks Gate 6 promotion until classified; stderr remains a retained diagnostic, never the durable classification key.
+
+The correlation chain therefore extends to evidence:
+
+```text
+Otter task ID -> executor run ID -> submission ID -> task/attempt ID -> SLURM job/step ID
+  -> task result + controller JSONL + SQLite incident + metrics/accounting + artifact report
+```
+
+`craftmake report` exports task, timing, allocation, and `run-evidence.json` records even for failed/cancelled runs. Evidence retention must preserve the result path, referenced logs, controller stream, incident record, and Slurm accounting until incident remediation is resolved or waived.
+
 ## Cancel、signal 与 resume
 
 - Otter 将 SIGINT/SIGTERM 转发给 Craftmake。
 - Craftmake 对 SLURM 调用 `scancel`，对 Local 终止受管 process group。
 - cancel 必须记录请求、后端确认和最终状态。
 - resume 使用原 `run.yaml` 和 run ID；任何 config/reference/workflow digest 不一致都拒绝。
+- controller 在标记 child allocation 失败前必须通过 `sacct` 复核任何 empty/transient `squeue` result；控制面不可用必须保持非终态并继续轮询，不得作为任务失败证据。
 - 需要改变 reference、executor、toolchain、samples 或资源解析时创建新 run，并用 lineage 字段关联旧 run。
 
 ## 默认选择与来源

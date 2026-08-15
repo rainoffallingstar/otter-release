@@ -9,5 +9,5 @@ rule all:
     expand(os.path.join(config["directories"]["bsmap"]["main"], "Filtered_bams", "{sample}_fixed_" + config["workflow"]["species"]["graft"] + "_Filtered.bam"), sample=SIDs),
     expand(os.path.join(config["directories"]["bsmap"]["main"], "Filtered_bams", "{sample}_fixed_" + config["workflow"]["species"]["graft"] + "_Filtered.bam.bai"), sample=SIDs)
 
-include: "rules/picard_pdx_patch.smk"
 include: "rules/XenofilteR.smk"
+

@@ -12,14 +12,14 @@ rule bsmap2sort4homo:
     bam_sorted = lambda wildcards:os.path.join(config["directories"]["bsmap"]["main"], f"{wildcards.sample}_"+f"{wildcards.species}"+".bam"),
     bamTmp = lambda wildcards:os.path.join(config["directories"]["bsmap"]["main"],"tmp",f"{wildcards.species}"),
     genomeFile = lambda wildcards:config["reference"]["indices"]["genome"][config["workflow"]["species"]["name"].index(wildcards.species)]
-  threads: 8
+  threads: 40
   shell:
     """
-    enva run bismark -- bismark --genome {params.genomeFile} --nucleotide_coverage --parallel {threads} -1 {input.trim_R1} -2 {input.trim_R2} -o {params.bsmapDir_species}  --temp_dir {params.bamTmp}
+    enva run otter-core-bismark-rust-3.1.0-r2 -- bismark --genome {params.genomeFile} --nucleotide_coverage --parallel 8 -1 {input.trim_R1} -2 {input.trim_R2} -o {params.bsmapDir_species}  --temp_dir {params.bamTmp}
     
-    enva run bismark -- samtools sort -@ {threads} -o {params.bam_sorted} {params.bam_aligned}
+    enva run otter-core-bismark-rust-3.1.0-r2 -- samtools sort -@ {threads} -o {params.bam_sorted} {params.bam_aligned}
     
-    enva run bismark -- samtools index -@ {threads} -b {params.bam_sorted}
+    enva run otter-core-bismark-rust-3.1.0-r2 -- samtools index -@ {threads} -b {params.bam_sorted}
     
     #rm -f {params.bam_aligned}
     

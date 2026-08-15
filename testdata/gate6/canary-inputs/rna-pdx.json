@@ -1,0 +1,25 @@
+{
+  "scenario": "rna-pdx",
+  "accession": "SRR30880970",
+  "source": {
+    "r1": {
+      "path": "/public3/home/scg9946/otter-gate6/cache/gate6-sra-20260730-native-sdl/fastq/SRR30880970/SRR30880970_1.fastq.gz",
+      "sha256": "sha256:4a5a3b0b613845db6d529efdb01b21ea64ed0d79f729b46e9e5a0a1c43322e71"
+    },
+    "r2": {
+      "path": "/public3/home/scg9946/otter-gate6/cache/gate6-sra-20260730-native-sdl/fastq/SRR30880970/SRR30880970_2.fastq.gz",
+      "sha256": "sha256:2016446a35c724e68b02938e0d7edff04626e0c6b4768f5d22f940b808b71401"
+    }
+  },
+  "selection": {"seed": "gate6-rna-pdx-srr30880970-v1", "modulus": 500, "remainder": 71},
+  "reference": {
+    "primary_id": "hg38",
+    "release": "GRCh38-gencode-v44",
+    "manifest_sha256": "sha256:bda77ed9591ec4b9b6c4fadf032e9bfeafec0a6e03e7854e4d706e4f8909a132",
+    "species": [
+      {"role": "graft", "id": "hg38", "release": "GRCh38-gencode-v44", "manifest_sha256": "sha256:bda77ed9591ec4b9b6c4fadf032e9bfeafec0a6e03e7854e4d706e4f8909a132"},
+      {"role": "host", "id": "mm10", "release": "GRCm38-gencode-M25", "manifest_sha256": "sha256:777158ba49da3f43c76b449c635878ba65d26dfc2ebd44cd2af212a3aabf29e2"}
+    ]
+  },
+  "provenance": {"workflow_digest": "sha256:7a65374227344a711586a27f810cf35b25ef6dda7598eb0f26ef9e3b873cb2d9"}
+}

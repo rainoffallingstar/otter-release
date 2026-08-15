@@ -1,10 +1,12 @@
 package v1
 
 const (
-	ProjectSchemaVersion        = "otter.project/v1"
-	RunSchemaVersion            = "otter.run/v1"
-	ReferenceSchemaVersion      = "otter.reference/v1"
-	ReferencesLockSchemaVersion = "otter.references.lock/v1"
+	ProjectSchemaVersion              = "otter.project/v1"
+	RunSchemaVersion                  = "otter.run/v1"
+	ReferenceSchemaVersion            = "otter.reference/v1"
+	ReferencesLockSchemaVersion       = "otter.references.lock/v1"
+	SRAAcquisitionSchemaVersion       = "otter.sra-acquisition/v1"
+	ParityPolicyExecutorPhaseEnvelope = "executor-phase-envelope/v1"
 )
 
 type Scenario string
@@ -150,6 +152,65 @@ type SampleRecord struct {
 	R2Size    int64  `yaml:"r2_size_bytes,omitempty" json:"r2_size_bytes,omitempty"`
 }
 
+type SRAAcquisitionManifest struct {
+	SchemaVersion string                 `json:"schema_version"`
+	Acquisition   SRAAcquisitionIdentity `json:"acquisition"`
+	Entries       []SRAAcquisitionEntry  `json:"entries"`
+}
+
+type SRAAcquisitionIdentity struct {
+	ID        string    `json:"id"`
+	CreatedAt Timestamp `json:"created_at"`
+	Immutable bool      `json:"immutable"`
+	Root      string    `json:"root"`
+}
+
+type SRAAcquisitionEntry struct {
+	Scenario  Scenario                `json:"scenario"`
+	Accession string                  `json:"accession"`
+	Download  SRAArchive              `json:"download"`
+	Output    SRAAcquiredFASTQPair    `json:"output"`
+	Reference SRAAcquisitionReference `json:"reference"`
+	Tool      SRAAcquisitionTool      `json:"tool"`
+}
+
+type SRAArchive struct {
+	Path   string `json:"path"`
+	SHA256 string `json:"sha256"`
+	Bytes  int64  `json:"bytes"`
+	MD5    string `json:"md5"`
+}
+
+type SRAAcquiredFASTQPair struct {
+	R1 SRAAcquiredFASTQ `json:"r1"`
+	R2 SRAAcquiredFASTQ `json:"r2"`
+}
+
+type SRAAcquiredFASTQ struct {
+	Path              string `json:"path"`
+	SHA256            string `json:"sha256"`
+	Bytes             int64  `json:"bytes"`
+	PairedRecordCount int64  `json:"paired_record_count"`
+}
+
+type SRAAcquisitionReference struct {
+	Primary *SRAReferenceSelection  `json:"primary,omitempty"`
+	Species []SRAReferenceSelection `json:"species,omitempty"`
+}
+
+type SRAReferenceSelection struct {
+	Role           ReferenceRole `json:"role"`
+	ID             string        `json:"id"`
+	Release        string        `json:"release"`
+	ManifestSHA256 string        `json:"manifest_sha256"`
+}
+
+type SRAAcquisitionTool struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+	Command string `json:"command"`
+}
+
 type ReferencesLock struct {
 	SchemaVersion     string                     `yaml:"schema_version" json:"schema_version"`
 	References        map[string]LockedReference `yaml:"references" json:"references"`
@@ -289,10 +350,10 @@ type ResolvedSlurmResources struct {
 }
 
 type ResolvedExecution struct {
-	Executor  ResolvedExecutor      `yaml:"executor" json:"executor"`
-	Backend   ResolvedBackend       `yaml:"backend" json:"backend"`
-	Site      ResolvedString        `yaml:"site" json:"site"`
-	Resources ProjectResources      `yaml:"resources" json:"resources"`
+	Executor  ResolvedExecutor       `yaml:"executor" json:"executor"`
+	Backend   ResolvedBackend        `yaml:"backend" json:"backend"`
+	Site      ResolvedString         `yaml:"site" json:"site"`
+	Resources ProjectResources       `yaml:"resources" json:"resources"`
 	Slurm     ResolvedSlurmResources `yaml:"slurm,omitempty" json:"slurm,omitempty"`
 }
 
@@ -315,6 +376,7 @@ type ResolvedReference struct {
 	Role           ReferenceRole   `yaml:"role" json:"role"`
 	ID             string          `yaml:"id" json:"id"`
 	Release        string          `yaml:"release" json:"release"`
+	Organism       string          `yaml:"organism,omitempty" json:"organism,omitempty"`
 	RegistryRoot   string          `yaml:"registry_root" json:"registry_root"`
 	ManifestDigest string          `yaml:"manifest_digest" json:"manifest_digest"`
 	Fasta          ResolvedAsset   `yaml:"fasta" json:"fasta"`

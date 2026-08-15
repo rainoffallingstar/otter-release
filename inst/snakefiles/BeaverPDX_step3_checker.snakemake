@@ -11,13 +11,13 @@ rule all:
     os.path.join(config["directories"]["bsmap"]["main"], config["graft"],"bismark_summary_report.html"),
     expand(os.path.join(config["directories"]["bsmap"]["main"],config["graft"], "{sample}.html"),sample = SIDs),
     os.path.join(config["qc_summary"],"qc_summary.xlsx")
-
+    
 
 # bismark report
 
 include:"rules/bismark_report2summary.smk"
 
-# bismark summary
+# bismark summary 
 
 include:"rules/bismark2summary.smk"
 

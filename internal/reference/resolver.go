@@ -75,18 +75,15 @@ func (resolver Resolver) resolve(role configv1.ReferenceRole, selection configv1
 	if !supportsScenario(definition.Compatibility.Scenarios, scenario) {
 		return configv1.ResolvedReference{}, fmt.Errorf("reference %s does not support scenario %s", selection, scenario)
 	}
-	verification, err := VerifyRelease(releaseRoot, manifestDigest)
-	if err != nil {
-		return configv1.ResolvedReference{}, fmt.Errorf("verify reference %s checksums: %w", selection, err)
-	}
-	if !verification.Passed {
-		return configv1.ResolvedReference{}, fmt.Errorf("verify reference %s checksums: %s", selection, formatVerificationIssues(verification.Issues))
+	if err := VerifyReleaseIdentity(releaseRoot, manifestDigest); err != nil {
+		return configv1.ResolvedReference{}, fmt.Errorf("verify reference %s identity: %w", selection, err)
 	}
 
 	resolved := configv1.ResolvedReference{
 		Role:           role,
 		ID:             id,
 		Release:        release,
+		Organism:       definition.Reference.Organism,
 		RegistryRoot:   releaseRoot,
 		ManifestDigest: manifestDigest,
 		Fasta: configv1.ResolvedAsset{

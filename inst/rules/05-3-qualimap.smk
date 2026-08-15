@@ -9,9 +9,9 @@ rule qualimap:
   params:
     outdir_qualimap = lambda wildcards:os.path.join(config["directories"]["qualimap"], f"{wildcards.sample}_{wildcards.species}"),
     java_mem = "40G"
-  threads:4
+  threads:2
   shell:
     """
     export JAVA_OPTS="-Djava.awt.headless=true"
-    enva run otter-core -- qualimap bamqc -bam {input.sample_bam} -outdir {params.outdir_qualimap} -outformat PDF:HTML  --java-mem-size={params.java_mem}
+    enva run otter-core-bismark-rust-3.1.0-r2 -- qualimap bamqc -bam {input.sample_bam} -outdir {params.outdir_qualimap} -outformat PDF:HTML  --java-mem-size={params.java_mem}
     """

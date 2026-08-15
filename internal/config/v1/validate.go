@@ -196,6 +196,9 @@ func ValidateRunSnapshot(snapshot RunSnapshot) error {
 			return fmt.Errorf("resolved SLURM resources: %w", err)
 		}
 	}
+	if err := validateParityConfig(snapshot.Parity, snapshot.Execution); err != nil {
+		return err
+	}
 	if len(snapshot.Samples) == 0 || len(snapshot.References.Resolved) == 0 {
 		return fmt.Errorf("resolved samples and references must not be empty")
 	}
@@ -433,6 +436,30 @@ func validateLegacyExtensions(extensions []string) error {
 			return fmt.Errorf("workflow legacy extension %q is duplicated", extension)
 		}
 		seen[extension] = true
+	}
+	return nil
+}
+
+func validateParityConfig(parity ParityConfig, execution ResolvedExecution) error {
+	if parity.Policy == "" {
+		return nil
+	}
+	if parity.Policy != ParityPolicyExecutorPhaseEnvelope {
+		return fmt.Errorf("parity.policy %q is invalid", parity.Policy)
+	}
+	if execution.Backend.Value != BackendSlurm {
+		return fmt.Errorf("executor phase envelope parity requires the slurm backend")
+	}
+	if len(execution.Resources.Phases) == 0 {
+		return fmt.Errorf("executor phase envelope parity requires phase resources")
+	}
+	for phaseName, resource := range execution.Resources.Phases {
+		if resource.Cores <= 0 ||
+			resource.Memory == "" ||
+			strings.TrimSpace(resource.Partition) == "" ||
+			resource.Time == "" {
+			return fmt.Errorf("executor phase envelope %q requires cores, memory, partition, and time", phaseName)
+		}
 	}
 	return nil
 }

@@ -32,7 +32,7 @@
 
 1. Otter 增加 `executor` 与 `backend` 正交选择。
 2. 默认 `craftmake`，只有显式请求才调用 Snakemake。
-3. Craftmake 与 Snakemake loaders 都通过同一个 typed `RunInvocation` 读取/revalidate `run.yaml`。
+3. Craftmake 与 Snakemake loaders 都通过同一个 typed `RunInvocation` 读取/revalidate `run.yaml`；QCTB 直接消费同一 immutable snapshot（`--config <run.yaml>` 或 `--config-dir <run-root>`），不再需要由 Craftmake 生成工具专用配置副本。
 4. 固化 validate/plan/run/resume/status/logs/report/cancel JSON envelope；Craftmake classified exit code 会透传至 CLI 和后台 task record。
 5. 打通 signal/cancel 和 ID 关联。
 
@@ -82,7 +82,7 @@
 
 | 算子 | Modern | Legacy-equivalent | Parity |
 |---|---|---|---|
-| FASTQ QC | `fastqcx` | FastQC/MultiQC | exact/structural |
+| FASTQ QC | `fastqcx` | FastQC-compatible outputs; MultiQC remains an external-format compatibility consumer | exact/structural |
 | PDX 分离 | `xenofilx` | XenofilteR | scientific |
 | 配对 BAM | `pairbam`/`bamdriver` | Paireads | structural |
 | 计数矩阵 | `seq2mat` | HTSeq matrix | scientific |
@@ -90,6 +90,10 @@
 | 甲基化 | `methx` | Methrix/R | scientific |
 | QC 聚合 | `qctb` | legacy report | informational |
 | ClubCpG/mHap/CCGG/insert | 无（legacy only） | — | — |
+
+PDX normal execution uses Xenofilx directly on original step2 graft/host BAMs. Its `step2-check` ends at content-bearing sample and filtered-BAM validation manifests; it no longer schedules or waits for MultiQC. The structured `qctb` `qc_summary.xlsx` remains a `step3-check` output with the existing Methrix-derived input contract. MultiQC rules and FastQC-compatible output tests remain available only for explicit compatibility use; qctb is not described as a visual MultiQC equivalent.
+
+PDX normal execution uses Xenofilx directly on original step2 graft/host BAMs. It always enables `--recalculate-nm`; BS-PDX enables `--bisulfite`, while RNA-PDX does not. Xenofilx owns both the fixed-name filtered BAM and BAI, and neither executor regenerates that BAI with `samtools index`. Picard patching is retained only for explicit original-XenofilteR comparison workflows.
 
 ### Artifact catalog
 
@@ -105,7 +109,7 @@ Artifact contract 定义在 `docs/workflow-catalog.md`：每 scenario 声明 pha
 4. [ ] scale：生产规模 throughput 与 scheduler pressure（需生产数据）。
 5. [x] 发布不可变 metrics schema（`docs/benchmark-plan.md`）、parity 报告格式和差异 tier（exact/structural/scientific/informational）。
 
-Gate 6 preflight evidence（截至 2026-07-29）：Paracloud compute-node 上的 `otter-core`、`otter-snakemake`、`otter-extra` runtime 已接受；五场景 SRA metadata-only canary selection 已冻结在远端 immutable evidence。该选择不代表 FASTQ acquisition、下采样、reference compatibility 或 workflow 执行已通过。当前硬阻塞是发布并校验具备 FASTA、annotation、Bismark/Bowtie2/STAR indexes、manifest/checksums 的 reference registry，且确认 compute-node visibility；其后依次冻结 canary FASTQ、运行真实双 executor canary、恢复测试、representative 和 scale。
+Gate 6 preflight evidence（截至 2026-08-01）：Paracloud compute-node 上的 Rust Bismark/Bowtie2 runtime 和完整 reference registry 均已接受；四个 non-WGBS paired FASTQ sources 已完成 acquisition/decode/integrity verification。`docs/gate6-canary-matrix.md` now freezes the independent executor and toolchain axes, deterministic selection policies, and promotion gates. Array job `41046679` published four create-only canary inputs; independent compute-node verification `41048591` accepted all checks. Otter owns the local `executor-phase-envelope/v1` policy and uses `run.yaml.execution.resources.phases` as the shared Slurm resource source. Craftmake only consumes an optional generic phase allocation limit and validates its own allocations/workers against it; the explicit Snakemake adapter carries the same Otter-managed cores, binary-unit memory, partition, and time through phase-array submission. A versioned deployment and real paired executor canary remain mandatory before accepting parity. The remote `/public3/home/scg9946/xdxtools` checkout is an older snapshot without the Craftmake submodule/current executables, so deployment of the tested versioned runtime and workflow assets remains a hard prerequisite. WGBS remains deferred.
 
 通过条件：五场景科学 parity、恢复和性能门禁全部通过或有明确限期 waiver（failure injection × local 已全部通过；真实 canary/representative/scale 尚未执行）。
 

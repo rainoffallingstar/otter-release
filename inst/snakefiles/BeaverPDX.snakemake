@@ -25,7 +25,6 @@ rule all:
     expand(os.path.join(config["directories"]["qc"]["main"],"GCbias","{sample}_{species}", "summary_metrics.txt"),sample=SIDs,species = species),
     expand(os.path.join(config["directories"]["bsmap"]["main"], "Filtered_bams", "{sample}_fixed_" + config["workflow"]["species"]["graft"] + "_Filtered.bam"), sample=SIDs),
     expand(os.path.join(config["directories"]["bsmap"]["main"], "Filtered_bams", "{sample}_fixed_" + config["workflow"]["species"]["graft"] + "_Filtered.bam.bai"), sample=SIDs),
-    os.path.join(config["qc_summary"], "multiqc_report.html"),
     expand(os.path.join(config["outDir_mCall"], "{sample}_nsort.bismark.cov.gz"),sample = SIDs),
     expand(os.path.join(config["directories"]["bsmap"]["main"], "{sample}_nsort.bam"),sample =SIDs ),
     os.path.join(config["outDir_mCall"], "methrixh5","assays.h5"),
@@ -50,9 +49,6 @@ include: "rules/03-1-seqkit.smk"
 
 include: "rules/04bsmap2sort_bismark.smk"
 
-# Patch PDX alignments before graft filtering.
-include: "rules/picard_pdx_patch.smk"
-
 # qualimap
 
 include:"rules/05-3-qualimap.smk"
@@ -64,14 +60,6 @@ include:"rules/XenofilteR.smk"
 # GCbias
 
 include:"rules/collectGCbias.smk"
-
-# multiqc
-
-include:"rules/multiqc.smk"
-
-# step checker
-
-include: "rules/BSseq_step2_checker.smk"
 
 # build beta
 

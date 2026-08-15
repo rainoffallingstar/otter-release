@@ -65,6 +65,54 @@ func TestResolveIsDeterministicAndTracksOverrides(t *testing.T) {
 	}
 }
 
+func TestResolveExcludesMutableSnakemakeStateFromWorkflowAssets(t *testing.T) {
+	projectRoot := t.TempDir()
+	referenceRoot := filepath.Join(projectRoot, "reference-registry")
+	writeProjectFixture(t, projectRoot)
+	writeReferenceFixture(t, referenceRoot, "hg38", "GRCh38.p14", false)
+	writeFile(t, filepath.Join(projectRoot, "BeaverRNA.snakemake"), "rule all:\n")
+	if err := os.MkdirAll(filepath.Join(projectRoot, ".snakemake", "locks"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(projectRoot, ".snakemake", "locks", "active.lock"), "mutable state\n")
+
+	runDirectory := runstate.Directory{
+		ID:        "run-20260726T013245Z-abcdef",
+		CreatedAt: time.Date(2026, 7, 26, 1, 32, 45, 0, time.UTC),
+		Root:      filepath.Join(projectRoot, "runs", "run-20260726T013245Z-abcdef"),
+	}
+	snapshot, err := (Resolver{}).Resolve(Options{
+		ProjectPath:      filepath.Join(projectRoot, "project.yaml"),
+		RunDirectory:     runDirectory,
+		ReferenceRoot:    referenceRoot,
+		BackendOverride:  configv1.BackendLocal,
+		ExecutorOverride: configv1.ExecutorSnakemake,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mutableStatePath := filepath.Join(projectRoot, ".snakemake")
+	rootSnakefilePath := filepath.Join(projectRoot, "BeaverRNA.snakemake")
+	foundRootSnakefile := false
+	for _, workflowAssetPath := range snapshot.Paths.WorkflowAssets {
+		if workflowAssetPath == mutableStatePath {
+			t.Fatalf("mutable Snakemake state must not be a workflow asset: %q", workflowAssetPath)
+		}
+		if workflowAssetPath == rootSnakefilePath {
+			foundRootSnakefile = true
+		}
+	}
+	if !foundRootSnakefile {
+		t.Fatalf("root Snakemake workflow must remain a workflow asset: %#v", snapshot.Paths.WorkflowAssets)
+	}
+
+	writeFile(t, filepath.Join(projectRoot, ".snakemake", "locks", "active.lock"), "new mutable state\n")
+	if err := runstate.RevalidateSnapshot(snapshot); err != nil {
+		t.Fatalf("mutable Snakemake state must not invalidate immutable workflow assets: %v", err)
+	}
+}
+
 func TestResolvedSnapshotRejectsInputDrift(t *testing.T) {
 	projectRoot := t.TempDir()
 	referenceRoot := filepath.Join(projectRoot, "reference-registry")
@@ -174,6 +222,30 @@ func TestValidateSlurmComputePathsFailsClosedOnReferenceError(t *testing.T) {
 	)
 	if !errors.Is(err, computePathError) {
 		t.Fatalf("expected compute-node reference root preflight error, got %v", err)
+	}
+}
+
+func TestValidateSlurmComputePathsSkipsImplicitComputeSubmission(t *testing.T) {
+	temporaryRoot := t.TempDir()
+	runRoot := filepath.Join(temporaryRoot, "runs", "run-20260726T013245Z-abcdef")
+	if err := os.MkdirAll(runRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	err := validateSlurmComputePaths(
+		Options{},
+		backendResolution{
+			Backend: configv1.BackendSlurm,
+			SlurmResources: configv1.ResolvedSlurmResources{
+				Partition: configv1.ResolvedString{Value: "cpu"},
+				Account:   configv1.ResolvedString{Value: "genomics"},
+			},
+		},
+		temporaryRoot,
+		runRoot,
+	)
+	if err != nil {
+		t.Fatalf("login-node resolution should not submit an implicit compute preflight: %v", err)
 	}
 }
 

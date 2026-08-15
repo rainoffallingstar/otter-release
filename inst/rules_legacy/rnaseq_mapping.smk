@@ -16,7 +16,7 @@ rule rnaseqmappingbowtie:
   threads: 40
   shell:
     """
-    enva run star STAR --runThreadN {threads} \
+    enva run otter-core-bismark-rust-3.1.0-r2 -- STAR --runThreadN {threads} \
     --readFilesCommand zcat \
     --quantMode GeneCounts \
     --genomeDir {params.rnaseq_ref} \
@@ -27,10 +27,8 @@ rule rnaseqmappingbowtie:
      --outSAMattributes NH HI AS nM NM MD \
     --outFileNamePrefix  {params.bam_aligned_prefix} 
     
-    enva run bismark -- samtools sort -@ {threads} -o {params.bam_sorted} {params.bam_aligned}
+    mv {params.bam_aligned} {params.bam_sorted}
     
-    enva run bismark -- samtools index {params.bam_sorted}
-    
-    rm -f {params.bam_aligned}
+    enva run otter-core-bismark-rust-3.1.0-r2 -- samtools index -@ 8 {params.bam_sorted}
     
     """

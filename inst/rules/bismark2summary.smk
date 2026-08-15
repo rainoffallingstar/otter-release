@@ -8,9 +8,9 @@ rule bismarksummary:
   params:
     rundir = os.path.join(config["directories"]["bsmap"]["main"],config["workflow"]["species"]["graft"]),
     graft_align = expand("{sample}_val_1_bismark_bt2_pe.bam",sample = config["metadata"]["sample_ids"])
-  threads:10
+  threads:1
   shell:
     """
-    cd {params.rundir} && enva run otter-core -- bismark2summary {params.graft_align}
+    cd {params.rundir} && enva run otter-core-bismark-rust-3.1.0-r2 -- bismark2summary {params.graft_align}
 
     """

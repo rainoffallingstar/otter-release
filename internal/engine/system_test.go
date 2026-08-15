@@ -14,6 +14,7 @@ func TestParseMemory(t *testing.T) {
 	}{
 		{"GB format", "100G", 102400, false},
 		{"GB format with GB", "100GB", 102400, false},
+		{"Gibibyte format", "8GiB", 8192, false},
 		{"MB format", "8000M", 8000, false},
 		{"MB format with MB", "8000MB", 8000, false},
 		{"Empty string", "", 0, false},
@@ -37,6 +38,16 @@ func TestParseMemory(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestFormatSlurmMemoryUsesMebibyteDirectives(t *testing.T) {
+	formattedMemory, err := formatSlurmMemory("16GiB")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if formattedMemory != "16384M" {
+		t.Fatalf("unexpected Slurm memory directive: %q", formattedMemory)
 	}
 }
 

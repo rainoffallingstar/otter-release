@@ -12,10 +12,10 @@ rule collectGCbias:
     gc_txt = lambda wildcards:os.path.join(config["directories"]["qc"]["main"],"GCbias",f"{wildcards.sample}_{wildcards.species}","gc_bias_metrics.txt"),
     gc_pdf = lambda wildcards:os.path.join(config["directories"]["qc"]["main"],"GCbias",f"{wildcards.sample}_{wildcards.species}","gc_bias_metrics.pdf"),
     gc_sum = lambda wildcards:os.path.join(config["directories"]["qc"]["main"],"GCbias",f"{wildcards.sample}_{wildcards.species}","summary_metrics.txt")
-  threads:4
+  threads:2
   shell:
     """
-    enva run otter-core -- picard CollectGcBiasMetrics \
+    enva run otter-core-bismark-rust-3.1.0-r2 -- picard CollectGcBiasMetrics \
       I={input.sample_bam} \
       O={params.gc_txt}  \
       CHART={params.gc_pdf}  \

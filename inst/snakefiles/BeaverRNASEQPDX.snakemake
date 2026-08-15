@@ -50,11 +50,8 @@ include: "rules/rnaseq_mapping.smk"
 
 include:"rules/05-3-qualimap.smk"
 
-# Patch PDX alignments before RNA graft filtering.
-include: "rules/picard_pdx_patch.smk"
-
-# RNA-PDX uses the common fixed-BAM Xenofilx contract. The rule selects
-# RNA-specific filtering parameters from config["mode"] == "RNASEQ".
+# RNA-PDX filtering consumes the original alignment BAMs. The common rule
+# selects RNA-specific filtering parameters from config["mode"] == "RNASEQ".
 include: "rules/XenofilteR.smk"
 
 # build matrix
@@ -76,3 +73,5 @@ include: "rules/rnaseq_step2_checker.smk"
 # qc summary
 
 include:"rules/rna_qc_summary.smk"
+
+

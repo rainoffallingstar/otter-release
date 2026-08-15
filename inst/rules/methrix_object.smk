@@ -1,7 +1,8 @@
 rule prepare_methrix_reference_cpg:
   message:"Prepare methrix reference CpG (.ron) ..."
   input:
-    genome_ref = lambda wildcards: config["reference"]["files"]["fasta"][config["workflow"]["species"]["name"].index(config["workflow"]["species"]["graft"])]
+    genome_ref = lambda wildcards: config["reference"]["files"]["fasta"][config["workflow"]["species"]["name"].index(config["workflow"]["species"]["graft"])],
+    genome_annotation = lambda wildcards: config["reference"]["rnaseq"]["gtf"][config["workflow"]["species"]["name"].index(config["workflow"]["species"]["graft"])]
   output:
     os.path.join(config["directories"]["methylation_call"], "methrixh5", "reference_cpgs.ron")
   params:
@@ -13,53 +14,56 @@ rule prepare_methrix_reference_cpg:
       out_dir="$(dirname {output})"
       key="{params.genome_key}"
 
-      # Copy genome annotation GTF if available in reference directory.
-      # Priority: <species>.gtf(.gz), then unique/first *.gtf(.gz).
-      ref_dir="$(dirname "$ref")"
-      gtf_src=""
-      for c in "$ref_dir/${key}.gtf" "$ref_dir/${key}.gtf.gz"; do
-        if [[ -f "$c" ]]; then
-          gtf_src="$c"
-          break
-        fi
-      done
-      if [[ -z "$gtf_src" ]]; then
-        gtf_candidates=()
-        for c in "$ref_dir"/*.gtf "$ref_dir"/*.gtf.gz; do
-          if [[ -f "$c" ]]; then
-            gtf_candidates+=("$c")
-          fi
-        done
-        if [[ ${{#gtf_candidates[@]}} -eq 1 ]]; then
-          gtf_src="${{gtf_candidates[0]}}"
-        elif [[ ${{#gtf_candidates[@]}} -gt 1 ]]; then
-          printf 'Multiple GTF candidates found for %s:\n' "$key" >&2
-          printf '  %s\n' "${{gtf_candidates[@]}}" >&2
-          exit 1
-        fi
+      annotation="{input.genome_annotation}"
+      if [[ -L "$annotation" || ! -f "$annotation" ]]; then
+        printf 'Methrix annotation must be a regular resolved GTF: %s\n' "$annotation" >&2
+        exit 1
       fi
-      if [[ -n "$gtf_src" ]]; then
-        cp -f "$gtf_src" "$out_dir/"
-      fi
+      install -m 0644 "$annotation" "$out_dir/$key.gtf"
 
       if [[ "$ref" == *.ron || "$ref" == *.con ]]; then
         cp -f "$ref" "{output}"
-      elif [[ -f "${ref}.ron" ]]; then
-        cp -f "${ref}.ron" "{output}"
+      elif [[ -f "${{ref}}.ron" ]]; then
+        cp -f "${{ref}}.ron" "{output}"
       else
         stem="$(basename "$ref")"
-        stem="${stem%.gz}"
-        stem="${stem%.fa}"
-        stem="${stem%.fasta}"
-        stem="${stem%.fna}"
+        stem="${{stem%.gz}}"
+        stem="${{stem%.fa}}"
+        stem="${{stem%.fasta}}"
+        stem="${{stem%.fna}}"
         ref_dir="$(dirname "$ref")"
-        near_ron="${ref_dir}/${stem}.ron"
+        near_ron="${{ref_dir}}/${{stem}}.ron"
 
         if [[ -f "$near_ron" ]]; then
           cp -f "$near_ron" "{output}"
         else
-          methx extract-cpgs --genome "$ref" --output "{output}" || \
-          methx extract-cp-gs --genome "$ref" --output "{output}"
+          extract_command=(methx extract-cp-gs)
+          if ! methx extract-cp-gs --help >/dev/null 2>&1; then
+            extract_command=(methx extract-cpgs)
+          fi
+          "${{extract_command[@]}}" --genome "$ref" --output "{output}" || {
+            if [[ "${{extract_command[1]}}" == "extract-cp-gs" ]]; then
+              extract_command=(methx extract-cpgs)
+              "${{extract_command[@]}}" --genome "$ref" --output "{output}"
+            else
+              exit 1
+            fi
+          }
+          if grep -q 'cpgs: \[\]' "{output}"; then
+            contig_arguments=()
+            while IFS= read -r header; do
+              if [[ "$header" == '>'* ]]; then
+                contig="${{header#>}}"
+                contig="${{contig%%[[:space:]]*}}"
+                contig_arguments+=(--contigs "$contig")
+              fi
+            done < <(if [[ "$ref" == *.gz ]]; then gzip -cd "$ref"; else cat "$ref"; fi)
+            if [[ "${{#contig_arguments[@]}}" -eq 0 ]]; then
+              printf 'no FASTA contigs found in %s\n' "$ref" >&2
+              exit 1
+            fi
+            "${{extract_command[@]}}" --genome "$ref" --output "{output}" "${contig_arguments[@]}"
+          fi
         fi
       fi
     """

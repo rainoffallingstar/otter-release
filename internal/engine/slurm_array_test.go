@@ -2,6 +2,8 @@ package engine
 
 import (
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/rainoffallingstar/otter/internal/config"
@@ -74,14 +76,28 @@ func TestSlurmArrayEngineEmptySamples(t *testing.T) {
 		Memory:    "8G",
 	}
 
-	// Create with empty samples
 	arrayEngine := NewSlurmArrayEngine(slurmConfig, []string{}, &config.StepResource{})
-
 	if arrayEngine.GetArraySize() != 0 {
 		t.Errorf("Expected array size 0, got %d", arrayEngine.GetArraySize())
 	}
 	if len(arrayEngine.GetSamples()) != 0 {
 		t.Errorf("Expected empty samples, got %d samples", len(arrayEngine.GetSamples()))
+	}
+}
+
+func TestSlurmArrayCheckJobStatusUsesAccountingForEmptyQueue(t *testing.T) {
+	testCommandDirectory := t.TempDir()
+	writeSlurmTestCommand(t, testCommandDirectory, "squeue", "#!/bin/sh\nprintf '\\n'\n")
+	writeSlurmTestCommand(t, testCommandDirectory, "sacct", "#!/bin/sh\nprintf 'COMPLETED\\nCOMPLETED\\n'\n")
+	t.Setenv("PATH", testCommandDirectory+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	arrayEngine := NewSlurmArrayEngine(&SlurmConfig{JobName: "array-reconciliation-test"}, []string{"sample1", "sample2"}, nil)
+	status, err := arrayEngine.checkArrayJobStatus("45678")
+	if err != nil {
+		t.Fatalf("checkArrayJobStatus returned an error: %v", err)
+	}
+	if status.Completed != 2 || status.Failed != 0 {
+		t.Fatalf("checkArrayJobStatus = %+v, want two completed tasks and no failures", status)
 	}
 }
 
@@ -93,6 +109,7 @@ func TestEngineFactorySlurmArray(t *testing.T) {
 	stepResource := &config.StepResource{
 		Cores:     8,
 		Memory:    "16G",
+		Time:      "02:00:00",
 		Partition: "cpu",
 	}
 
@@ -111,6 +128,13 @@ func TestEngineFactorySlurmArray(t *testing.T) {
 		0.0, // loadRatio=0: disable dynamic pool for test
 	)
 
+	if arrayEngine == nil {
+		t.Fatal("Array engine should not be nil")
+	}
+	if arrayEngine.partition != "cpu" || arrayEngine.cores != 8 || arrayEngine.memory != "16G" || arrayEngine.timeLimit != "02:00:00" {
+		t.Fatalf("step resources did not override Slurm allocation: partition=%q cores=%d memory=%q time=%q", arrayEngine.partition, arrayEngine.cores, arrayEngine.memory, arrayEngine.timeLimit)
+	}
+
 	// Override with our specific config for testing
 	arrayEngine.partition = slurmCfg.Partition
 	arrayEngine.cores = slurmCfg.Cores
@@ -127,6 +151,61 @@ func TestEngineFactorySlurmArray(t *testing.T) {
 	}
 	if len(arrayEngine.GetSamples()) != 2 {
 		t.Errorf("Expected 2 samples, got %d", len(arrayEngine.GetSamples()))
+	}
+}
+
+func TestSlurmArrayScriptUsesResolvedPhaseTimeLimit(t *testing.T) {
+	stepResource := &config.StepResource{Cores: 8, Memory: "16GiB", Time: "02:00:00", Partition: "amd_512"}
+	arrayEngine := NewSlurmArrayEngine(
+		&SlurmConfig{Partition: "amd_512", Cores: 8, Memory: "16GiB", Time: "02:00:00", JobName: "parity"},
+		[]string{"sample-a"},
+		stepResource,
+	)
+	if err := arrayEngine.SetLogDir(t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+
+	scriptPath, err := arrayEngine.generateArrayScript(2, "", "workflow.smk", "run.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	scriptContent, err := os.ReadFile(scriptPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, directive := range []string{"#SBATCH --partition=amd_512", "#SBATCH --cpus-per-task=8", "#SBATCH --mem=16384M", "#SBATCH --time=02:00:00"} {
+		if !strings.Contains(string(scriptContent), directive) {
+			t.Fatalf("generated array script is missing %q:\n%s", directive, scriptContent)
+		}
+	}
+}
+
+func TestSlurmArraySingleSampleScriptRetainsLogsInConfiguredDirectory(t *testing.T) {
+	logDirectory := t.TempDir()
+	arrayEngine := NewSlurmArrayEngine(
+		&SlurmConfig{Partition: "amd_512", Cores: 8, Memory: "16GiB", Time: "02:00:00", JobName: "parity"},
+		[]string{"sample-a"},
+		&config.StepResource{Cores: 8, Memory: "16GiB", Time: "02:00:00", Partition: "amd_512"},
+	)
+	if err := arrayEngine.SetLogDir(logDirectory); err != nil {
+		t.Fatal(err)
+	}
+
+	scriptPath, err := arrayEngine.generateSingleSampleScript(2, "", "workflow.smk", "run.yaml", "sample-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	scriptContent, err := os.ReadFile(scriptPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, directive := range []string{
+		"#SBATCH --output=" + filepath.Join(logDirectory, "parity_step2_sample-a_%j.out"),
+		"#SBATCH --error=" + filepath.Join(logDirectory, "parity_step2_sample-a_%j.err"),
+	} {
+		if !strings.Contains(string(scriptContent), directive) {
+			t.Fatalf("generated single-sample script is missing %q:\n%s", directive, scriptContent)
+		}
 	}
 }
 

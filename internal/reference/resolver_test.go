@@ -26,7 +26,7 @@ func TestResolveMatchingLockSucceeds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if resolved.ID != "hg38" || resolved.Release != "GRCh38.p14" || resolved.Role != configv1.ReferenceRolePrimary {
+	if resolved.ID != "hg38" || resolved.Release != "GRCh38.p14" || resolved.Organism != "Homo sapiens" || resolved.Role != configv1.ReferenceRolePrimary {
 		t.Fatalf("unexpected resolved reference: %+v", resolved)
 	}
 	if resolved.Fasta.SHA256 != ComputeDigest(">chr1\nACGT\n") {
@@ -37,6 +37,20 @@ func TestResolveMatchingLockSucceeds(t *testing.T) {
 	}
 	if resolved.RegistryRoot == "" {
 		t.Fatal("resolved reference must include registry root")
+	}
+}
+
+func TestVerifyReleaseIdentityRejectsMissingDeclaredAsset(t *testing.T) {
+	referenceRoot := t.TempDir()
+	manifestDigest := writeReferenceFixture(t, referenceRoot, "hg38", "GRCh38.p14", true)
+	releaseRoot := filepath.Join(referenceRoot, "genomes", "hg38", "GRCh38.p14")
+	if err := os.Remove(filepath.Join(releaseRoot, "fasta", "genome.fa.gz")); err != nil {
+		t.Fatal(err)
+	}
+
+	err := VerifyReleaseIdentity(releaseRoot, manifestDigest)
+	if err == nil || !strings.Contains(err.Error(), "declared asset") {
+		t.Fatalf("expected missing declared asset identity failure, got %v", err)
 	}
 }
 

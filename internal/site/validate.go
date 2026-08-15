@@ -26,14 +26,18 @@ func ValidateSlurmAccount(account string) error {
 	if strings.TrimSpace(account) == "" {
 		return fmt.Errorf("account name cannot be empty")
 	}
-	cmd := exec.Command("sacctmgr", "show", "account", "where", "account="+account, "-s", "-n", "-o", "Account")
+	cmd := exec.Command(
+		"sacctmgr", "-s", "-n", "-P",
+		"show", "assoc", "where", "account="+account,
+		"format=Account",
+	)
 	output, err := cmd.Output()
 	if err != nil {
 		return fmt.Errorf("account %q validation failed: %w", account, err)
 	}
-	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
-	for _, line := range lines {
-		if strings.TrimSpace(line) == account {
+	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		associatedAccount := strings.TrimSpace(strings.Split(line, "|")[0])
+		if associatedAccount == account {
 			return nil
 		}
 	}
@@ -44,32 +48,43 @@ func ValidateSlurmAccountPartition(account string, partition string) error {
 	if strings.TrimSpace(account) == "" || strings.TrimSpace(partition) == "" {
 		return fmt.Errorf("account and partition must both be provided")
 	}
-	cmd := exec.Command("sacctmgr", "show", "assoc", "where",
-		"account="+account, "partition="+partition,
-		"-s", "-n", "-o", "Account",
+	cmd := exec.Command(
+		"sacctmgr", "-s", "-n", "-P",
+		"show", "assoc", "where", "account="+account,
+		"format=Account,Partition",
 	)
 	output, err := cmd.Output()
 	if err != nil {
 		return fmt.Errorf("account-partition association check failed: %w", err)
 	}
-	if len(strings.TrimSpace(string(output))) == 0 {
-		return fmt.Errorf("account %q cannot access partition %q", account, partition)
+	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		fields := strings.Split(line, "|")
+		if len(fields) < 2 || strings.TrimSpace(fields[0]) != account {
+			continue
+		}
+		associatedPartition := strings.TrimSpace(fields[1])
+		if associatedPartition == "" || associatedPartition == partition {
+			return nil
+		}
 	}
-	return nil
+	return fmt.Errorf("account %q cannot access partition %q", account, partition)
 }
 
 func ValidateSlurmQOS(qos string) error {
 	if strings.TrimSpace(qos) == "" {
 		return fmt.Errorf("qos name cannot be empty")
 	}
-	cmd := exec.Command("sacctmgr", "show", "qos", "where", "name="+qos, "-s", "-n", "-o", "Name")
+	cmd := exec.Command(
+		"sacctmgr", "-s", "-n", "-P",
+		"show", "qos", "where", "name="+qos,
+		"format=Name",
+	)
 	output, err := cmd.Output()
 	if err != nil {
 		return fmt.Errorf("qos %q validation failed: %w", qos, err)
 	}
-	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
-	for _, line := range lines {
-		if strings.TrimSpace(line) == qos {
+	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		if strings.TrimSpace(strings.Split(line, "|")[0]) == qos {
 			return nil
 		}
 	}

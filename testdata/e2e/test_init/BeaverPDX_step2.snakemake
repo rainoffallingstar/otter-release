@@ -10,8 +10,8 @@ rule all:
     expand(os.path.join(config["directories"]["qc"]["main"],"GCbias","{sample}_{species}", "gc_bias_metrics.txt"),sample=SIDs,species = species),
     expand(os.path.join(config["directories"]["qc"]["main"],"GCbias","{sample}_{species}", "gc_bias_metrics.pdf"),sample=SIDs,species = species),
     expand(os.path.join(config["directories"]["qc"]["main"],"GCbias","{sample}_{species}", "summary_metrics.txt"),sample=SIDs,species = species)
-
-
+    
+    
 
 # bsmap2sort
 
@@ -25,3 +25,7 @@ include:"rules/05-3-qualimap.smk"
 # GCbias
 
 include:"rules/collectGCbias.smk"
+
+
+
+

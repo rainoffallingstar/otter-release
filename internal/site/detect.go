@@ -227,10 +227,10 @@ func resolvedSlurmResourcesFromProfile(profile *SiteProfile) configv1.ResolvedSl
 		return configv1.ResolvedSlurmResources{}
 	}
 	return configv1.ResolvedSlurmResources{
-		Partition: configv1.ResolvedString{Value: profile.Slurm.Partition, Source: configv1.SourceProfile},
-		Account: configv1.ResolvedString{Value: profile.Slurm.Account, Source: configv1.SourceProfile},
-		QOS: configv1.ResolvedString{Value: profile.Slurm.QOS, Source: configv1.SourceProfile},
-		MaxJobs: configv1.ResolvedInt{Value: profile.Slurm.MaxJobs, Source: configv1.SourceProfile},
+		Partition:   configv1.ResolvedString{Value: profile.Slurm.Partition, Source: configv1.SourceProfile},
+		Account:     configv1.ResolvedString{Value: profile.Slurm.Account, Source: configv1.SourceProfile},
+		QOS:         configv1.ResolvedString{Value: profile.Slurm.QOS, Source: configv1.SourceProfile},
+		MaxJobs:     configv1.ResolvedInt{Value: profile.Slurm.MaxJobs, Source: configv1.SourceProfile},
 		DefaultTime: configv1.ResolvedString{Value: profile.Slurm.DefaultTime, Source: configv1.SourceProfile},
 		ScratchRoot: configv1.ResolvedString{Value: profile.Paths.ScratchRoot, Source: configv1.SourceProfile},
 	}
@@ -269,14 +269,8 @@ func validateSlurmProfile(profile *SiteProfile) error {
 	if err := CheckLoginNodePath(profile.Paths.ReferenceRoot); err != nil {
 		return fmt.Errorf("reference_root: %w", err)
 	}
-	if err := ValidateComputeNodePath(profile.Paths.ReferenceRoot, profile.Slurm.Partition, profile.Slurm.Account); err != nil {
-		return fmt.Errorf("reference_root: %w", err)
-	}
 	if profile.Paths.ScratchRoot != "" {
 		if err := CheckLoginNodePath(profile.Paths.ScratchRoot); err != nil {
-			return fmt.Errorf("scratch_root: %w", err)
-		}
-		if err := ValidateComputeNodePath(profile.Paths.ScratchRoot, profile.Slurm.Partition, profile.Slurm.Account); err != nil {
 			return fmt.Errorf("scratch_root: %w", err)
 		}
 	}

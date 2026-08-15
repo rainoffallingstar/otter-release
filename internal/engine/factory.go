@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/rainoffallingstar/otter/internal/config"
 	"github.com/rainoffallingstar/otter/internal/logger"
@@ -11,16 +12,37 @@ import (
 // EngineFactory creates engines based on type and configuration
 type EngineFactory struct{}
 
+func buildSlurmEngineConfig(source config.SlurmConfig) (*SlurmConfig, error) {
+	waitTimeout := time.Duration(0)
+	if source.WaitTimeout != "" {
+		parsedWaitTimeout, err := time.ParseDuration(source.WaitTimeout)
+		if err != nil {
+			return nil, fmt.Errorf("parse Slurm wait_timeout %q: %w", source.WaitTimeout, err)
+		}
+		if parsedWaitTimeout < 0 {
+			return nil, fmt.Errorf("Slurm wait_timeout must not be negative: %s", source.WaitTimeout)
+		}
+		waitTimeout = parsedWaitTimeout
+	}
+
+	return &SlurmConfig{
+		Partition:   source.Partition,
+		Cores:       source.Cores,
+		Memory:      source.Memory,
+		Time:        source.Time,
+		JobName:     source.JobName,
+		MaxRetries:  source.MaxRetries,
+		WaitTimeout: waitTimeout,
+	}, nil
+}
+
 // NewEngine creates an engine based on the specified type and configuration
 func (f *EngineFactory) NewEngine(engineType EngineType, cfg *config.EngineConfig) (Engine, error) {
 	switch engineType {
 	case EngineSlurm:
-		slurmConfig := &SlurmConfig{
-			Partition:  cfg.Slurm.Partition,
-			Cores:      cfg.Slurm.Cores,
-			Memory:     cfg.Slurm.Memory,
-			JobName:    cfg.Slurm.JobName,
-			MaxRetries: cfg.Slurm.MaxRetries,
+		slurmConfig, err := buildSlurmEngineConfig(cfg.Slurm)
+		if err != nil {
+			return nil, err
 		}
 		return NewSlurmEngine(slurmConfig), nil
 
@@ -32,12 +54,9 @@ func (f *EngineFactory) NewEngine(engineType EngineType, cfg *config.EngineConfi
 		return NewLocalEngine(localConfig), nil
 
 	case EngineSlurmArray:
-		slurmConfig := &SlurmConfig{
-			Partition:  cfg.Slurm.Partition,
-			Cores:      cfg.Slurm.Cores,
-			Memory:     cfg.Slurm.Memory,
-			JobName:    cfg.Slurm.JobName,
-			MaxRetries: cfg.Slurm.MaxRetries,
+		slurmConfig, err := buildSlurmEngineConfig(cfg.Slurm)
+		if err != nil {
+			return nil, err
 		}
 		// For array engine, samples and stepResource need to be set later
 		return NewSlurmArrayEngine(slurmConfig, nil, nil), nil
@@ -58,6 +77,8 @@ func (f *EngineFactory) NewSlurmArrayEngineWithResources(
 	// Use stepResource values if available, otherwise fallback to cfg.Slurm values
 	cores := cfg.Slurm.Cores
 	memory := cfg.Slurm.Memory
+	partition := cfg.Slurm.Partition
+	timeLimit := cfg.Slurm.Time
 
 	logger.Debugf("NewSlurmArrayEngineWithResources: cfg.Slurm.Cores=%d, cfg.Slurm.Memory=%s", cores, memory)
 
@@ -69,17 +90,24 @@ func (f *EngineFactory) NewSlurmArrayEngineWithResources(
 		if stepResource.Memory != "" {
 			memory = stepResource.Memory
 		}
+		if stepResource.Time != "" {
+			timeLimit = stepResource.Time
+		}
+		if stepResource.Partition != "" {
+			partition = stepResource.Partition
+		}
 	}
 
-	logger.Debugf("Final cores=%d, memory=%s", cores, memory)
+	logger.Debugf("Final partition=%s, cores=%d, memory=%s", partition, cores, memory)
 
-	slurmConfig := &SlurmConfig{
-		Partition:  cfg.Slurm.Partition,
-		Cores:      cores,
-		Memory:     memory,
-		JobName:    cfg.Slurm.JobName,
-		MaxRetries: cfg.Slurm.MaxRetries,
+	slurmConfig, err := buildSlurmEngineConfig(cfg.Slurm)
+	if err != nil {
+		return nil, err
 	}
+	slurmConfig.Partition = partition
+	slurmConfig.Cores = cores
+	slurmConfig.Memory = memory
+	slurmConfig.Time = timeLimit
 
 	eng := NewSlurmArrayEngine(slurmConfig, samples, stepResource)
 	eng.maxBatchSize = maxBatchSize

@@ -1,0 +1,21 @@
+{
+  "scenario": "rnaseq",
+  "accession": "SRR1039508",
+  "source": {
+    "r1": {
+      "path": "/public3/home/scg9946/otter-gate6/cache/gate6-sra-20260730-native-sdl/fastq/SRR1039508/SRR1039508_1.fastq.gz",
+      "sha256": "sha256:63297b737272749c27768f5faa0e364604c8d16366994cebf8ea5a8a05a6a256"
+    },
+    "r2": {
+      "path": "/public3/home/scg9946/otter-gate6/cache/gate6-sra-20260730-native-sdl/fastq/SRR1039508/SRR1039508_2.fastq.gz",
+      "sha256": "sha256:089ef2722f95419a2b97de8f92a02ad5bf446afc47e86138b6be1c118e8bcf3d"
+    }
+  },
+  "selection": {"seed": "gate6-rnaseq-srr1039508-v1", "modulus": 500, "remainder": 29},
+  "reference": {
+    "primary_id": "hg38",
+    "release": "GRCh38-gencode-v44",
+    "manifest_sha256": "sha256:bda77ed9591ec4b9b6c4fadf032e9bfeafec0a6e03e7854e4d706e4f8909a132"
+  },
+  "provenance": {"workflow_digest": "sha256:32cf4c493105d0f5d6adc5dbc7337e424a64cd6acc8b084733f2ebb5754b04f9"}
+}

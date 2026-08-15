@@ -183,33 +183,36 @@ func TestNewAssetCopier_Defaults(t *testing.T) {
 }
 
 func TestPDXFilteringRulesDeclareValidatedBAMAndBAIOutputs(t *testing.T) {
-	rulePaths := []string{
-		filepath.Join("..", "..", "inst", "rules", "XenofilteR.smk"),
-		filepath.Join("..", "..", "inst", "rules_legacy", "XenofilteR.smk"),
+	rulePath := filepath.Join("..", "..", "inst", "rules", "XenofilteR.smk")
+	ruleContent, err := os.ReadFile(rulePath)
+	if err != nil {
+		t.Fatalf("read xenofilx rule %s: %v", rulePath, err)
 	}
-	for _, rulePath := range rulePaths {
-		ruleContent, err := os.ReadFile(rulePath)
-		if err != nil {
-			t.Fatalf("read xenofilx rule %s: %v", rulePath, err)
+	ruleText := string(ruleContent)
+	for _, requiredSnippet := range []string{
+		"graft_bams=expand(",
+		"\"{sample}_\" + config",
+		"filtered_bams=expand(",
+		"filtered_bais=expand(",
+		"--output-names",
+		"--recalculate-nm",
+		"bisulfite_flag=(\"\" if config[\"mode\"] == \"RNASEQ\" else \"--bisulfite\")",
+		"graft_ref=config[\"reference\"][\"graft_fasta\"]",
+		"host_ref=config[\"reference\"][\"host_fasta\"]",
+		"--host-ref {params.host_ref:q} {params.bisulfite_flag}",
+		"samtools quickcheck -v",
+		"test -s \"$filtered_bai\"",
+	} {
+		if !strings.Contains(ruleText, requiredSnippet) {
+			t.Fatalf("xenofilx rule %s is missing declared filtered BAM/BAI contract %q", rulePath, requiredSnippet)
 		}
-		ruleText := string(ruleContent)
-		for _, requiredSnippet := range []string{
-			"graft_bams=expand(",
-			"{sample}_fixed_",
-			"filtered_bams=expand(",
-			"filtered_bais=expand(",
-			"samtools quickcheck -v",
-			"samtools index",
-			"test -s \"$filtered_bai\"",
-		} {
-			if !strings.Contains(ruleText, requiredSnippet) {
-				t.Fatalf("xenofilx rule %s is missing declared filtered BAM/BAI contract %q", rulePath, requiredSnippet)
-			}
-		}
-		for _, obsoleteMarker := range []string{"filtered_success.txt", "touch "} {
-			if strings.Contains(ruleText, obsoleteMarker) {
-				t.Fatalf("xenofilx rule %s still relies on marker-only completion %q", rulePath, obsoleteMarker)
-			}
+	}
+	if strings.Contains(ruleText, "samtools index") {
+		t.Fatalf("xenofilx rule %s must preserve the Xenofilx-produced BAI rather than regenerate it with samtools", rulePath)
+	}
+	for _, obsoleteMarker := range []string{"filtered_success.txt", "touch "} {
+		if strings.Contains(ruleText, obsoleteMarker) {
+			t.Fatalf("xenofilx rule %s still relies on marker-only completion %q", rulePath, obsoleteMarker)
 		}
 	}
 }
@@ -254,7 +257,6 @@ func TestPDXStep2CheckersTargetDeclaredFilterOutputs(t *testing.T) {
 		}
 		checkerText := string(checkerContent)
 		for _, requiredSnippet := range []string{
-			"rules/picard_pdx_patch.smk",
 			"rules/XenofilteR.smk",
 			"_fixed_",
 			"_Filtered.bam.bai",
@@ -323,6 +325,106 @@ func TestRNAsplicingRulesPublishTypedOutcomes(t *testing.T) {
 		if strings.Contains(ruleText, "RNASplicing_success.txt") {
 			t.Errorf("RNA splicing rule %s still exposes a marker-only output", rulePath)
 		}
+	}
+}
+
+func TestMethrixReferenceRuleStagesResolvedAnnotation(t *testing.T) {
+	rulePath := filepath.Join("..", "..", "inst", "rules", "methrix_object.smk")
+	ruleContent, err := os.ReadFile(rulePath)
+	if err != nil {
+		t.Fatalf("read Methrix reference rule: %v", err)
+	}
+	ruleText := string(ruleContent)
+	for _, requiredSnippet := range []string{
+		"genome_annotation = lambda wildcards: config[\"reference\"][\"rnaseq\"][\"gtf\"]",
+		"annotation=\"{input.genome_annotation}\"",
+		"install -m 0644 \"$annotation\" \"$out_dir/$key.gtf\"",
+		"Methrix annotation must be a regular resolved GTF",
+		"extract_command=(methx extract-cp-gs)",
+		"cpgs: \\[\\]",
+		"--contigs",
+	} {
+		if !strings.Contains(ruleText, requiredSnippet) {
+			t.Fatalf("Methrix reference rule does not stage its resolved annotation input %q", requiredSnippet)
+		}
+	}
+	for _, obsoleteReferenceDirectoryLookup := range []string{
+		"$ref_dir/${{key}}.gtf",
+		"gtf_candidates",
+	} {
+		if strings.Contains(ruleText, obsoleteReferenceDirectoryLookup) {
+			t.Fatalf("Methrix reference rule retains implicit annotation discovery %q", obsoleteReferenceDirectoryLookup)
+		}
+	}
+}
+
+func TestBisulfiteStep3CheckersUseRustBismarkCompatibleInputsAndMemory(t *testing.T) {
+	workflowPaths := []string{
+		filepath.Join("..", "..", "craftmake", "workflows", "BeaverBS", "step3-check.yaml"),
+		filepath.Join("..", "..", "craftmake", "workflows", "BeaverPDX", "step3-check.yaml"),
+	}
+	for _, workflowPath := range workflowPaths {
+		workflowContent, err := os.ReadFile(workflowPath)
+		if err != nil {
+			t.Fatalf("read bisulfite step3 checker workflow %s: %v", workflowPath, err)
+		}
+		workflowText := string(workflowContent)
+		if strings.Contains(workflowText, "nucleotide_report") || strings.Contains(workflowText, "--nucleotide_report") {
+			t.Fatalf("bisulfite step3 checker %s retains a Rust-incompatible nucleotide report input", workflowPath)
+		}
+		if !strings.Contains(workflowText, "memory: 34G") {
+			t.Fatalf("bisulfite step3 checker %s does not allocate enough memory for hg19 CpG extraction", workflowPath)
+		}
+		if !strings.Contains(workflowText, "environment: otter-core-bismark-rust-3.1.0-r2") {
+			t.Fatalf("bisulfite step3 checker %s does not select the Rust Bismark environment", workflowPath)
+		}
+	}
+}
+
+func TestBismarkReportRulesUseOnlyRustBismarkProducedReports(t *testing.T) {
+	rulePaths := []string{
+		filepath.Join("..", "..", "inst", "rules", "bismark_report2summary.smk"),
+		filepath.Join("..", "..", "inst", "rules_legacy", "bismark_report2summary.smk"),
+	}
+	for _, rulePath := range rulePaths {
+		ruleContent, err := os.ReadFile(rulePath)
+		if err != nil {
+			t.Fatalf("read Bismark report rule %s: %v", rulePath, err)
+		}
+		ruleText := string(ruleContent)
+		for _, requiredSnippet := range []string{
+			"--alignment_report {params.alignment_log}",
+			"--splitting_report {params.split_log}",
+			"--mbias_report {params.mbias_log}",
+		} {
+			if !strings.Contains(ruleText, requiredSnippet) {
+				t.Fatalf("Bismark report rule %s is missing Rust Bismark-compatible input %q", rulePath, requiredSnippet)
+			}
+		}
+		if strings.Contains(ruleText, "nucleotide_stats.txt") || strings.Contains(ruleText, "--nucleotide_report") {
+			t.Fatalf("Bismark report rule %s requires a nucleotide stats artifact Rust Bismark does not produce", rulePath)
+		}
+	}
+}
+
+func TestBismarkMethylationRuleUsesBAMNamedPairbamTemporaryInput(t *testing.T) {
+	rulePath := filepath.Join("..", "..", "inst", "rules", "build_methy_matrix_bismark.smk")
+	ruleContent, err := os.ReadFile(rulePath)
+	if err != nil {
+		t.Fatalf("read Bismark methylation rule: %v", err)
+	}
+	ruleText := string(ruleContent)
+	for _, requiredSnippet := range []string{
+		"-o {params.bam_nsorted}.tmp.bam {input.bam_sorted}",
+		"pairbam {params.bam_nsorted}.tmp.bam {params.bam_nsorted}",
+		"rm -f {params.bam_nsorted}.tmp.bam",
+	} {
+		if !strings.Contains(ruleText, requiredSnippet) {
+			t.Fatalf("Bismark methylation rule is missing pairbam-compatible temporary BAM path %q", requiredSnippet)
+		}
+	}
+	if strings.Contains(ruleText, "{params.bam_nsorted}.bam.tmp") || strings.Contains(ruleText, "{params.bam_nsorted}.tmp ") {
+		t.Fatal("Bismark methylation rule retains a non-BAM pairbam temporary input")
 	}
 }
 

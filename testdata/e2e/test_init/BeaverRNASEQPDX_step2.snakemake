@@ -15,3 +15,4 @@ include: "rules/rnaseq_mapping.smk"
 # qualimap
 
 include:"rules/05-3-qualimap.smk"
+

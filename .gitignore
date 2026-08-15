@@ -59,6 +59,9 @@ www/
 !testdata/e2e/test_init/*.snakemake
 .snakemake/
 
+# Large local replay fixtures (not committed)
+testdata/gate6/xenofilx-local-replay-20260810/
+
 # Conda environments
 envs/
 !inst/envs/

@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/rainoffallingstar/otter/internal/logger"
@@ -15,6 +17,7 @@ func TestNewSlurmEngine(t *testing.T) {
 		Partition:  "compute",
 		Cores:      16,
 		Memory:     "32G",
+		Time:       "02:00:00",
 		JobName:    "test_job",
 		MaxRetries: 3,
 	}
@@ -35,6 +38,9 @@ func TestNewSlurmEngine(t *testing.T) {
 
 	if engine.memory != "32G" {
 		t.Errorf("Expected memory to be '32G', got '%s'", engine.memory)
+	}
+	if engine.timeLimit != "02:00:00" {
+		t.Errorf("Expected time limit to be '02:00:00', got '%s'", engine.timeLimit)
 	}
 
 	if engine.jobName != "test_job" {
@@ -145,26 +151,100 @@ func TestSlurmEngine_WaitWithoutJob(t *testing.T) {
 	}
 }
 
-func TestSlurmEngine_StatusTransitions(t *testing.T) {
-	config := &SlurmConfig{
-		JobName: "test",
+func TestNormalizeSlurmStateRemovesAccountingSuffix(t *testing.T) {
+	for rawState, expectedState := range map[string]string{
+		"COMPLETED":          "COMPLETED",
+		"COMPLETED+":         "COMPLETED",
+		"CANCELLED by 12345": "CANCELLED",
+		"  OUT_OF_MEMORY  ":  "OUT_OF_MEMORY",
+		"":                   "",
+	} {
+		if actualState := normalizeSlurmState(rawState); actualState != expectedState {
+			t.Errorf("normalizeSlurmState(%q) = %q, want %q", rawState, actualState, expectedState)
+		}
 	}
+}
 
-	engine := NewSlurmEngine(config)
+func TestSlurmEngineCheckJobStatusUsesAccountingAfterQueueFailure(t *testing.T) {
+	testCommandDirectory := t.TempDir()
+	writeSlurmTestCommand(t, testCommandDirectory, "squeue", "#!/bin/sh\nexit 1\n")
+	writeSlurmTestCommand(t, testCommandDirectory, "sacct", "#!/bin/sh\nprintf 'COMPLETED\\n'\n")
+	t.Setenv("PATH", testCommandDirectory+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-	// Initial status should be PENDING
-	if engine.status.State != StatusPending {
-		t.Errorf("Expected initial status to be PENDING, got %s", engine.status.State)
+	slurmEngine := NewSlurmEngine(&SlurmConfig{JobName: "reconciliation-test"})
+	status, err := slurmEngine.checkJobStatus("12345")
+	if err != nil {
+		t.Fatalf("checkJobStatus returned an error: %v", err)
 	}
+	if status.State != StatusCompleted {
+		t.Fatalf("checkJobStatus state = %s, want %s", status.State, StatusCompleted)
+	}
+}
 
-	// Set a job ID to test status transitions
-	engine.status.JobID = "12345"
+func TestSlurmEngineCheckJobStatusDoesNotFailDuringTransientControlPlaneFailure(t *testing.T) {
+	testCommandDirectory := t.TempDir()
+	writeSlurmTestCommand(t, testCommandDirectory, "squeue", "#!/bin/sh\nexit 1\n")
+	writeSlurmTestCommand(t, testCommandDirectory, "sacct", "#!/bin/sh\nexit 1\n")
+	t.Setenv("PATH", testCommandDirectory+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-	// Kill should return an error without actually having a slurm job
-	err := engine.Kill()
+	slurmEngine := NewSlurmEngine(&SlurmConfig{JobName: "reconciliation-test"})
+	status, err := slurmEngine.checkJobStatus("12345")
+	if err != nil {
+		t.Fatalf("checkJobStatus returned an error: %v", err)
+	}
+	if status.State != StatusRunning {
+		t.Fatalf("checkJobStatus state = %s, want %s", status.State, StatusRunning)
+	}
+}
 
-	// The error is expected, but we can check that the method doesn't panic
-	if err == nil {
-		t.Log("Note: Kill() succeeded without actual slurm job (expected in test environment)")
+func TestSlurmEngineRetriesTransientSubmissionFailure(t *testing.T) {
+	testCommandDirectory := t.TempDir()
+	attemptPath := filepath.Join(t.TempDir(), "attempt-count")
+	writeSlurmTestCommand(t, testCommandDirectory, "sbatch", "#!/bin/sh\nattempt_path=\"$OTTER_TEST_SUBMISSION_ATTEMPT_PATH\"\nattempts=0\nif [ -f \"$attempt_path\" ]; then attempts=$(cat \"$attempt_path\"); fi\nattempts=$((attempts + 1))\nprintf '%s' \"$attempts\" > \"$attempt_path\"\nif [ \"$attempts\" -eq 1 ]; then printf 'Unable to contact slurm controller\\n' >&2; exit 1; fi\nprintf 'Submitted batch job 98765\\n'\n")
+	t.Setenv("PATH", testCommandDirectory+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("OTTER_TEST_SUBMISSION_ATTEMPT_PATH", attemptPath)
+
+	slurmEngine := NewSlurmEngine(&SlurmConfig{JobName: "submission-retry-test", MaxRetries: 1})
+	jobID, err := slurmEngine.submitJob("workflow.sh")
+	if err != nil {
+		t.Fatalf("submitJob returned an error: %v", err)
+	}
+	if jobID != "98765" {
+		t.Fatalf("submitJob job ID = %q, want 98765", jobID)
+	}
+	attemptCount, err := os.ReadFile(attemptPath)
+	if err != nil {
+		t.Fatalf("read submission attempt count: %v", err)
+	}
+	if string(attemptCount) != "2" {
+		t.Fatalf("submission attempt count = %q, want 2", attemptCount)
+	}
+}
+
+func TestSlurmEngineDoesNotRetryPermanentSubmissionFailure(t *testing.T) {
+	testCommandDirectory := t.TempDir()
+	attemptPath := filepath.Join(t.TempDir(), "attempt-count")
+	writeSlurmTestCommand(t, testCommandDirectory, "sbatch", "#!/bin/sh\nattempt_path=\"$OTTER_TEST_SUBMISSION_ATTEMPT_PATH\"\nattempts=0\nif [ -f \"$attempt_path\" ]; then attempts=$(cat \"$attempt_path\"); fi\nattempts=$((attempts + 1))\nprintf '%s' \"$attempts\" > \"$attempt_path\"\nprintf 'Invalid account or account/partition combination specified\\n' >&2\nexit 1\n")
+	t.Setenv("PATH", testCommandDirectory+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("OTTER_TEST_SUBMISSION_ATTEMPT_PATH", attemptPath)
+
+	slurmEngine := NewSlurmEngine(&SlurmConfig{JobName: "submission-retry-test", MaxRetries: 2})
+	if _, err := slurmEngine.submitJob("workflow.sh"); err == nil {
+		t.Fatal("submitJob succeeded despite permanent submission failure")
+	}
+	attemptCount, err := os.ReadFile(attemptPath)
+	if err != nil {
+		t.Fatalf("read submission attempt count: %v", err)
+	}
+	if string(attemptCount) != "1" {
+		t.Fatalf("submission attempt count = %q, want 1", attemptCount)
+	}
+}
+
+func writeSlurmTestCommand(t *testing.T, directory, commandName, scriptContents string) {
+	t.Helper()
+	commandPath := filepath.Join(directory, commandName)
+	if err := os.WriteFile(commandPath, []byte(scriptContents), 0755); err != nil {
+		t.Fatalf("write %s test command: %v", commandName, err)
 	}
 }

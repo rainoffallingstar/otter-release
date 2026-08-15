@@ -1,0 +1,21 @@
+{
+  "scenario": "rrbs",
+  "accession": "SRR31480456",
+  "source": {
+    "r1": {
+      "path": "/public3/home/scg9946/otter-gate6/cache/gate6-sra-20260730-native-sdl/fastq/SRR31480456/SRR31480456_1.fastq.gz",
+      "sha256": "sha256:39ef271b60fd224e8bbf026cea1f812950c322da626961cdd74b3f6ea1d93c76"
+    },
+    "r2": {
+      "path": "/public3/home/scg9946/otter-gate6/cache/gate6-sra-20260730-native-sdl/fastq/SRR31480456/SRR31480456_2.fastq.gz",
+      "sha256": "sha256:e25778f0b6a02e789e301c2e03708929ac6769ff638555fe24f6ce6b5ea0f367"
+    }
+  },
+  "selection": {"seed": "gate6-rrbs-srr31480456-v1", "modulus": 500, "remainder": 17},
+  "reference": {
+    "primary_id": "hg19",
+    "release": "GRCh37.p13-gencode-v19",
+    "manifest_sha256": "sha256:33dfd7d4ec0a90c6e11fdc45d02b2d4e9b6d82e4a607148d1ab467a0e555accc"
+  },
+  "provenance": {"workflow_digest": "sha256:82379747a4e01d3ebb19263f47c91f10f3f399d88b3ff3ba91ef3a3e41d03e60"}
+}

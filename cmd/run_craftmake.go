@@ -78,7 +78,7 @@ func executeCraftmakeRun(command *cobra.Command) (runErr error) {
 			})
 		}()
 	}
-	configPath, _, snapshot, err := loadCraftmakeSnapshot(command)
+	snapshotPath, _, snapshot, err := loadCraftmakeSnapshot(command)
 	if err != nil {
 		return err
 	}
@@ -86,7 +86,7 @@ func executeCraftmakeRun(command *cobra.Command) (runErr error) {
 	if err != nil {
 		return err
 	}
-	craftmakeCommand, arguments, err := craftmakeRunArguments(configPath, snapshot)
+	craftmakeCommand, arguments, err := craftmakeRunArguments(snapshotPath, snapshot)
 	if err != nil {
 		return err
 	}
@@ -138,7 +138,7 @@ func submitBackgroundCraftmakeRun(command *cobra.Command) error {
 	}
 	workerArguments := buildBackgroundWorkerArguments(os.Args[1:], configPath, projectDir)
 	record := taskruntime.NewRecord(taskID, projectDir, configPath, runExecutorCraftmake, append([]string{executablePath}, workerArguments...))
-	record.CraftmakeRunID = snapshot.Run.ID
+	record.CraftmakeRunID = craftmakePhaseRunID(snapshot.Run.ID, runPhase)
 	record.CraftmakeBinary = binaryPath
 	record.LogPath = store.LogPath(taskID)
 	record.StatePath = filepath.Join(snapshot.Paths.State, "state.sqlite")
@@ -212,12 +212,20 @@ func loadCraftmakeSnapshot(command *cobra.Command) (string, string, configv1.Run
 	return invocation.SnapshotPath, invocation.ProjectDirectory, invocation.Snapshot, nil
 }
 
+func craftmakePhaseRunID(snapshotRunID string, phase string) string {
+	if strings.TrimSpace(phase) == "" {
+		return snapshotRunID
+	}
+	return snapshotRunID + "--" + strings.TrimSpace(phase)
+}
+
 func craftmakeRunArguments(configPath string, snapshot configv1.RunSnapshot) (craftmakeclient.Command, []string, error) {
 	statePath := filepath.Join(snapshot.Paths.State, "state.sqlite")
+	phaseRunID := craftmakePhaseRunID(snapshot.Run.ID, runPhase)
 	if resumeFlag {
 		return craftmakeclient.CommandResume, []string{
 			"--state", statePath,
-			"--run", snapshot.Run.ID,
+			"--run", phaseRunID,
 			"--format", "json",
 		}, nil
 	}
@@ -243,7 +251,6 @@ func craftmakeRunArguments(configPath string, snapshot configv1.RunSnapshot) (cr
 	}
 	arguments = append(arguments,
 		"--backend", string(snapshot.Execution.Backend.Value),
-		"--run-id", snapshot.Run.ID,
 		"--max-parallel", fmt.Sprintf("%d", parallelJobs),
 	)
 	return craftmakeclient.CommandRun, arguments, nil

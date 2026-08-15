@@ -140,9 +140,9 @@ func ParseMemory(memStr string) (int64, error) {
 		unitMultiplier = 1024
 	case "M", "MB", "MEGABYTE", "MEGABYTES":
 		unitMultiplier = 1024 * 1024
-	case "G", "GB", "GIGABYTE", "GIGABYTES":
+	case "G", "GB", "GIB", "GIBYTE", "GIBYTES", "GIGABYTE", "GIGABYTES":
 		unitMultiplier = 1024 * 1024 * 1024
-	case "T", "TB", "TERABYTE", "TERABYTES":
+	case "T", "TB", "TIB", "TIBYTE", "TIBYTES", "TERABYTE", "TERABYTES":
 		unitMultiplier = 1024 * 1024 * 1024 * 1024
 	default:
 		return 0, fmt.Errorf("unknown memory unit: %s", unitStr)
@@ -153,6 +153,17 @@ func ParseMemory(memStr string) (int64, error) {
 	mb := totalBytes / (1024 * 1024)
 
 	return mb, nil
+}
+
+func formatSlurmMemory(memory string) (string, error) {
+	memoryMB, err := ParseMemory(memory)
+	if err != nil {
+		return "", fmt.Errorf("parse Slurm memory %q: %w", memory, err)
+	}
+	if memoryMB <= 0 {
+		return "", fmt.Errorf("Slurm memory must be positive, got %q", memory)
+	}
+	return fmt.Sprintf("%dM", memoryMB), nil
 }
 
 // ValidateLocalResources validates that local resources meet requirements

@@ -691,7 +691,11 @@ func qualityControlSummaryDeclaration() artifact.Declaration {
 }
 
 func expressionMatrixDeclaration(identifier string, path string) artifact.Declaration {
-	return artifact.Declaration{ID: identifier, Path: path, MediaType: "text/tab-separated-values", Schema: "otter.expression-count-matrix/v1", Comparison: artifact.Comparison{Tier: artifact.ComparisonTierScientific, Comparator: artifact.ComparatorExpressionMatrix}}
+	schema := "otter.expression-count-matrix/v1"
+	if identifier == "expression-normalized-matrix" {
+		schema = "otter.expression-normalized-matrix/v1"
+	}
+	return artifact.Declaration{ID: identifier, Path: path, MediaType: "text/tab-separated-values", Schema: schema, Comparison: artifact.Comparison{Tier: artifact.ComparisonTierScientific, Comparator: artifact.ComparatorExpressionMatrix}}
 }
 
 func bamDeclaration(identifier string, path string) artifact.Declaration {

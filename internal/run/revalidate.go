@@ -90,17 +90,13 @@ func RevalidateSnapshot(snapshot configv1.RunSnapshot) error {
 	}
 
 	for _, resolvedReference := range snapshot.References.Resolved {
-		verification, err := reference.VerifyRelease(resolvedReference.RegistryRoot, resolvedReference.ManifestDigest)
-		if err != nil {
-			issues = append(issues, DriftIssue{Field: "reference." + string(resolvedReference.Role), Path: resolvedReference.RegistryRoot, Expected: resolvedReference.ManifestDigest, Actual: "error: " + err.Error()})
-			continue
-		}
-		if !verification.Passed {
-			actual := "checksum verification failed"
-			if len(verification.Issues) > 0 {
-				actual = verification.Issues[0].Actual
-			}
-			issues = append(issues, DriftIssue{Field: "reference." + string(resolvedReference.Role), Path: resolvedReference.RegistryRoot, Expected: resolvedReference.ManifestDigest, Actual: actual})
+		if err := reference.VerifyReleaseIdentity(resolvedReference.RegistryRoot, resolvedReference.ManifestDigest); err != nil {
+			issues = append(issues, DriftIssue{
+				Field:    "reference." + string(resolvedReference.Role),
+				Path:     resolvedReference.RegistryRoot,
+				Expected: resolvedReference.ManifestDigest,
+				Actual:   "error: " + err.Error(),
+			})
 		}
 	}
 

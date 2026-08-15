@@ -156,6 +156,7 @@ type SlurmEngine struct {
 	partition   string
 	cores       int
 	memory      string
+	timeLimit   string
 	jobName     string
 	maxRetries  int
 	waitTimeout time.Duration
@@ -170,6 +171,7 @@ type SlurmConfig struct {
 	Partition   string        `json:"partition"`
 	Cores       int           `json:"cores"`
 	Memory      string        `json:"memory"`
+	Time        string        `json:"time"`
 	JobName     string        `json:"job_name"`
 	MaxRetries  int           `json:"max_retries"`
 	WaitTimeout time.Duration `json:"wait_timeout"` // 0 = no timeout (default)
@@ -190,6 +192,10 @@ func NewSlurmEngine(config *SlurmConfig) *SlurmEngine {
 	if memory == "" {
 		memory = "8G"
 	}
+	timeLimit := config.Time
+	if timeLimit == "" {
+		timeLimit = "24:00:00"
+	}
 	jobName := config.JobName
 	if jobName == "" {
 		jobName = "otter_job"
@@ -203,6 +209,7 @@ func NewSlurmEngine(config *SlurmConfig) *SlurmEngine {
 		partition:   partition,
 		cores:       cores,
 		memory:      memory,
+		timeLimit:   timeLimit,
 		jobName:     jobName,
 		maxRetries:  maxRetries,
 		waitTimeout: config.WaitTimeout,
@@ -339,6 +346,7 @@ func (e *SlurmEngine) generateSlurmScript(cmd []string) (string, error) {
 #SBATCH --partition={{.Partition}}
 #SBATCH --cpus-per-task={{.Cores}}
 #SBATCH --mem={{.Memory}}
+#SBATCH --time={{.Time}}
 #SBATCH --output={{.OutputFile}}
 #SBATCH --error={{.ErrorFile}}
 
@@ -354,11 +362,17 @@ cd {{.WorkDir}}
 touch {{.SuccessFile}}
 `
 
+	slurmMemory, err := formatSlurmMemory(e.memory)
+	if err != nil {
+		return "", err
+	}
+
 	data := struct {
 		JobName     string
 		Partition   string
 		Cores       int
 		Memory      string
+		Time        string
 		WorkDir     string
 		OutputFile  string
 		ErrorFile   string
@@ -368,7 +382,8 @@ touch {{.SuccessFile}}
 		JobName:     e.jobName,
 		Partition:   e.partition,
 		Cores:       e.cores,
-		Memory:      e.memory,
+		Memory:      slurmMemory,
+		Time:        e.timeLimit,
 		WorkDir:     e.getWorkDir(),
 		OutputFile:  filepath.Join(tmpDir, fmt.Sprintf("%s.out", e.jobName)),
 		ErrorFile:   filepath.Join(tmpDir, fmt.Sprintf("%s.err", e.jobName)),
@@ -403,34 +418,67 @@ touch {{.SuccessFile}}
 
 // submitJob submits a Slurm batch job
 func (e *SlurmEngine) submitJob(scriptPath string) (string, error) {
-	cmd := exec.Command("sbatch", scriptPath)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	return e.submitSlurmScript(scriptPath, "job")
+}
 
-	err := cmd.Run()
-	if err != nil {
-		stderrStr := stderr.String()
-		stdoutStr := stdout.String()
-		if stderrStr != "" {
-			return "", fmt.Errorf("sbatch command failed: %w\nstderr: %s", err, stderrStr)
+func (e *SlurmEngine) submitSlurmScript(scriptPath, submissionKind string) (string, error) {
+	maximumAttempts := e.maxRetries + 1
+	var lastSubmissionError error
+
+	for attemptNumber := 1; attemptNumber <= maximumAttempts; attemptNumber++ {
+		command := exec.Command("sbatch", scriptPath)
+		var standardOutput, standardError bytes.Buffer
+		command.Stdout = &standardOutput
+		command.Stderr = &standardError
+
+		if err := command.Run(); err == nil {
+			jobID, parseErr := parseSlurmSubmissionID(standardOutput.String())
+			if parseErr != nil {
+				return "", parseErr
+			}
+			if err := taskruntime.RegisterCurrentSlurmJob(jobID); err != nil {
+				logger.Warnf("Failed to persist SLURM job %s: %v", jobID, err)
+			}
+			return jobID, nil
+		} else if standardError.Len() > 0 {
+			lastSubmissionError = fmt.Errorf("sbatch command failed: %w\nstderr: %s", err, standardError.String())
+		} else {
+			lastSubmissionError = fmt.Errorf("sbatch command failed: %w\nstdout: %s", err, standardOutput.String())
 		}
-		return "", fmt.Errorf("sbatch command failed: %w\nstdout: %s", err, stdoutStr)
+
+		if attemptNumber == maximumAttempts || !isRetriableSlurmSubmissionError(lastSubmissionError) {
+			break
+		}
+		logger.Warnf("SLURM %s submission attempt %d/%d failed; retrying: %v", submissionKind, attemptNumber, maximumAttempts, lastSubmissionError)
+		time.Sleep(time.Duration(attemptNumber) * time.Second)
 	}
 
-	// Parse job ID from output
-	outputStr := strings.TrimSpace(stdout.String())
-	// Expected format: "Submitted batch job 12345"
-	parts := strings.Fields(outputStr)
-	if len(parts) >= 4 {
-		jobID := parts[3]
-		if err := taskruntime.RegisterCurrentSlurmJob(jobID); err != nil {
-			logger.Warnf("Failed to persist SLURM job %s: %v", jobID, err)
-		}
-		return jobID, nil
-	}
+	return "", fmt.Errorf("submit SLURM %s after %d attempt(s): %w", submissionKind, maximumAttempts, lastSubmissionError)
+}
 
-	return "", fmt.Errorf("failed to parse job ID from output: %s", outputStr)
+func isRetriableSlurmSubmissionError(submissionError error) bool {
+	message := strings.ToLower(submissionError.Error())
+	for _, transientFragment := range []string{
+		"unable to contact slurm controller",
+		"connection refused",
+		"connection timed out",
+		"socket timed out",
+		"temporarily unavailable",
+		"resource temporarily unavailable",
+	} {
+		if strings.Contains(message, transientFragment) {
+			return true
+		}
+	}
+	return false
+}
+
+func parseSlurmSubmissionID(submissionOutput string) (string, error) {
+	fields := strings.Fields(strings.TrimSpace(submissionOutput))
+	if len(fields) >= 4 && fields[0] == "Submitted" && fields[1] == "batch" && fields[2] == "job" {
+		return fields[3], nil
+	}
+	return "", fmt.Errorf("failed to parse job ID from output: %s", strings.TrimSpace(submissionOutput))
 }
 
 // waitForCompletion waits for the Slurm job to complete.
@@ -493,49 +541,63 @@ func (e *SlurmEngine) waitForCompletion() error {
 
 // checkJobStatus checks the status of a Slurm job
 func (e *SlurmEngine) checkJobStatus(jobID string) (*Status, error) {
-	cmd := exec.Command("squeue", "-j", jobID, "-o", "%T,%L")
-	output, err := cmd.Output()
-	if err != nil {
-		// Job has left the queue; determine success/failure via .success marker file
-		if e.successFile != "" {
-			if _, statErr := os.Stat(e.successFile); statErr == nil {
-				return &Status{
-					State:   StatusCompleted,
-					Message: "Job completed",
-				}, nil
+	queueOutput, queueErr := exec.Command("squeue", "-j", jobID, "-o", "%T,%L", "--noheader").Output()
+	queueText := strings.TrimSpace(string(queueOutput))
+	if queueErr == nil && queueText != "" {
+		parts := strings.SplitN(queueText, ",", 2)
+		if len(parts) == 2 {
+			switch normalizeSlurmState(parts[0]) {
+			case "RUNNING", "PENDING", "CONFIGURING", "COMPLETING":
+				return &Status{State: StatusRunning, Message: strings.TrimSpace(parts[1])}, nil
+			case "FAILED", "CANCELLED", "TIMEOUT", "OUT_OF_MEMORY", "NODE_FAIL", "PREEMPTED":
+				return &Status{State: StatusFailed, Message: queueText}, nil
+			case "COMPLETED":
+				return &Status{State: StatusCompleted, Message: queueText}, nil
 			}
 		}
-		return &Status{
-			State:   StatusFailed,
-			Message: "Job failed (no success marker)",
-		}, nil
 	}
 
-	outputStr := strings.TrimSpace(string(output))
-	parts := strings.SplitN(outputStr, ",", 2)
-
-	if len(parts) >= 2 {
-		state := parts[0]
-		message := parts[1]
-
-		switch state {
-		case "RUNNING":
-			return &Status{
-				State:   StatusRunning,
-				Message: message,
-			}, nil
-		case "FAILED":
-			return &Status{
-				State:   StatusFailed,
-				Message: message,
-			}, nil
+	// A job can disappear from squeue, or squeue can temporarily fail while
+	// the job is still running. Accounting is authoritative for terminal state.
+	accountingState, accountingErr := querySlurmAccountingState(jobID)
+	if accountingErr == nil {
+		switch accountingState {
+		case "COMPLETED":
+			return &Status{State: StatusCompleted, Message: "Job completed according to Slurm accounting"}, nil
+		case "FAILED", "CANCELLED", "TIMEOUT", "OUT_OF_MEMORY", "NODE_FAIL", "PREEMPTED", "BOOT_FAIL", "DEADLINE", "REVOKED":
+			return &Status{State: StatusFailed, Message: "Job terminated with Slurm state " + accountingState}, nil
+		case "RUNNING", "PENDING", "CONFIGURING", "COMPLETING":
+			return &Status{State: StatusRunning, Message: "Job state from Slurm accounting: " + accountingState}, nil
 		}
 	}
 
-	return &Status{
-		State:   StatusRunning,
-		Message: "Checking...",
-	}, nil
+	// The marker is only a positive completion signal. Its absence is not
+	// evidence of failure when both Slurm control-plane queries are transiently unavailable.
+	if e.successFile != "" {
+		if _, statErr := os.Stat(e.successFile); statErr == nil {
+			return &Status{State: StatusCompleted, Message: "Job completed (success marker)"}, nil
+		}
+	}
+	if queueErr != nil && accountingErr != nil {
+		return &Status{State: StatusRunning, Message: "Slurm status temporarily unavailable; retrying"}, nil
+	}
+	return &Status{State: StatusRunning, Message: "Waiting for Slurm accounting state"}, nil
+}
+
+func querySlurmAccountingState(jobID string) (string, error) {
+	output, err := exec.Command("sacct", "-j", jobID, "-X", "-o", "State", "--noheader", "--parsable2").Output()
+	if err != nil {
+		return "", err
+	}
+	return normalizeSlurmState(string(output)), nil
+}
+
+func normalizeSlurmState(rawState string) string {
+	stateFields := strings.Fields(strings.TrimSpace(rawState))
+	if len(stateFields) == 0 {
+		return ""
+	}
+	return strings.TrimSuffix(stateFields[0], "+")
 }
 
 // collectJobOutput collects the output of a completed Slurm job

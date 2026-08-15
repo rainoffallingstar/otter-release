@@ -2,11 +2,11 @@ rule xenofilteR:
   message: "Filter legacy PDX graft alignments"
   input:
     graft_bams=expand(
-      os.path.join(config["directories"]["bsmap"]["main"], "{sample}_fixed_" + config["workflow"]["species"]["graft"] + ".bam"),
+      os.path.join(config["directories"]["bsmap"]["main"], "{sample}_" + config["workflow"]["species"]["graft"] + ".bam"),
       sample=config["metadata"]["sample_ids"],
     ),
     host_bams=expand(
-      os.path.join(config["directories"]["bsmap"]["main"], "{sample}_fixed_" + config["workflow"]["species"]["host"] + ".bam"),
+      os.path.join(config["directories"]["bsmap"]["main"], "{sample}_" + config["workflow"]["species"]["host"] + ".bam"),
       sample=config["metadata"]["sample_ids"],
     )
   output:
@@ -41,8 +41,7 @@ rule xenofilteR:
     for filtered_bam in {output.filtered_bams:q}; do
       test ! -L "$filtered_bam"
       test -s "$filtered_bam"
-      enva run otter-core -- samtools quickcheck -v "$filtered_bam"
-      enva run otter-core -- samtools index -@ {threads} "$filtered_bam"
+      enva run otter-core-bismark-rust-3.1.0-r2 -- samtools quickcheck -v "$filtered_bam"
     done
     for filtered_bai in {output.filtered_bais:q}; do
       test ! -L "$filtered_bai"

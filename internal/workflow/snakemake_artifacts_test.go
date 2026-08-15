@@ -142,6 +142,21 @@ func TestPublishSnakemakeArtifactsRejectsMismatchedPartialWGBSPublication(t *tes
 	}
 }
 
+func TestExpressionMatrixDeclarationUsesIdentifierSpecificSchema(t *testing.T) {
+	countDeclaration := expressionMatrixDeclaration("expression-count-matrix", "methylation/matrix_count.txt")
+	normalizedDeclaration := expressionMatrixDeclaration("expression-normalized-matrix", "methylation/matrix_norm.txt")
+
+	if countDeclaration.Schema != "otter.expression-count-matrix/v1" {
+		t.Fatalf("count matrix schema = %q", countDeclaration.Schema)
+	}
+	if normalizedDeclaration.Schema != "otter.expression-normalized-matrix/v1" {
+		t.Fatalf("normalized matrix schema = %q", normalizedDeclaration.Schema)
+	}
+	if normalizedDeclaration.Comparison != countDeclaration.Comparison {
+		t.Fatalf("normalized matrix comparison contract = %#v, want %#v", normalizedDeclaration.Comparison, countDeclaration.Comparison)
+	}
+}
+
 func TestPublishSnakemakeArtifactsStagesRNAOutcomeArtifacts(t *testing.T) {
 	snapshot, snapshotPath := writeSnakemakePublicationSnapshot(t, configv1.ScenarioRNASeq)
 	writeWorkflowArtifact(t, filepath.Join(snapshot.Paths.Results, "methylation", "matrix_count.txt"), "gene\tS01\nGeneA\t10\n")
@@ -172,15 +187,24 @@ func TestPublishSnakemakeArtifactsStagesRNAOutcomeArtifacts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	foundNormalizedMatrix := false
 	foundSplicingOutcome := false
 	for _, entry := range manifest.Artifacts {
-		if entry.ID != "splicing-outcome" {
-			continue
+		switch entry.ID {
+		case "expression-normalized-matrix":
+			foundNormalizedMatrix = true
+			if entry.Schema != "otter.expression-normalized-matrix/v1" {
+				t.Fatalf("normalized matrix must use its dedicated schema: %#v", entry)
+			}
+		case "splicing-outcome":
+			foundSplicingOutcome = true
+			if entry.Comparison.Tier != artifact.ComparisonTierStructural || entry.Comparison.Comparator != artifact.ComparatorRNASplicingOutcome {
+				t.Fatalf("splicing outcome must use its structural comparator: %#v", entry)
+			}
 		}
-		foundSplicingOutcome = true
-		if entry.Comparison.Tier != artifact.ComparisonTierStructural || entry.Comparison.Comparator != artifact.ComparatorRNASplicingOutcome {
-			t.Fatalf("splicing outcome must use its structural comparator: %#v", entry)
-		}
+	}
+	if !foundNormalizedMatrix {
+		t.Fatal("published RNA manifest must declare a normalized expression matrix")
 	}
 	if !foundSplicingOutcome {
 		t.Fatal("published RNA manifest must declare a splicing outcome")
@@ -269,6 +293,26 @@ func TestPublishSnakemakeArtifactsStagesRNAPDXArtifactsAndRetriesIdempotently(t 
 	if result.AlreadyPublished || result.ArtifactCount != 8 {
 		t.Fatalf("unexpected initial RNA-PDX publication result: %#v", result)
 	}
+	manifest, err := artifact.Load(result.ManifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seenArtifactIDs := make(map[string]bool, len(manifest.Artifacts))
+	for _, declaration := range manifest.Artifacts {
+		seenArtifactIDs[declaration.ID] = true
+	}
+	for _, expectedArtifactID := range []string{
+		"graft-alignment-bam-0001",
+		"graft-alignment-bai-0001",
+	} {
+		if !seenArtifactIDs[expectedArtifactID] {
+			t.Fatalf("RNA-PDX manifest is missing aligned PDX artifact ID %q: %#v", expectedArtifactID, seenArtifactIDs)
+		}
+	}
+	if seenArtifactIDs["graft-rna-alignment-bam-0001"] || seenArtifactIDs["graft-rna-alignment-bai-0001"] {
+		t.Fatalf("RNA-PDX manifest retained executor-specific graft artifact IDs: %#v", seenArtifactIDs)
+	}
+
 	for _, artifactPath := range []string{
 		"pdx/graft/S01_graft_Filtered.bam",
 		"pdx/graft/S01_graft_Filtered.bam.bai",

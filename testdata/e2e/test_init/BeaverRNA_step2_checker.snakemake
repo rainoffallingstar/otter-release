@@ -12,10 +12,11 @@ rule all:
     os.path.join(config["outDir_betaM"], "matrix_norm.txt"),
     os.path.join(config["qc_summary"],"qc_summary.txt")
 
-# construct matrix
+# construct matrix 
 
 include:"rules/rnaseq_matrix.smk"
 
-# qc summary
+# qc summary 
 
 include:"rules/rna_qc_summary.smk"
+
