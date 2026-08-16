@@ -105,6 +105,23 @@ comparison cells.
   `run-20260816T035120Z-kfkzhm`; it uses the isolated static Otter binary and
   the sealed corrected workflow assets.
 
+## Corrected compatibility completion
+
+- Controller `41461228` completed successfully in 01:09:51. Its Bismark
+  step2 worker `41461467`, methylation step3 worker `41461612`, and all-sample
+  step3-check worker `41461633` each completed with exit code `0:0`.
+- The corrected checker passed the formerly failing Snakemake template parse,
+  extracted 21,867,837 mm10 CpG sites, and completed the real Methrix
+  annotation workflow. It atomically published `methrix_data.h5`,
+  `CpG_coverage.xlsx`, and `CpG_annotation_report.xlsx` before Otter collected
+  the declared outputs.
+- Otter published three immutable artifacts to
+  `results/artifacts.json`: the Bismark summary HTML report, Methrix HDF5
+  dataset, and QC summary workbook.
+- The deployed static compatibility binary verified the exact immutable run
+  with `otter artifact verify <run-yaml>` and returned `{"passed": true}`.
+  This completes the isolated Snakemake compatibility/recovery validation.
+
 ## Reasoning
 
 This supplies the required genuine Snakemake controller interruption/resume
