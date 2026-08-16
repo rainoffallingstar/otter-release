@@ -89,6 +89,17 @@ compatibility path.
   immutable snapshot will be resolved with that complete allocation contract;
   all prior snapshots remain diagnostic evidence only.
 
+## Complete resource-contract snapshot
+
+- Compute-node validation controller `41462075` accepted the canonical
+  `step2` envelope of 80 cores and 320 GiB.
+- Resolve controller `41462078` published immutable snapshot
+  `run-20260816T064000Z-pdxmem`, again with the completed step1 run as its
+  lineage parent.
+- The new run links only accepted step1 work directories, and its explicit
+  Craftmake step2 dry-run completed successfully with the full resource
+  contract.
+
 ## Completion criteria
 
 - Complete BS-PDX `step2`, its applicable checker phase, and methylation
