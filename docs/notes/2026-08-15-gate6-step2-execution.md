@@ -9,13 +9,13 @@
   `srun: error: Unable to confirm allocation for job ...: Unexpected message received`.
   This is the same transient controller fault class previously recorded for SRA decode. The task attempt dirs contain only `srun-launch.err` and no worker result, confirming the allocation-confirmation failure rather than a workflow defect.
 - **Recovery status**: the resume controller `41458109` completed successfully. It reused the cached STAR BAM and both `qualimap` and `count_expression` completed successfully for `SRR018258`.
-- **Second incident (two failure classes)**: `rna-pdx-SRR30880970` step2 (controller `41458053`) also failed with exit code 5. Its `map_and_sort/species=hg38` and `qualimap/species=hg38` succeeded, but the original `map_and_sort/species=mm10` launch (job `41458071`) encountered the same transient `srun: Unable to confirm allocation ... Unexpected message received` error. The first valid resume then ran mm10 STAR but failed after 8 minutes with `failed reading from temporary file` in `work/bsmap/mm10/SRR30880970_STARtmp/BAMsort/`; this is classified as a retry-safe workflow tool invocation failure, not a scheduler failure. The partial BAM is zero bytes and the STAR temporary directory is retained for cleanup before the next resume. Resume controller `41458152` was submitted for `run-20260815T132155Z-vhesje` phase `step2`, reusing the completed hg38 branch.
+- **Retry after evidence preservation**: the failed mm10 STAR outputs and temporary directories were moved intact to `work/bsmap/mm10/failed-star-attempt-20260815T144515Z/`; no incident artifact was deleted. With `work/bsmap/mm10/` clear of partial STAR outputs, resume controller `41459914` was submitted for the same immutable run and phase. The retry may reuse only the completed hg38 branch.
 
 ## Running state
 
 | Item | Status |
 |---|---|
 | step2 controllers (5 remaining) | running (Bismark/STAR alignment) |
-| rna-pdx mm10 step2 | failed after STAR temporary-file read error; cleanup and retry pending |
+| rna-pdx mm10 step2 | retry controller `41459914` submitted after preserving failed STAR artifacts |
 | SRR018258 step2 resume | completed successfully |
 | bs-pdx step1 (`41457463`) | running (~4.5 h), raw FastQC under node contention; autonomous watcher active |
