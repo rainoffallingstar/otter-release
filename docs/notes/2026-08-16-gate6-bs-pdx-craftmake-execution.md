@@ -58,6 +58,16 @@ compatibility path.
 - The new run will link only the accepted `step1` work directories before its
   Craftmake `step2` plan and execution.
 
+## Incomplete resolve diagnostic
+
+- The first 80-core resolve attempt left directory
+  `run-20260816T061209Z-sktqup` without an immutable `run.yaml`. Its
+  subsequent Craftmake plan was therefore rejected before planning or task
+  submission.
+- The accepted step1 links placed in that incomplete directory are diagnostic
+  only. It will not be used or repaired; a new Otter resolve will receive a
+  different immutable run ID.
+
 ## Completion criteria
 
 - Complete BS-PDX `step2`, its applicable checker phase, and methylation
