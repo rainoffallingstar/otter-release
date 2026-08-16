@@ -341,6 +341,8 @@ func TestMethrixReferenceRuleStagesResolvedAnnotation(t *testing.T) {
 		"install -m 0644 \"$annotation\" \"$out_dir/$key.gtf\"",
 		"Methrix annotation must be a regular resolved GTF",
 		"extract_command=(methx extract-cp-gs)",
+		"|| {{",
+		"${{contig_arguments[@]}}",
 		"cpgs: \\[\\]",
 		"--contigs",
 	} {

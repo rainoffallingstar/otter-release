@@ -87,9 +87,9 @@ comparison cells.
 - Its shell block contains unescaped Bash parameter-expansion braces, so
   Snakemake treats expressions such as `${ref}.ron` as template variables and
   raises a `NameError` before any checker rule can run.
-- This is a deterministic compatibility Snakefile formatting defect. The next
-  recovery will use the same immutable snapshot after deploying a staged,
-  read-only corrected `methrix_object.smk` asset.
+- This is a deterministic compatibility Snakefile formatting defect. The failed
+  snapshot remains immutable evidence; a new snapshot will be resolved after
+  staging a read-only corrected `methrix_object.smk` asset.
 
 ## Reasoning
 

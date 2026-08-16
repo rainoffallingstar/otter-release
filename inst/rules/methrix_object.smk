@@ -41,14 +41,14 @@ rule prepare_methrix_reference_cpg:
           if ! methx extract-cp-gs --help >/dev/null 2>&1; then
             extract_command=(methx extract-cpgs)
           fi
-          "${{extract_command[@]}}" --genome "$ref" --output "{output}" || {
+          "${{extract_command[@]}}" --genome "$ref" --output "{output}" || {{
             if [[ "${{extract_command[1]}}" == "extract-cp-gs" ]]; then
               extract_command=(methx extract-cpgs)
               "${{extract_command[@]}}" --genome "$ref" --output "{output}"
             else
               exit 1
             fi
-          }
+          }}
           if grep -q 'cpgs: \[\]' "{output}"; then
             contig_arguments=()
             while IFS= read -r header; do
@@ -62,7 +62,7 @@ rule prepare_methrix_reference_cpg:
               printf 'no FASTA contigs found in %s\n' "$ref" >&2
               exit 1
             fi
-            "${{extract_command[@]}}" --genome "$ref" --output "{output}" "${contig_arguments[@]}"
+            "${{extract_command[@]}}" --genome "$ref" --output "{output}" "${{contig_arguments[@]}}"
           fi
         fi
       fi
