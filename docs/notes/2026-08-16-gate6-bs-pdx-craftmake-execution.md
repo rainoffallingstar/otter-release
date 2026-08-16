@@ -52,11 +52,14 @@ compatibility path.
 
 - The canonical configuration was rewritten without control characters and
   passed `otter config validate` with `step2.cores: 80`.
-- Otter resolved fresh snapshot `run-20260816T061209Z-sktqup` with
-  `run-20260815T094416Z-rjwvkx` as its immutable lineage parent. The rejected
-  snapshots remain unchanged.
-- The new run will link only the accepted `step1` work directories before its
-  Craftmake `step2` plan and execution.
+- The initial direct resolve attempt created only the incomplete diagnostic
+  directory described below. It did not publish an immutable snapshot.
+- Compute-node validation controller `41462041` then passed against the
+  canonical configuration. Durable resolve controller `41462044` published
+  `run-20260816T063000Z-pdxrsl` with
+  `run-20260815T094416Z-rjwvkx` as its immutable lineage parent.
+- Only accepted `step1` directories are linked into the new run. The sealed
+  Craftmake `step2` dry-run passed against that exact snapshot.
 
 ## Incomplete resolve diagnostic
 
