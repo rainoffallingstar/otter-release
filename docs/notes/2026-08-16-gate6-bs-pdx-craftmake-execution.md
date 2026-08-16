@@ -80,6 +80,15 @@ compatibility path.
   validated from an allocated compute-node context before any further resolve
   submission.
 
+## Step2 memory-envelope incident
+
+- The 80-core controller `41462059` reached Craftmake's resource-contract
+  validation but stopped before task submission: BeaverPDX requests
+  343,597,383,680 bytes (320 GiB), while the new snapshot declares 160 GiB.
+- BS-PDX `step2` requires a combined `80 cores / 320 GiB` envelope. A new
+  immutable snapshot will be resolved with that complete allocation contract;
+  all prior snapshots remain diagnostic evidence only.
+
 ## Completion criteria
 
 - Complete BS-PDX `step2`, its applicable checker phase, and methylation
