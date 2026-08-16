@@ -101,6 +101,10 @@ comparison cells.
   compatibility execution so its artifact manifest is tied to the repaired
   workflow-asset digest.
 
+- Full corrected compatibility controller `41461228` was submitted against
+  `run-20260816T035120Z-kfkzhm`; it uses the isolated static Otter binary and
+  the sealed corrected workflow assets.
+
 ## Reasoning
 
 This supplies the required genuine Snakemake controller interruption/resume
