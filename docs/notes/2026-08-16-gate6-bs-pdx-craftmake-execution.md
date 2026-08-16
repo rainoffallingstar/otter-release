@@ -123,6 +123,26 @@ compatibility path.
   invocation. It will use Craftmake with the same inputs, references, site,
   and phase resource contract before immutable artifact comparison.
 
+## Classified hg38 mapping timeout
+
+- Host `mm10` mapper `41462105` completed successfully with exit status `0:0`
+  in `07:47:20`, publishing a `7,398,668,009`-byte Bismark paired-end BAM and
+  its mapping report.
+- Graft `hg38` mapper `41462104` remained active without a final BAM until its
+  fixed `08:00:00` allocation expired. Slurm classified it as `TIMEOUT` after
+  `08:00:22`, with exit status `0:0`; there was no OOM or application exit
+  failure evidence.
+- Because the dual-reference `map_and_sort` dependency was incomplete, the
+  outer Otter/Craftmake controller `41462094` ended `FAILED 5:0` after
+  `08:03:04`. This is a classified resource-time incident, not a result from
+  the modern production pipeline.
+- The immutable `run-20260816T064000Z-pdxmem` snapshot and its work products
+  remain untouched. Recovery requires a new canonical configuration with an
+  extended `step2` time envelope, a fresh immutable Otter snapshot, and an
+  Otter-to-Craftmake resume that reuses only accepted outputs. The successful
+  mm10 output is evidence only until the resumed run accepts it through its
+  own preserved-output contract.
+
 ## Completion criteria
 
 - Complete BS-PDX `step2`, its applicable checker phase, and methylation
