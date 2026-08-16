@@ -48,6 +48,16 @@ compatibility path.
   previously accepted immutable snapshot and apply only the verified
   `step2.cores: 80` change with a YAML-safe writer before resolving a new run.
 
+## Compliant immutable snapshot
+
+- The canonical configuration was rewritten without control characters and
+  passed `otter config validate` with `step2.cores: 80`.
+- Otter resolved fresh snapshot `run-20260816T061209Z-sktqup` with
+  `run-20260815T094416Z-rjwvkx` as its immutable lineage parent. The rejected
+  snapshots remain unchanged.
+- The new run will link only the accepted `step1` work directories before its
+  Craftmake `step2` plan and execution.
+
 ## Completion criteria
 
 - Complete BS-PDX `step2`, its applicable checker phase, and methylation
