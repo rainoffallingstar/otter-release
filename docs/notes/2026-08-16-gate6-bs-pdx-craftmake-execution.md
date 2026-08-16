@@ -100,6 +100,10 @@ compatibility path.
   Craftmake step2 dry-run completed successfully with the full resource
   contract.
 
+- Full Craftmake controller `41462094` was submitted against this snapshot
+  with the sealed Craftmake binary and catalog. Otter passed preflight and
+  invoked `craftmake run`; child-task submission is pending its Slurm plan.
+
 ## Completion criteria
 
 - Complete BS-PDX `step2`, its applicable checker phase, and methylation
