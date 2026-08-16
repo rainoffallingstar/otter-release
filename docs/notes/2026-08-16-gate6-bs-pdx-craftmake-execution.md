@@ -138,10 +138,13 @@ compatibility path.
   the modern production pipeline.
 - The immutable `run-20260816T064000Z-pdxmem` snapshot and its work products
   remain untouched. Recovery requires a new canonical configuration with an
-  extended `step2` time envelope, a fresh immutable Otter snapshot, and an
-  Otter-to-Craftmake resume that reuses only accepted outputs. The successful
-  mm10 output is evidence only until the resumed run accepts it through its
-  own preserved-output contract.
+  extended `step2` time envelope and a fresh immutable Otter snapshot.
+- Craftmake cache identity includes the resolved configuration fingerprint and
+  its SQLite state is scoped to the run snapshot. Therefore an extended-time
+  snapshot cannot safely resume the failed snapshot's state or adopt the mm10
+  output as a cross-snapshot cache hit. The recovery run will reuse only the
+  accepted step1 links and will rerun both step2 species; the successful mm10
+  BAM remains incident evidence, not an accepted recovery input.
 
 ## Completion criteria
 
