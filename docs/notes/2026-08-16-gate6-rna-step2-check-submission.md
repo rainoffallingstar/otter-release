@@ -17,6 +17,12 @@ with `sbatch`.
 - Target projects: `human-rnaseq-SRR1039508`, `human-rnaseq-SRR018258`, and
   `mouse-rnaseq-SRR037954`.
 
+## Submitted execution
+
+- Slurm controller `41460029` was submitted as `otter-rna-step2-check`.
+- It invokes the three target immutable runs sequentially, with `--parallel-jobs 2`
+  inside each Otter + Craftmake phase execution.
+
 ## Expected evidence
 
 Each project should complete four tasks: `construct_expression_matrix`,
