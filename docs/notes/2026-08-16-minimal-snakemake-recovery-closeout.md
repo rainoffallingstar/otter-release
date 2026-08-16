@@ -28,6 +28,16 @@ comparison cells.
   through the controller environment before the controlled interruption is
   attempted.
 
+## Asset staging recovery
+
+- The failed snapshot `run-20260816T022709Z-mzmkvr` is retained as the
+  missing-asset diagnostic record and will not be reused.
+- The isolated project now contains the repository's version-controlled
+  `inst/snakefiles` (at project root) and `inst/rules` assets, staged read-only.
+  These are the assets required by the explicit Snakemake compatibility engine.
+- A new snapshot must be resolved after staging so the root `*.snakemake` files
+  and `rules/` directory are covered by the immutable workflow-asset digest.
+
 ## Reasoning
 
 This supplies the required genuine Snakemake controller interruption/resume
