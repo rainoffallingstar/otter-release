@@ -15,6 +15,17 @@ compatibility path.
 - The next action is Otter's foreground Craftmake controller for `step2`; it
   will be the only route used to submit BS-PDX downstream Slurm work.
 
+## Controller preflight incident
+
+- The first `step2` controller, `41461969`, exited `1:0` before Craftmake
+  submitted any workflow task because its Slurm batch environment did not
+  expose `craftmake` on `PATH`.
+- The failure is confined to Otter's Craftmake-binary preflight. It neither
+  mutated the immutable snapshot nor created downstream task outputs.
+- The recovery controller will explicitly pass the sealed
+  `runtime/craftmake` binary and `runtime/catalog` root to Otter. This retains
+  the same snapshot and delegates all task submission to Craftmake.
+
 ## Completion criteria
 
 - Complete BS-PDX `step2`, its applicable checker phase, and methylation
