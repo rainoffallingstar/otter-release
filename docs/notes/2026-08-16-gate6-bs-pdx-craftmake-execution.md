@@ -39,6 +39,15 @@ compatibility path.
   compliant 80-core `step2` resource envelope. The accepted `step1` work will
   be reused only through the established preserved-output mechanism.
 
+## Canonical configuration serialization incident
+
+- The remote `yq` implementation used for the 80-core update wrote control
+  characters into `project.yaml`; Otter rejected the canonical configuration
+  during validation before it could create a new snapshot.
+- The remediation will reconstruct the canonical configuration from the
+  previously accepted immutable snapshot and apply only the verified
+  `step2.cores: 80` change with a YAML-safe writer before resolving a new run.
+
 ## Completion criteria
 
 - Complete BS-PDX `step2`, its applicable checker phase, and methylation
