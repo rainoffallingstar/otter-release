@@ -38,6 +38,16 @@ comparison cells.
 - A new snapshot must be resolved after staging so the root `*.snakemake` files
   and `rules/` directory are covered by the immutable workflow-asset digest.
 
+## Controlled interruption
+
+- Asset-sealed snapshot `run-20260816T024341Z-cijlua` launched controller
+  `41460256`; its real Snakemake step1 child `41460261` entered `RUNNING`.
+- The controller was then deliberately cancelled. Slurm accounting records
+  `41460256` as `CANCELLED`, while `41460261` remained running at the time of
+  cancellation. This is the required real controller-interruption state.
+- The next controller will run the same immutable snapshot with `--resume` to
+  reconcile that retained worker state and complete publication.
+
 ## Reasoning
 
 This supplies the required genuine Snakemake controller interruption/resume
