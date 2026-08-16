@@ -48,6 +48,16 @@ comparison cells.
 - The next controller will run the same immutable snapshot with `--resume` to
   reconcile that retained worker state and complete publication.
 
+## Resume lock repair
+
+- The recovery attempt exposed a stale `.snakemake` lock after controller
+  cancellation. Otter's explicit Snakemake resume path now calls
+  `snakemake --unlock` from the project directory before it re-enters the
+  workflow manager.
+- The unlock is limited to actual resume runs; dry-runs and normal Snakemake
+  executions retain their prior behavior.
+- `go test ./cmd` passes for the repair before deploying the closeout binary.
+
 ## Reasoning
 
 This supplies the required genuine Snakemake controller interruption/resume

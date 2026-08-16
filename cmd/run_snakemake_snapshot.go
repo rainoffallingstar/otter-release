@@ -131,6 +131,11 @@ func executeSnakemakeSnapshotRun(command *cobra.Command) (runErr error) {
 			logger.Warnf("Failed to restore working directory %s: %v", originalDirectory, restoreErr)
 		}
 	}()
+	if resumeFlag && !dryRun {
+		if err := unlockSnakemakeProjectDirectory(invocation.ProjectDirectory); err != nil {
+			return err
+		}
+	}
 	if runPhase == "" {
 		if err := manager.ExecuteAll(); err != nil {
 			return fmt.Errorf("Snakemake workflow execution failed: %w", err)
@@ -156,6 +161,16 @@ func executeSnakemakeSnapshotRun(command *cobra.Command) (runErr error) {
 		return nil
 	}
 	fmt.Fprintf(command.OutOrStdout(), "Published %d immutable artifacts: %s\n", publicationResult.ArtifactCount, publicationResult.ManifestPath)
+	return nil
+}
+
+func unlockSnakemakeProjectDirectory(projectDirectory string) error {
+	unlockCommand := exec.Command("snakemake", "--unlock")
+	unlockCommand.Dir = projectDirectory
+	output, err := unlockCommand.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("unlock Snakemake working directory: %w: %s", err, strings.TrimSpace(string(output)))
+	}
 	return nil
 }
 
