@@ -9,13 +9,13 @@
   `srun: error: Unable to confirm allocation for job ...: Unexpected message received`.
   This is the same transient controller fault class previously recorded for SRA decode. The task attempt dirs contain only `srun-launch.err` and no worker result, confirming the allocation-confirmation failure rather than a workflow defect.
 - **Recovery status**: the resume controller `41458109` completed successfully. It reused the cached STAR BAM and both `qualimap` and `count_expression` completed successfully for `SRR018258`.
-- **Retry after evidence preservation**: the failed mm10 STAR outputs and temporary directories were moved intact to `work/bsmap/mm10/failed-star-attempt-20260815T144515Z/`; no incident artifact was deleted. With `work/bsmap/mm10/` clear of partial STAR outputs, resume controller `41459914` was submitted for the same immutable run and phase. The retry may reuse only the completed hg38 branch.
+- **Recovery complete**: the failed mm10 STAR outputs and temporary directories were first moved intact to `work/bsmap/mm10/failed-star-attempt-20260815T144515Z/`; no incident artifact was deleted. With partial outputs removed from the active directory, resume controller `41459914` finished with exit code 0. The fresh mm10 `map_and_sort` completed successfully (worker `41459917`, 9m49s), followed by successful mm10 `qualimap` (worker `41459966`, 3m39s); the resumed step2 run finished successfully.
 
 ## Running state
 
 | Item | Status |
 |---|---|
-| step2 controllers (5 remaining) | running (Bismark/STAR alignment) |
-| rna-pdx mm10 step2 | retry controller `41459914` submitted after preserving failed STAR artifacts |
+| all six step2 project runs | completed successfully after targeted resume recovery |
+| rna-pdx mm10 step2 | completed successfully; failed STAR evidence retained |
 | SRR018258 step2 resume | completed successfully |
 | bs-pdx step1 (`41457463`) | running (~4.5 h), raw FastQC under node contention; autonomous watcher active |
