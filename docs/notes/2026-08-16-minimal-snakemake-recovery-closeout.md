@@ -91,6 +91,16 @@ comparison cells.
   snapshot remains immutable evidence; a new snapshot will be resolved after
   staging a read-only corrected `methrix_object.smk` asset.
 
+## Corrected asset snapshot
+
+- The corrected `methrix_object.smk` was staged read-only in the isolated
+  project and a fresh immutable snapshot was resolved:
+  `run-20260816T035120Z-kfkzhm`.
+- The failed snapshot `run-20260816T024341Z-cijlua` remains untouched and is
+  retained as diagnostic evidence; the corrected run will be a fresh full
+  compatibility execution so its artifact manifest is tied to the repaired
+  workflow-asset digest.
+
 ## Reasoning
 
 This supplies the required genuine Snakemake controller interruption/resume
