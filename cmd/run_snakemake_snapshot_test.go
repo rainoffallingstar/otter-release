@@ -159,6 +159,20 @@ func TestSnakemakeStepForPhase(t *testing.T) {
 	}
 }
 
+func TestClearSnakemakeInheritedJavaHomeRestoresOriginalValue(t *testing.T) {
+	t.Setenv("JAVA_HOME", "/incompatible/java")
+
+	restoreJavaHome := clearSnakemakeInheritedJavaHome()
+	if _, found := os.LookupEnv("JAVA_HOME"); found {
+		t.Fatal("JAVA_HOME must be absent while Snakemake work is submitted")
+	}
+
+	restoreJavaHome()
+	if javaHome := os.Getenv("JAVA_HOME"); javaHome != "/incompatible/java" {
+		t.Fatalf("JAVA_HOME after restore = %q, want original value", javaHome)
+	}
+}
+
 func TestLegacyRuntimeSpeciesIdentifierUsesGraftWithoutPrimaryReference(t *testing.T) {
 	snapshot := configv1.RunSnapshot{
 		References: configv1.ResolvedReferences{Resolved: []configv1.ResolvedReference{

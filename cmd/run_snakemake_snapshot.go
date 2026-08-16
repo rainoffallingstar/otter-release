@@ -119,6 +119,9 @@ func executeSnakemakeSnapshotRun(command *cobra.Command) (runErr error) {
 		return err
 	}
 
+	clearInheritedJavaHome := clearSnakemakeInheritedJavaHome()
+	defer clearInheritedJavaHome()
+
 	originalDirectory, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("get current working directory: %w", err)
@@ -162,6 +165,19 @@ func executeSnakemakeSnapshotRun(command *cobra.Command) (runErr error) {
 	}
 	fmt.Fprintf(command.OutOrStdout(), "Published %d immutable artifacts: %s\n", publicationResult.ArtifactCount, publicationResult.ManifestPath)
 	return nil
+}
+
+func clearSnakemakeInheritedJavaHome() func() {
+	javaHome, wasDefined := os.LookupEnv("JAVA_HOME")
+	_ = os.Unsetenv("JAVA_HOME")
+
+	return func() {
+		if wasDefined {
+			_ = os.Setenv("JAVA_HOME", javaHome)
+			return
+		}
+		_ = os.Unsetenv("JAVA_HOME")
+	}
 }
 
 func unlockSnakemakeProjectDirectory(projectDirectory string) error {

@@ -70,6 +70,16 @@ comparison cells.
   environment. It does not affect the completed Bismark output, immutable run,
   interruption accounting, or the implemented stale-lock recovery behavior.
 
+## Java home isolation repair
+
+- The explicit Snakemake path now removes an inherited `JAVA_HOME` while it
+  submits and monitors compatibility workflow children, restoring the original
+  value when the command returns.
+- This lets Picard use the Java bundled with its active Enva environment instead
+  of a potentially incompatible controller-level JVM.
+- The behavior is covered by `TestClearSnakemakeInheritedJavaHomeRestoresOriginalValue`;
+  `go test ./cmd` passes.
+
 ## Reasoning
 
 This supplies the required genuine Snakemake controller interruption/resume
