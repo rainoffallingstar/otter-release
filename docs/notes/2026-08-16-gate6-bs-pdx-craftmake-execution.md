@@ -68,6 +68,15 @@ compatibility path.
   only. It will not be used or repaired; a new Otter resolve will receive a
   different immutable run ID.
 
+## Compute-node configuration visibility incident
+
+- Resolve controller `41462033` confirmed that residual control characters
+  remained visible on the shared filesystem even after the login-node
+  validation appeared to pass. It exited before creating a snapshot.
+- The configuration will be sanitized to its ASCII YAML character set, then
+  validated from an allocated compute-node context before any further resolve
+  submission.
+
 ## Completion criteria
 
 - Complete BS-PDX `step2`, its applicable checker phase, and methylation
