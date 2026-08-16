@@ -17,6 +17,17 @@ comparison cells.
   recovery. Existing Craftmake snapshots and published artifacts remain
   untouched.
 
+## First execution result
+
+- Controller `41460152` reached Otter's real Snakemake compatibility path but
+  stopped before workflow submission with `snakemake not found in PATH`.
+- No Snakemake child job, workflow output, snapshot mutation, or artifact
+  publication was produced. The failure is therefore an environment-preflight
+  blocker, not evidence of a workflow or recovery failure.
+- The next attempt must provide a sealed, compute-visible Snakemake executable
+  through the controller environment before the controlled interruption is
+  attempted.
+
 ## Reasoning
 
 This supplies the required genuine Snakemake controller interruption/resume
