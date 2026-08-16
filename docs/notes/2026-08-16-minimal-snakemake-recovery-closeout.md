@@ -58,6 +58,18 @@ comparison cells.
   executions retain their prior behavior.
 - `go test ./cmd` passes for the repair before deploying the closeout binary.
 
+## Step2 runtime blocker
+
+- The repaired resume completed Snakemake step1 and the step2 Bismark rule,
+  publishing `SRR10025242_mm10.bam` and its BAI in the new run's isolated
+  `work/bsmap/` directory.
+- The following legacy Picard `CollectGcBiasMetrics` rule failed before it could
+  read the BAM because it resolved Java from `MyMiniconda`; that binary fails on
+  the compute node with `undefined symbol: JLI_StringDup`.
+- This is a Java runtime ABI conflict in the compatibility controller
+  environment. It does not affect the completed Bismark output, immutable run,
+  interruption accounting, or the implemented stale-lock recovery behavior.
+
 ## Reasoning
 
 This supplies the required genuine Snakemake controller interruption/resume
