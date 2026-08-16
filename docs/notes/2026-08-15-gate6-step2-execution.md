@@ -18,4 +18,4 @@
 | all six step2 project runs | completed successfully after targeted resume recovery |
 | rna-pdx mm10 step2 | completed successfully; failed STAR evidence retained |
 | SRR018258 step2 resume | completed successfully |
-| bs-pdx step1 (`41457463`) | running (~4.5 h), raw FastQC under node contention; autonomous watcher active |
+| bs-pdx step1 | completed successfully (`controller-exit 0` at `2026-08-15T21:18:57Z`) |
