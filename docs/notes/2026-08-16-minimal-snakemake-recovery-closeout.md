@@ -80,6 +80,17 @@ comparison cells.
 - The behavior is covered by `TestClearSnakemakeInheritedJavaHomeRestoresOriginalValue`;
   `go test ./cmd` passes.
 
+## Step3 checker parse blocker
+
+- The main step3 workflow completed, but the `step3-check` checker failed while
+  Snakemake parsed `rules/methrix_object.smk`.
+- Its shell block contains unescaped Bash parameter-expansion braces, so
+  Snakemake treats expressions such as `${ref}.ron` as template variables and
+  raises a `NameError` before any checker rule can run.
+- This is a deterministic compatibility Snakefile formatting defect. The next
+  recovery will use the same immutable snapshot after deploying a staged,
+  read-only corrected `methrix_object.smk` asset.
+
 ## Reasoning
 
 This supplies the required genuine Snakemake controller interruption/resume
