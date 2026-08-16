@@ -23,6 +23,19 @@ with `sbatch`.
 - It invokes the three target immutable runs sequentially, with `--parallel-jobs 2`
   inside each Otter + Craftmake phase execution.
 
+## Completion and evidence
+
+- Controller `41460029` finished successfully. Each of the three immutable
+  `step2-check` runs completed successfully.
+- Expression matrices were written under `work/expression/`:
+  - `human-rnaseq-SRR1039508`: `SRR1039508_hg38.txt` (62,759 lines).
+  - `human-rnaseq-SRR018258`: `SRR018258_hg38.txt` (62,759 lines).
+  - `mouse-rnaseq-SRR037954`: `SRR037954_mm10.txt` (55,492 lines).
+- Every `rnaseq_splicing` task wrote the declared
+  `work/bsmap/RNASplicing/splicing-outcome.json`. Each validly reports
+  `status: not_applicable` with no artifact paths because this is a
+  single-sample comparison, rather than an omitted or failed result.
+
 ## Expected evidence
 
 Each project should complete four tasks: `construct_expression_matrix`,
