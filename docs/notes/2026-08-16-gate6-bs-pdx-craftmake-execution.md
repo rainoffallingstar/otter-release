@@ -26,6 +26,19 @@ compatibility path.
   `runtime/craftmake` binary and `runtime/catalog` root to Otter. This retains
   the same snapshot and delegates all task submission to Craftmake.
 
+## Step2 resource-envelope incident
+
+- Recovery controller `41461982` correctly loaded the sealed Craftmake runtime,
+  then stopped before a workflow task was submitted because the immutable
+  snapshot's `step2` envelope declares 40 cores while BeaverPDX requires an
+  80-core allocation.
+- The exact preflight failure was `phase resource envelope "step2" has 40
+  cores but allocation requests 80`. No task output was created and the
+  original snapshot remains unchanged.
+- BS-PDX must now receive a fresh Otter-resolved immutable snapshot with a
+  compliant 80-core `step2` resource envelope. The accepted `step1` work will
+  be reused only through the established preserved-output mechanism.
+
 ## Completion criteria
 
 - Complete BS-PDX `step2`, its applicable checker phase, and methylation
