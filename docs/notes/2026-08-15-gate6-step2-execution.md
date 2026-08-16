@@ -8,13 +8,14 @@
 - **Incident (documented)**: `human-rnaseq-SRR018258` step2 (controller `41458051`) failed with a classified exit code 5. Its STAR `map_and_sort` task succeeded (job `41458056`), but the dependent `qualimap` (job `41458069`) and `count_expression` (job `41458068`) submissions hit a transient SLURM controller error:
   `srun: error: Unable to confirm allocation for job ...: Unexpected message received`.
   This is the same transient controller fault class previously recorded for SRA decode. The task attempt dirs contain only `srun-launch.err` and no worker result, confirming the allocation-confirmation failure rather than a workflow defect.
-- **Recovery**: resume controller `41458109` was submitted for the same immutable run (`run-20260815T134119Z-vdwxod`), phase `step2`, so the cached STAR BAM is reused and only `qualimap`/`count_expression` are re-attempted.
-- **Second incident (same fault class)**: `rna-pdx-SRR30880970` step2 (controller `41458053`) also failed with exit code 5. Its `map_and_sort/species=hg38` and `qualimap/species=hg38` succeeded, but `map_and_sort/species=mm10` (job `41458071`) failed with the same transient `srun: Unable to confirm allocation ... Unexpected message received` error. Resume controller `41458152` was submitted for `run-20260815T132155Z-vhesje` phase `step2`, reusing the cached hg38 BAM.
+- **Recovery status**: the resume controller `41458109` completed successfully. It reused the cached STAR BAM and both `qualimap` and `count_expression` completed successfully for `SRR018258`.
+- **Second incident (two failure classes)**: `rna-pdx-SRR30880970` step2 (controller `41458053`) also failed with exit code 5. Its `map_and_sort/species=hg38` and `qualimap/species=hg38` succeeded, but the original `map_and_sort/species=mm10` launch (job `41458071`) encountered the same transient `srun: Unable to confirm allocation ... Unexpected message received` error. The first valid resume then ran mm10 STAR but failed after 8 minutes with `failed reading from temporary file` in `work/bsmap/mm10/SRR30880970_STARtmp/BAMsort/`; this is classified as a retry-safe workflow tool invocation failure, not a scheduler failure. The partial BAM is zero bytes and the STAR temporary directory is retained for cleanup before the next resume. Resume controller `41458152` was submitted for `run-20260815T132155Z-vhesje` phase `step2`, reusing the completed hg38 branch.
 
 ## Running state
 
 | Item | Status |
 |---|---|
 | step2 controllers (5 remaining) | running (Bismark/STAR alignment) |
-| SRR018258 step2 resume | running |
+| rna-pdx mm10 step2 | failed after STAR temporary-file read error; cleanup and retry pending |
+| SRR018258 step2 resume | completed successfully |
 | bs-pdx step1 (`41457463`) | running (~4.5 h), raw FastQC under node contention; autonomous watcher active |
