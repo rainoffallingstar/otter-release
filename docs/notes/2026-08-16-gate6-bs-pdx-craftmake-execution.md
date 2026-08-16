@@ -104,6 +104,25 @@ compatibility path.
   with the sealed Craftmake binary and catalog. Otter passed preflight and
   invoked `craftmake run`; child-task submission is pending its Slurm plan.
 
+## Long-running execution checkpoint
+
+- Craftmake submitted the two real `BeaverPDX/step2/map_and_sort` tasks:
+  Slurm `41462104` for graft `hg38` on `f0802`, and Slurm `41462105` for host
+  `mm10` on `f0904`.
+- Both workers remain `RUNNING` with `0:0` exit status after approximately two
+  hours. Their active Bowtie2 alignment processes and increasing disk writes
+  confirm that this is live dual-reference Bismark computation, not a stalled
+  controller or a failed publication step.
+- The combined BS-PDX mapping workspace is approximately `985 GiB`; peak RSS
+  remains below the 320 GiB envelope per allocation and the shared filesystem
+  has sufficient free capacity. No recovery action is justified while the
+  workers continue to make progress.
+- The accepted modern snapshot fixes `workflow.toolchain: modern`. A
+  legacy-equivalent run must therefore be resolved later from a distinct
+  canonical project configuration; the toolchain cannot be overridden at run
+  invocation. It will use Craftmake with the same inputs, references, site,
+  and phase resource contract before immutable artifact comparison.
+
 ## Completion criteria
 
 - Complete BS-PDX `step2`, its applicable checker phase, and methylation
