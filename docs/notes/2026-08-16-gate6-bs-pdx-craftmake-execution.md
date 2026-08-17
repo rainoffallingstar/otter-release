@@ -182,6 +182,20 @@ compatibility path.
   intermediate-file reclamation indicate mm10 is progressing through Bismark
   direction completion rather than stalling. Both Slurm workers remain
   `RUNNING` with `0:0`; no final BAM has yet been published.
+- Recovery mm10 mapper `41466865` completed successfully with `0:0` after
+  `07:36:59`, publishing the run-local `7,398,668,004`-byte paired-end BAM
+  and its Bismark report. This independently recomputed output belongs to the
+  12-hour immutable recovery snapshot; it is not a promotion of the prior
+  timed-out snapshot's mm10 artifact.
+- At the same checkpoint, hg38 mapper `41466864` remained `RUNNING` with
+  `0:0`, 16 active Bowtie2 children, and more than three hours of its approved
+  allocation remaining. The combined mapping workspace had reduced to
+  approximately 545 GiB as mm10 temporary files were reclaimed.
+- Craftmake accepted the completed mm10 branch and submitted downstream work
+  under its state-managed controller; the newly observed child submission
+  `41494525` is running. The outer Otter controller `41466855` remains
+  `RUNNING`; final step2 acceptance still depends on the hg38 mapper and all
+  required downstream tasks.
 
 ## Completion criteria
 
