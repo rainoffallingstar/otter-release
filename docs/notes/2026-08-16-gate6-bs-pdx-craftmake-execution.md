@@ -302,6 +302,11 @@ compatibility path.
   Craftmake recorded its Picard `CollectGcBiasMetrics` worker as `succeeded`
   with exit code `0` after approximately `24:36`; only the parallel hg38
   Qualimap task remains before outer modern step2 acceptance.
+- Modern hg38 Qualimap `41505527` and outer step2 controller `41466855` then
+  both completed with `0:0`. The completed recovery step2 now provides
+  non-empty standardized BAM/BAI pairs, Qualimap reports, and GC-bias artifacts
+  for both hg38 and mm10 under the modern immutable snapshot. It is eligible
+  for the Craftmake `step2-check` artifact-validation phase.
 
 ## Completion criteria
 
