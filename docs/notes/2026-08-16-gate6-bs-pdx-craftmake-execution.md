@@ -273,6 +273,12 @@ compatibility path.
   FASTQs at the copied relative manifest paths. `otter config validate` again
   passed, preserving the intended same-input comparison contract without
   copying, modifying, or reacquiring read data.
+- Third compute-visible resolve controller `41504431` completed with `0:0` and
+  published the legacy immutable snapshot
+  `run-20260817T102532Z-emvbei`. It is an independent run with no modern
+  parent state; the next step is to inspect its resolved comparison contract
+  and run a Craftmake `step1` dry-run before any legacy scientific task is
+  submitted.
 
 ## Completion criteria
 
