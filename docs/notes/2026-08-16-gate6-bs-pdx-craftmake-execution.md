@@ -254,6 +254,16 @@ compatibility path.
   successfully. The legacy project now matches the modern project's asset
   directory layout while preserving its distinct legacy-equivalent toolchain
   declaration and all comparison inputs.
+- Retry resolve controller `41503802` then failed immediately with `1:0`
+  before snapshot publication because the legacy project's now-regular empty
+  `data/` directory did not contain the relative FASTQ paths declared by its
+  copied sample manifest. This confirms the resolver correctly binds inputs to
+  the legacy project root; no references, resources, Craftmake plan, or Slurm
+  scientific task were reached.
+- Recovery will read the accepted modern immutable snapshot's input identities
+  and create matching legacy-project input links before a new resolve. It will
+  preserve the exact paired files and provenance rather than copying or
+  regenerating FASTQ data.
 
 ## Completion criteria
 
