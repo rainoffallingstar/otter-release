@@ -202,6 +202,12 @@ compatibility path.
   task, consuming that run-local BAM under a `2 CPU / 40 GiB` contract. It
   remains `RUNNING` with `0:0`; hg38 mapper `41466864` remains the active
   mapping critical path with 16 Bowtie2 children.
+- hg38 mapper `41466864` subsequently exited its Bowtie2 direction workers
+  and reclaimed the mapping workspace from approximately 546 GiB to 63 GiB,
+  then began materializing its Bismark BAM. The file grew from roughly 3.88 GiB
+  to 5.57 GiB during direct sampling while the Slurm job remained
+  `RUNNING 0:0`; it is therefore a live output write, not yet an accepted
+  mapper completion or a valid downstream input.
 
 ## Completion criteria
 
