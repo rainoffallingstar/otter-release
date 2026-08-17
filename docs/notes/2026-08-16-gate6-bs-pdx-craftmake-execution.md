@@ -237,6 +237,16 @@ compatibility path.
   `bs-pdx-SRR23802966-legacy-equivalent (bs-pdx)` and confirms
   `workflow.toolchain: legacy-equivalent`; each shared input/workflow asset
   remains a project-local symlink to the matching modern comparison asset.
+- Compute-visible resolve controller `41503216` failed with `1:0` before
+  publishing a legacy snapshot. The resolver attempted to hash the
+  project-local `environments` asset and rejected the directory symlink as an
+  unsupported file read. This is an asset-layout failure, not an input,
+  reference, resource, or toolchain-contract failure; no Craftmake plan or
+  production task was submitted.
+- Recovery will materialize independent regular asset directories in the
+  legacy project from the same modern comparison inputs before retrying the
+  fresh immutable resolve. Their contents and the legacy canonical contract
+  will remain unchanged.
 
 ## Completion criteria
 
