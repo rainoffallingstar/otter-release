@@ -154,6 +154,12 @@ compatibility path.
   then passed `otter config validate`. Its revised contract is exactly
   `80 cores / 320 GiB / 12:00:00 / amd_512`; the 1,075-byte file passed an
   ASCII-safe serialization check before a new snapshot was requested.
+- Preflight controller `41466787` stopped before creating a snapshot because
+  its resolve command incorrectly used a nonexistent comparison-local
+  `references` directory. The accepted snapshot identifies the valid shared
+  reference root as `/public3/home/scg9946/otter-gate6/references`; the retry
+  will use that exact path. No workflow task or recovery snapshot was created
+  by the failed preflight.
 
 ## Completion criteria
 
