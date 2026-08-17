@@ -171,6 +171,11 @@ compatibility path.
   allocation contract. Both began as explicit cache misses because the new
   snapshot has no accepted step2 attempt; this confirms the failed run's mm10
   BAM was not silently promoted across the immutable snapshot boundary.
+- Initial scheduler sampling preceded worker startup and showed no Bowtie2
+  children. A direct worker-node inspection then confirmed the hg38 Bismark
+  parent process running with the resolved reference index, paired trimmed
+  reads, and run-local temporary directory. The recovery mappers are therefore
+  live; early empty output directories do not indicate a startup failure.
 
 ## Completion criteria
 
