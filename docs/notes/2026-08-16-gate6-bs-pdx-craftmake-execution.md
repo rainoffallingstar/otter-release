@@ -264,6 +264,15 @@ compatibility path.
   and create matching legacy-project input links before a new resolve. It will
   preserve the exact paired files and provenance rather than copying or
   regenerating FASTQ data.
+- Direct inspection of the modern snapshot's declared input paths confirmed
+  that both source FASTQs remain regular files: R1 is `28,258,736,221` bytes
+  and R2 is `29,595,686,034` bytes. The earlier root-wide search yielded no
+  output because of its query/output behavior, not because the bound inputs
+  were absent.
+- The legacy `data/` directory now links exactly those two verified source
+  FASTQs at the copied relative manifest paths. `otter config validate` again
+  passed, preserving the intended same-input comparison contract without
+  copying, modifying, or reacquiring read data.
 
 ## Completion criteria
 
