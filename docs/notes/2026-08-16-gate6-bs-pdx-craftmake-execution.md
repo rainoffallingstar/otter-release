@@ -165,6 +165,12 @@ compatibility path.
   step1 parent and `80 cores / 320 GiB / 12:00:00 / amd_512` for `step2`.
   Its Craftmake dry-run passed, planning one 80-core allocation per species
   and two exclusive 40-core, 160-GiB workers within each allocation.
+- Production recovery controller `41466855` started Otter-to-Craftmake step2
+  on the new snapshot. Craftmake submitted mapper `41466864` for hg38 and
+  `41466865` for mm10, each under the approved 80-core, 320-GiB, 12-hour
+  allocation contract. Both began as explicit cache misses because the new
+  snapshot has no accepted step2 attempt; this confirms the failed run's mm10
+  BAM was not silently promoted across the immutable snapshot boundary.
 
 ## Completion criteria
 
