@@ -298,6 +298,10 @@ compatibility path.
   `41505527`), each `RUNNING` under their catalog-declared resource contracts.
   The outer modern step2 controller remains active until these final required
   QC dependencies finish.
+- Modern hg38 GC-bias task `41505526` completed successfully with `0:0`.
+  Craftmake recorded its Picard `CollectGcBiasMetrics` worker as `succeeded`
+  with exit code `0` after approximately `24:36`; only the parallel hg38
+  Qualimap task remains before outer modern step2 acceptance.
 
 ## Completion criteria
 
