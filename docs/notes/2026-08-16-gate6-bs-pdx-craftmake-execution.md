@@ -160,6 +160,11 @@ compatibility path.
   reference root as `/public3/home/scg9946/otter-gate6/references`; the retry
   will use that exact path. No workflow task or recovery snapshot was created
   by the failed preflight.
+- Retried compute-node controller `41466815` completed successfully and
+  published `run-20260817T001228Z-vclyug`. The snapshot records the accepted
+  step1 parent and `80 cores / 320 GiB / 12:00:00 / amd_512` for `step2`.
+  Its Craftmake dry-run passed, planning one 80-core allocation per species
+  and two exclusive 40-core, 160-GiB workers within each allocation.
 
 ## Completion criteria
 
