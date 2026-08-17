@@ -150,6 +150,10 @@ compatibility path.
   `amd_512` allocation contract, references, inputs, and modern toolchain.
   Otter will resolve a new snapshot with the accepted step1 run as its lineage
   parent; the failed mapping snapshot is preserved solely as incident evidence.
+- The remote canonical project was updated with a guarded, atomic YAML rewrite,
+  then passed `otter config validate`. Its revised contract is exactly
+  `80 cores / 320 GiB / 12:00:00 / amd_512`; the 1,075-byte file passed an
+  ASCII-safe serialization check before a new snapshot was requested.
 
 ## Completion criteria
 
