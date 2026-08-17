@@ -145,6 +145,11 @@ compatibility path.
   output as a cross-snapshot cache hit. The recovery run will reuse only the
   accepted step1 links and will rerun both step2 species; the successful mm10
   BAM remains incident evidence, not an accepted recovery input.
+- The approved recovery changes only the canonical `step2.time` envelope from
+  `08:00:00` to `12:00:00`. It retains the validated 80-core, 320-GiB,
+  `amd_512` allocation contract, references, inputs, and modern toolchain.
+  Otter will resolve a new snapshot with the accepted step1 run as its lineage
+  parent; the failed mapping snapshot is preserved solely as incident evidence.
 
 ## Completion criteria
 
