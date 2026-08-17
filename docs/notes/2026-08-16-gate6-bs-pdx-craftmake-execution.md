@@ -209,6 +209,20 @@ compatibility path.
   `RUNNING 0:0`; it is therefore a live output write, not yet an accepted
   mapper completion or a valid downstream input.
 
+## Legacy comparison preparation
+
+- A read-only audit of the Gate 6 comparison root found no existing
+  `legacy-equivalent` canonical project or immutable legacy snapshot for
+  `SRR23802966`. The modern BS-PDX project fixes the required comparison
+  contract: the same paired SRA inputs, `hg38@GRCh38-gencode-v44` graft and
+  `mm10@GRCm38-gencode-M25` host references, Craftmake/Slurm executor and
+  `paracloud-gate6` site, and the established phase resource envelopes.
+- The eventual legacy run must therefore be a separate canonical project with
+  `workflow.toolchain: legacy-equivalent`, preserving this input, reference,
+  execution, site, and resource contract. It will receive a fresh immutable
+  Otter snapshot and will not alter or reuse the in-flight modern snapshot's
+  state.
+
 ## Completion criteria
 
 - Complete BS-PDX `step2`, its applicable checker phase, and methylation
