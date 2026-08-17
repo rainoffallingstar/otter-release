@@ -291,6 +291,13 @@ compatibility path.
   `41494525` completed with `0:0`, while modern hg38 mapper `41466864` began
   merging its Bismark BAM into the standardized alignment through run-local
   sorted BAM chunks.
+- Modern hg38 mapper `41466864` completed with `0:0` after `10:23:15`,
+  publishing the standardized `29,303,457,511`-byte BAM and its
+  `8,514,968`-byte BAI. Craftmake accepted that mapper completion and submitted
+  independent hg38 `collect_gc_bias` and `qualimap` tasks (`41505526` and
+  `41505527`), each `RUNNING` under their catalog-declared resource contracts.
+  The outer modern step2 controller remains active until these final required
+  QC dependencies finish.
 
 ## Completion criteria
 
