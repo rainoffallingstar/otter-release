@@ -279,6 +279,11 @@ compatibility path.
   parent state; the next step is to inspect its resolved comparison contract
   and run a Craftmake `step1` dry-run before any legacy scientific task is
   submitted.
+- Legacy step1 Craftmake dry-run controller `41504704` completed with `0:0`.
+  It produced the full planned Trim Galore task graph, including the paired
+  verified inputs and the resolved 6-core step1 contract; its `53,851`-byte
+  stdout contains the plan and its stderr is empty. No scientific task was
+  submitted by this dry-run.
 
 ## Completion criteria
 
