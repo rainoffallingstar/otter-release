@@ -247,6 +247,13 @@ compatibility path.
   legacy project from the same modern comparison inputs before retrying the
   fresh immutable resolve. Their contents and the legacy canonical contract
   will remain unchanged.
+- The restricted shell operation intended to replace the five legacy asset
+  symlinks was rejected before execution, leaving the project unchanged. A
+  subsequent guarded operation asserted each link type, replaced it with the
+  corresponding ordinary empty directory, and reran canonical validation
+  successfully. The legacy project now matches the modern project's asset
+  directory layout while preserving its distinct legacy-equivalent toolchain
+  declaration and all comparison inputs.
 
 ## Completion criteria
 
