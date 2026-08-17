@@ -222,6 +222,16 @@ compatibility path.
   execution, site, and resource contract. It will receive a fresh immutable
   Otter snapshot and will not alter or reuse the in-flight modern snapshot's
   state.
+- A separate `bs-pdx-SRR23802966-legacy-equivalent` canonical project was
+  created with copied input and lock files plus symlinked shared workflow,
+  rules, environment, schema, and data assets. Its only semantic project
+  changes are the distinct project identity/description and
+  `workflow.toolchain: legacy-equivalent`; the 1,122-byte YAML passed the
+  ASCII serialization check.
+- The first validation command used Otter's unsupported `--project` flag and
+  stopped before validation or snapshot resolution. This is a CLI invocation
+  incident only: no legacy snapshot, Craftmake plan, or Slurm production task
+  was created. Validation will retry with the supported `--config` flag.
 
 ## Completion criteria
 
