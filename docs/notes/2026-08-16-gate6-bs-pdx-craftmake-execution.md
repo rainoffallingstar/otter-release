@@ -196,6 +196,12 @@ compatibility path.
   `41494525` is running. The outer Otter controller `41466855` remains
   `RUNNING`; final step2 acceptance still depends on the hg38 mapper and all
   required downstream tasks.
+- The recovery work tree now contains the standardized mm10 alignment pair
+  `bsmap/SRR23802966_mm10.bam` (`5,571,590,889` bytes) and its
+  `2,171,392`-byte BAI. Craftmake submitted `41494525` as the mm10 Qualimap
+  task, consuming that run-local BAM under a `2 CPU / 40 GiB` contract. It
+  remains `RUNNING` with `0:0`; hg38 mapper `41466864` remains the active
+  mapping critical path with 16 Bowtie2 children.
 
 ## Completion criteria
 
