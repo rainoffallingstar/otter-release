@@ -232,6 +232,11 @@ compatibility path.
   stopped before validation or snapshot resolution. This is a CLI invocation
   incident only: no legacy snapshot, Craftmake plan, or Slurm production task
   was created. Validation will retry with the supported `--config` flag.
+- Retrying with `otter config validate --config <legacy-project>/project.yaml`
+  passed. Otter identifies the project as
+  `bs-pdx-SRR23802966-legacy-equivalent (bs-pdx)` and confirms
+  `workflow.toolchain: legacy-equivalent`; each shared input/workflow asset
+  remains a project-local symlink to the matching modern comparison asset.
 
 ## Completion criteria
 
