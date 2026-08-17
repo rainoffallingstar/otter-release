@@ -176,6 +176,12 @@ compatibility path.
   parent process running with the resolved reference index, paired trimmed
   reads, and run-local temporary directory. The recovery mappers are therefore
   live; early empty output directories do not indicate a startup failure.
+- After `06:44` of worker runtime, hg38 retained 16 active Bowtie2 children
+  while mm10 declined to 12, and the combined `bsmap` workspace fell from
+  roughly 1,014 GiB to 897 GiB. The coordinated sub-aligner reduction and
+  intermediate-file reclamation indicate mm10 is progressing through Bismark
+  direction completion rather than stalling. Both Slurm workers remain
+  `RUNNING` with `0:0`; no final BAM has yet been published.
 
 ## Completion criteria
 
