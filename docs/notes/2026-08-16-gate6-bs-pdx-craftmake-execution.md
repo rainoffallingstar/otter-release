@@ -307,6 +307,16 @@ compatibility path.
   non-empty standardized BAM/BAI pairs, Qualimap reports, and GC-bias artifacts
   for both hg38 and mm10 under the modern immutable snapshot. It is eligible
   for the Craftmake `step2-check` artifact-validation phase.
+- Modern `step2-check` controller `41507248` failed with `5:0` after
+  `02:02:20`. Its two Craftmake `sample_artifacts` validators, Slurm jobs
+  `41507292` and `41507294`, both reached `TIMEOUT` at `02:00:04` with
+  `0:0`; Craftmake classified the resulting `context canceled` events as
+  retry-safe `cancellation_recovery`. Their workers had no stderr output and
+  had read approximately `22.5 GB` each, consistent with SHA-256 validation
+  of the large BAM inputs rather than an artifact-content rejection. The
+  checker needs a fresh immutable snapshot or accepted phase retry with a
+  longer `step2-check` task time contract before modern downstream work can
+  continue.
 
 ## Completion criteria
 
