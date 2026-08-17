@@ -284,6 +284,13 @@ compatibility path.
   verified inputs and the resolved 6-core step1 contract; its `53,851`-byte
   stdout contains the plan and its stderr is empty. No scientific task was
   submitted by this dry-run.
+- Legacy production step1 controller `41504897` then started through
+  Otter-to-Craftmake. Its first two Craftmake child submissions, `41504960`
+  and `41504961`, are `RUNNING` and were explicitly evaluated as cache misses
+  in the independent legacy state. In parallel, modern mm10 Qualimap
+  `41494525` completed with `0:0`, while modern hg38 mapper `41466864` began
+  merging its Bismark BAM into the standardized alignment through run-local
+  sorted BAM chunks.
 
 ## Completion criteria
 
