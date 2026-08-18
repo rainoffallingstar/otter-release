@@ -404,6 +404,14 @@ compatibility path.
   graft BAM and leaves room for Xenofilx's paired-BAM filtering and output
   validation. The targeted Craftmake compiler suite
   (`go -C craftmake test ./internal/compiler`) passed after this change.
+- The sealed remote BeaverPDX catalog was atomically updated to the committed
+  `64G` Xenofilx contract, and modern canonical
+  `resources.phases.step2-check.memory` was atomically raised from `16GiB` to
+  `64GiB` while retaining four cores, the eight-hour time budget, and the
+  `amd_512` partition. Both files passed ASCII-safe serialization checks within
+  their guarded update, and Otter accepted the revised canonical project. A new
+  immutable snapshot is required because the phase resource contract and
+  catalog task definition have changed.
 
 ## Completion criteria
 
