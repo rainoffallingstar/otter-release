@@ -459,6 +459,21 @@ compatibility path.
   `41533289` remained `RUNNING/0:0` after more than three hours. Its terminal
   mapper and downstream QC outcomes are not yet available, so it has no
   comparison result to record.
+- A subsequent state-scope inspection corrected the prior controller-log
+  interpretation: Craftmake's `resume` command creates a new run lineage, so
+  its events are not appended to the source
+  `run-20260818T042539Z-kncxnc--step2-check/controller.jsonl`. The Otter
+  resume controller `41534649` owns resumed Craftmake run
+  `f7b53160-ec64-4f4d-96c3-7d526c7134dd`; it is active rather than stalled.
+- In that resumed run, the missing hg38 `sample_artifacts` validator was
+  retried as Slurm `41534650` and succeeded with exit `0:0`. The already
+  successful mm10 validation was reused from the source run, while the
+  dependency-gated Xenofilx task remained a fresh resumed-run cache miss.
+  Craftmake then submitted Xenofilx `41534653`, which remains `RUNNING/0:0`
+  under the corrected `4 CPU / 64 GiB` contract. Its Craftmake attempt records
+  exactly four cores and `68,719,476,736` bytes, and Slurm reports `ReqMem=64G`.
+  This is an Otter-to-Craftmake-owned retry; no workflow child task was
+  manually submitted and no immutable contract was changed.
 
 ## Completion criteria
 
