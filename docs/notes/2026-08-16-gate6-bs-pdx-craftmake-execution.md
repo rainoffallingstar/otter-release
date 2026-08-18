@@ -325,6 +325,17 @@ compatibility path.
   reads are present. Slurm reason codes observed during execution were
   transient backend state notifications only and did not change the successful
   terminal status.
+- The modern canonical project was atomically updated only at
+  `resources.phases.step2-check.time`, from `02:00:00` to `08:00:00`, to cover
+  the two observed large-BAM SHA-256 validators. Cores (`4`), memory (`16GiB`),
+  partition (`amd_512`), toolchain, inputs, references, and all other phase
+  contracts remain unchanged. The first combined update-and-validate shell
+  invocation did not run validation because its `$root` variable was unset;
+  the atomic update had already completed and was immediately validated with
+  the explicit Otter runtime path. The 1,075-byte canonical YAML passed Otter
+  validation and an ASCII-byte check. A new immutable snapshot will carry this
+  contract and bind only accepted modern output directories from the completed
+  parent run.
 
 ## Completion criteria
 
