@@ -428,6 +428,11 @@ compatibility path.
   exit code `0` against the sealed updated catalog. The 64-GiB Xenofilx task
   request is therefore accepted by the `4 cores / 64GiB / 08:00:00` immutable
   phase envelope before production submission.
+- Modern 64-GiB checker production controller `41534635` was submitted through
+  Otter foreground to Craftmake against `run-20260818T042539Z-kncxnc`. Its
+  first scheduler observation is `RUNNING/0:0`; controller planning is pending
+  in this checkpoint. Legacy-equivalent step2 controller `41533289` remains
+  independently `RUNNING/0:0` with its dual-reference mapper branches.
 
 ## Completion criteria
 
