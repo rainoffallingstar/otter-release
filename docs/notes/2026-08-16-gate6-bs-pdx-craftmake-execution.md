@@ -412,6 +412,12 @@ compatibility path.
   their guarded update, and Otter accepted the revised canonical project. A new
   immutable snapshot is required because the phase resource contract and
   catalog task definition have changed.
+- Resolve controller `41534436` completed with `0:0` and published immutable
+  modern snapshot `run-20260818T042539Z-kncxnc`, directly lineaged to the
+  accepted modern step2 run `run-20260817T001228Z-vclyug`. The snapshot records
+  `step2-check` as `4 cores / 64GiB / 08:00:00 / amd_512`. No workflow task
+  was submitted by resolution; only accepted parent work directories may now be
+  bound, while its Craftmake state remains new and isolated.
 
 ## Completion criteria
 
