@@ -373,6 +373,12 @@ compatibility path.
   remains dependency-blocked until the two validator manifests are accepted.
   The concurrent legacy and modern controllers retain separate snapshot roots,
   Craftmake state, and cache boundaries.
+- The modern hg38 and mm10 `sample_artifacts` validators both succeeded with
+  exit code `0` under the eight-hour recovery envelope. Craftmake then accepted
+  both manifests and started its dependency-gated Xenofilx task as Slurm
+  `41533581` under the resolved `4 cores / 16 GiB / 08:00:00` contract. This
+  confirms the prior two-hour failure was an insufficient validation-time
+  envelope rather than invalid mapping or QC artifacts.
 
 ## Completion criteria
 
