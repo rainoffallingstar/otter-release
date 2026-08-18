@@ -513,6 +513,16 @@ compatibility path.
   `0` against the sealed 128-GiB catalog. The new independent checker state is
   therefore contract-valid before any production workflow child task is
   submitted.
+- Production controller `41537404` then started Otter foreground to Craftmake
+  against `run-20260818T101652Z-jpsrgh`. Craftmake created new-snapshot cache
+  misses for both artifact validators and submitted them as Slurm `41537414`
+  (hg38) and `41537415` (mm10); the dependency-gated 128-GiB Xenofilx task has
+  not yet been submitted. These are new independent state attempts, not cache
+  reuse from failed checker snapshots.
+- Legacy-equivalent mm10 mapper allocation `41533295` completed `0:0` after
+  `07:45:55`. Craftmake accepted that mapping branch and began its required
+  mm10 GC-bias and Qualimap downstream work. The legacy hg38 mapper allocation
+  `41533294` remains the active `step2` critical path.
 
 ## Completion criteria
 
