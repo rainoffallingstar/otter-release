@@ -509,6 +509,10 @@ compatibility path.
   `fastqc_raw`, `fastqc_clean`, and `bsmap` work directories. It has no
   `state/runs` entry or state link, so its Craftmake state and cache remain
   independent from every failed checker attempt.
+- The snapshot's Otter-to-Craftmake `step2-check` dry-run completed with exit
+  `0` against the sealed 128-GiB catalog. The new independent checker state is
+  therefore contract-valid before any production workflow child task is
+  submitted.
 
 ## Completion criteria
 
