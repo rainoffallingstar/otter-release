@@ -495,6 +495,20 @@ compatibility path.
   The catalog update, canonical configuration update, and a new
   Otter-resolved immutable snapshot will be completed before the next
   Craftmake-owned production attempt.
+- Craftmake catalog commit `1b44dfc` raises the BeaverPDX Xenofilx task to
+  `4 CPU / 128 GiB`; its targeted compiler suite passed with
+  `go -C craftmake test ./internal/compiler`. Root commit `cd29458` advances
+  the pinned catalog pointer. The sealed remote catalog and modern canonical
+  `step2-check` envelope were atomically updated to the same 128-GiB contract,
+  with ASCII-safe serialization checks, and `otter config validate` passed.
+- Resolve controller `41537335` completed `0:0`, publishing immutable modern
+  snapshot `run-20260818T101652Z-jpsrgh` with accepted modern step2 run
+  `run-20260817T001228Z-vclyug` as its direct parent. Its snapshot fixes
+  Craftmake/Slurm execution and `4 CPU / 128GiB / 08:00:00 / amd_512` for
+  `step2-check`. The new run binds only the accepted parent `trim`, `QC`,
+  `fastqc_raw`, `fastqc_clean`, and `bsmap` work directories. It has no
+  `state/runs` entry or state link, so its Craftmake state and cache remain
+  independent from every failed checker attempt.
 
 ## Completion criteria
 
