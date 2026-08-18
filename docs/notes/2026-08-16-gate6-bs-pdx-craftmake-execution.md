@@ -443,6 +443,11 @@ compatibility path.
   immutable 64-GiB snapshot and its accepted output bindings remain valid;
   recovery will use Otter-to-Craftmake `--resume` on that same snapshot so
   Craftmake owns the retry without reusing failed state as cache.
+- Otter-to-Craftmake resume controller `41534649` was submitted against the
+  unchanged `run-20260818T042539Z-kncxnc` snapshot and started as
+  `RUNNING/0:0`. It is the only recovery action for the retry-safe hg38
+  validator startup incident: no resource, catalog, input, output binding, or
+  immutable snapshot change accompanies this resume.
 
 ## Completion criteria
 
