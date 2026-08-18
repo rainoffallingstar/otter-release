@@ -487,6 +487,14 @@ compatibility path.
 - At this same checkpoint, legacy-equivalent `step2` controller `41533289`
   and its two Craftmake mapper allocations `41533294` and `41533295` continue
   `RUNNING/0:0` under their 320-GiB allocations after more than five hours.
+- The approved next recovery increases only the Xenofilx task and modern
+  `step2-check` phase memory contract from 64 GiB to 128 GiB. It retains four
+  CPUs, the eight-hour limit, `amd_512`, all validated input bindings, and the
+  existing bisulfite filtering semantics. Because both prior 16-GiB and 64-GiB
+  allocations were Slurm OOM-killed, no lower value has supporting evidence.
+  The catalog update, canonical configuration update, and a new
+  Otter-resolved immutable snapshot will be completed before the next
+  Craftmake-owned production attempt.
 
 ## Completion criteria
 
