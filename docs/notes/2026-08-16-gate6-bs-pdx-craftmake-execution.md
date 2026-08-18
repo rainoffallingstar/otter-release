@@ -379,6 +379,14 @@ compatibility path.
   `41533581` under the resolved `4 cores / 16 GiB / 08:00:00` contract. This
   confirms the prior two-hour failure was an insufficient validation-time
   envelope rather than invalid mapping or QC artifacts.
+- Modern Xenofilx `41533581` remains `RUNNING/0:0` under the new recovery
+  snapshot; no filtered BAM or validation manifest is published yet. Its
+  output is the critical path for accepting modern `step2-check` and starting
+  modern `step3`.
+- Legacy-equivalent mapper allocations remain active under controller
+  `41533289`: hg38 and mm10 each have a Craftmake-managed 80-core allocation
+  with a 40-core/160-GiB mapper worker. Both began as independent cache misses
+  and remain `RUNNING/0:0`; no legacy BAM has been accepted yet.
 
 ## Completion criteria
 
