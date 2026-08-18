@@ -342,6 +342,15 @@ compatibility path.
   `step2-check` envelope. No workflow task was submitted by this resolve;
   the next action is to link only accepted parent `work/` outputs into the
   new snapshot, without copying its Craftmake state or cache.
+- The initial protected recovery-output binding command failed before execution
+  with a Python `SyntaxError` caused by shell-to-heredoc escaping. A direct
+  inspection confirmed that the new snapshot's `work/` remained empty and that
+  no `state` link exists; no output, cache, or immutable snapshot content was
+  altered. The binding will be retried with a simpler guarded command.
+- Legacy-equivalent `step2` Craftmake dry-run completed with exit code `0`
+  against `run-20260817T102532Z-emvbei`. This validates its planned dual
+  reference mapping and downstream QC graph without submitting a scientific
+  task; production step2 can proceed independently of modern checker recovery.
 
 ## Completion criteria
 
