@@ -433,6 +433,16 @@ compatibility path.
   first scheduler observation is `RUNNING/0:0`; controller planning is pending
   in this checkpoint. Legacy-equivalent step2 controller `41533289` remains
   independently `RUNNING/0:0` with its dual-reference mapper branches.
+- Modern 64-GiB recovery controller `41534635` ended `FAILED 5:0` before
+  Xenofilx was eligible. Its mm10 validator succeeded, but the hg38 validator
+  allocation `41534638` completed without starting the worker: retained
+  `srun-launch.err` reports `Unexpected message received` and `Expired or
+  invalid job 41534638`. The expected hg38 `result.json` was consequently
+  absent. This is a retry-safe Slurm allocation/startup incident, not a
+  validator content failure, catalog error, or another Xenofilx OOM. The
+  immutable 64-GiB snapshot and its accepted output bindings remain valid;
+  recovery will use Otter-to-Craftmake `--resume` on that same snapshot so
+  Craftmake owns the retry without reusing failed state as cache.
 
 ## Completion criteria
 
