@@ -418,6 +418,12 @@ compatibility path.
   `step2-check` as `4 cores / 64GiB / 08:00:00 / amd_512`. No workflow task
   was submitted by resolution; only accepted parent work directories may now be
   bound, while its Craftmake state remains new and isolated.
+- `run-20260818T042539Z-kncxnc` now binds the same five accepted directories
+  from the completed modern step2 run: `trim`, `QC`, `fastqc_raw`,
+  `fastqc_clean`, and `bsmap`. Each binding is a direct symlink to the accepted
+  parent `work/` directory; the new snapshot has no `state/runs` link, leaving
+  its Craftmake state, cache decisions, and attempts independent for the
+  64-GiB Xenofilx retry.
 
 ## Completion criteria
 
