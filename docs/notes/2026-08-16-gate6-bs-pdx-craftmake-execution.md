@@ -317,6 +317,14 @@ compatibility path.
   checker needs a fresh immutable snapshot or accepted phase retry with a
   longer `step2-check` task time contract before modern downstream work can
   continue.
+- Legacy-equivalent `step1` completed successfully through the independent
+  Craftmake snapshot. Outer controller `41504897`, Trim Galore `41504960`, and
+  pre-trim FastQC `41504961` all completed with `0:0`; the full phase duration
+  was `08:52:40`. The controller evidence records successful Trim Galore and
+  FastQC task attempts, and the run-local R1/R2 trimmed FASTQs plus validation
+  reads are present. Slurm reason codes observed during execution were
+  transient backend state notifications only and did not change the successful
+  terminal status.
 
 ## Completion criteria
 
