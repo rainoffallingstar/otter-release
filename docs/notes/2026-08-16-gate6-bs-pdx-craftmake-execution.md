@@ -474,6 +474,19 @@ compatibility path.
   exactly four cores and `68,719,476,736` bytes, and Slurm reports `ReqMem=64G`.
   This is an Otter-to-Craftmake-owned retry; no workflow child task was
   manually submitted and no immutable contract was changed.
+- Xenofilx `41534653` subsequently ended `OUT_OF_MEMORY` after `02:26:11`
+  with Slurm exit `0:125`, and its resumed Craftmake run
+  `f7b53160-ec64-4f4d-96c3-7d526c7134dd` then ended failed. The retained
+  `slurm-step-41534653.err` records one OOM-kill event and `srun-launch.err`
+  reports `task 0: Out Of Memory`; its Craftmake result is a retry-safe
+  `tool_invocation` failure. No filtered BAM, BAI, or filtered validation
+  manifest was published. This establishes that 64 GiB remains insufficient
+  for this Xenofilx workload; a further resource-contract recovery must be
+  recorded, published, and resolved as a new immutable snapshot rather than
+  mutating or reusing the failed one.
+- At this same checkpoint, legacy-equivalent `step2` controller `41533289`
+  and its two Craftmake mapper allocations `41533294` and `41533295` continue
+  `RUNNING/0:0` under their 320-GiB allocations after more than five hours.
 
 ## Completion criteria
 
