@@ -424,6 +424,10 @@ compatibility path.
   parent `work/` directory; the new snapshot has no `state/runs` link, leaving
   its Craftmake state, cache decisions, and attempts independent for the
   64-GiB Xenofilx retry.
+- The new snapshot's Otter-to-Craftmake `step2-check` dry-run completed with
+  exit code `0` against the sealed updated catalog. The 64-GiB Xenofilx task
+  request is therefore accepted by the `4 cores / 64GiB / 08:00:00` immutable
+  phase envelope before production submission.
 
 ## Completion criteria
 
