@@ -351,6 +351,12 @@ compatibility path.
   against `run-20260817T102532Z-emvbei`. This validates its planned dual
   reference mapping and downstream QC graph without submitting a scientific
   task; production step2 can proceed independently of modern checker recovery.
+- The recovery snapshot now binds only five accepted parent work directories:
+  `trim`, `QC`, `fastqc_raw`, `fastqc_clean`, and `bsmap`. Each is a direct
+  symlink to the completed `run-20260817T001228Z-vclyug` run's corresponding
+  work directory. The recovery snapshot has no `state/runs` link, so Craftmake
+  planning, attempts, cache evaluation, and validation state remain wholly
+  isolated while the accepted scientific outputs are available to the checker.
 
 ## Completion criteria
 
