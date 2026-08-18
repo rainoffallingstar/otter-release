@@ -523,6 +523,12 @@ compatibility path.
   `07:45:55`. Craftmake accepted that mapping branch and began its required
   mm10 GC-bias and Qualimap downstream work. The legacy hg38 mapper allocation
   `41533294` remains the active `step2` critical path.
+- Both modern artifact validators then succeeded (`41537414` hg38 and
+  `41537415` mm10). Craftmake accepted their manifests and dependency-submitted
+  Xenofilx `41537429`; its attempt requests four cores and
+  `137,438,953,472` bytes, while Slurm reports the active allocation at 128G.
+  This is the first 128-GiB production filter attempt, wholly planned and
+  submitted through the Otter-to-Craftmake execution path.
 
 ## Completion criteria
 
