@@ -366,6 +366,13 @@ compatibility path.
   initially evaluated as explicit cache misses in the independent legacy
   snapshot, including both species `map_and_sort` tasks. No modern outputs or
   state are used by this legacy execution.
+- Modern recovery `step2-check` production controller `41533552` started
+  through Otter foreground to Craftmake. Craftmake created the hg38 and mm10
+  `sample_artifacts` submissions as independent cache misses and started both
+  one-core validators under the new eight-hour phase time envelope. Xenofilx
+  remains dependency-blocked until the two validator manifests are accepted.
+  The concurrent legacy and modern controllers retain separate snapshot roots,
+  Craftmake state, and cache boundaries.
 
 ## Completion criteria
 
