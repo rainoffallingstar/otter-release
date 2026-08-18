@@ -448,6 +448,17 @@ compatibility path.
   `RUNNING/0:0`. It is the only recovery action for the retry-safe hg38
   validator startup incident: no resource, catalog, input, output binding, or
   immutable snapshot change accompanies this resume.
+- After 59 minutes of controller runtime, `41534649` remained `RUNNING/0:0`
+  in Slurm accounting but had not appended a new Craftmake controller event or
+  created a retry submission beyond the failed first round. The latest durable
+  controller state is therefore a control-plane stall observation, not a
+  completed retry or a validator result. No workflow child job was manually
+  submitted, and no configuration, catalog, snapshot, output binding, or cache
+  boundary was changed while this controller remained active.
+- At the same checkpoint, independent legacy-equivalent `step2` controller
+  `41533289` remained `RUNNING/0:0` after more than three hours. Its terminal
+  mapper and downstream QC outcomes are not yet available, so it has no
+  comparison result to record.
 
 ## Completion criteria
 
