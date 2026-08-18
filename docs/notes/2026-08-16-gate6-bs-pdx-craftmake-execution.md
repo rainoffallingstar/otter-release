@@ -336,6 +336,12 @@ compatibility path.
   validation and an ASCII-byte check. A new immutable snapshot will carry this
   contract and bind only accepted modern output directories from the completed
   parent run.
+- Resolve controller `41533149` completed with `0:0` and published modern
+  immutable snapshot `run-20260818T020535Z-xpwyeu`, whose lineage parent is
+  `run-20260817T001228Z-vclyug`. It contains the validated eight-hour
+  `step2-check` envelope. No workflow task was submitted by this resolve;
+  the next action is to link only accepted parent `work/` outputs into the
+  new snapshot, without copying its Craftmake state or cache.
 
 ## Completion criteria
 
