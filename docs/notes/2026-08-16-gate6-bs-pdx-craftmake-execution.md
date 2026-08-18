@@ -529,6 +529,10 @@ compatibility path.
   `137,438,953,472` bytes, while Slurm reports the active allocation at 128G.
   This is the first 128-GiB production filter attempt, wholly planned and
   submitted through the Otter-to-Craftmake execution path.
+- At the next scheduler checkpoint, Xenofilx `41537429` remained
+  `RUNNING/0:0` at 128G. In the independent legacy run, mm10 Qualimap
+  `41537371` completed successfully with exit `0:0` after `04:38`; legacy
+  hg38 mapper `41533294` remains the only active `step2` critical path.
 
 ## Completion criteria
 
