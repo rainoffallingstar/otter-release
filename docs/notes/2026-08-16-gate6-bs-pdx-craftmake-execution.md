@@ -357,6 +357,15 @@ compatibility path.
   work directory. The recovery snapshot has no `state/runs` link, so Craftmake
   planning, attempts, cache evaluation, and validation state remain wholly
   isolated while the accepted scientific outputs are available to the checker.
+- Modern recovery `step2-check` dry-run completed with exit code `0`, confirming
+  that the eight-hour validator contract and accepted artifact bindings produce
+  a valid Craftmake plan. The production checker has not yet submitted a task
+  in this checkpoint.
+- Legacy-equivalent production `step2` controller `41533289` is running through
+  Otter foreground to Craftmake. Craftmake planned six tasks, and all six
+  initially evaluated as explicit cache misses in the independent legacy
+  snapshot, including both species `map_and_sort` tasks. No modern outputs or
+  state are used by this legacy execution.
 
 ## Completion criteria
 
