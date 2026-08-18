@@ -387,6 +387,17 @@ compatibility path.
   `41533289`: hg38 and mm10 each have a Craftmake-managed 80-core allocation
   with a 40-core/160-GiB mapper worker. Both began as independent cache misses
   and remain `RUNNING/0:0`; no legacy BAM has been accepted yet.
+- Modern Xenofilx `41533581` ended `OUT_OF_MEMORY` after `00:41:22`, and outer
+  checker controller `41533552` then ended `FAILED 5:0`. The retained worker
+  diagnostic shows Xenofilx entered bisulfite-mode processing and was killed
+  with exit `137` while name-sorting the `29,303,457,511`-byte hg38 BAM;
+  validation then correctly rejected the absent temporary filtered BAM/BAI.
+  No filtered output was published. The Craftmake result classifies the task as
+  a retry-safe tool-invocation incident, while Slurm supplies the root resource
+  classification. Increasing only the phase envelope would be insufficient:
+  the BeaverPDX Xenofilx catalog task itself declares `4 cores / 16 GiB`.
+  Its memory contract must be increased, followed by a new catalog-bound,
+  immutable recovery snapshot before retrying the checker.
 
 ## Completion criteria
 
