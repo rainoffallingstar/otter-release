@@ -398,6 +398,12 @@ compatibility path.
   the BeaverPDX Xenofilx catalog task itself declares `4 cores / 16 GiB`.
   Its memory contract must be increased, followed by a new catalog-bound,
   immutable recovery snapshot before retrying the checker.
+- The BeaverPDX `step2-check` catalog contract was increased from `16G` to
+  `64G` for Xenofilx while retaining four cores and all filtering semantics.
+  The increase is based on the observed OOM during name-sort of the 29.3-GB
+  graft BAM and leaves room for Xenofilx's paired-BAM filtering and output
+  validation. The targeted Craftmake compiler suite
+  (`go -C craftmake test ./internal/compiler`) passed after this change.
 
 ## Completion criteria
 
