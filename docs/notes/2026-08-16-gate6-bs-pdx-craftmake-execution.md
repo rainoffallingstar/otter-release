@@ -588,6 +588,13 @@ compatibility path.
 - `run-20260819T094930Z-huiocb` binds only accepted parent `trim`, `QC`,
   `fastqc_raw`, `fastqc_clean`, and `bsmap` work directories, with no
   `state/runs` entry, so its Craftmake checker state and cache remain isolated.
+- The legacy recovery snapshot's Otter-to-Craftmake `step2-check` dry-run
+  completed with exit `0`. Legacy production checker controller `41546541`
+  was then submitted and is currently Slurm `PENDING`; no workflow child task
+  has been created yet.
+- On the modern twelve-hour recovery, both artifact validators `41545870`
+  (hg38) and `41545871` (mm10) completed successfully under the new snapshot.
+  Modern controller `41545831` remains `RUNNING/0:0`.
 
 ## Completion criteria
 
