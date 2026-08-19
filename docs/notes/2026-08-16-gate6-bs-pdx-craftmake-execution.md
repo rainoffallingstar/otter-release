@@ -533,6 +533,20 @@ compatibility path.
   `RUNNING/0:0` at 128G. In the independent legacy run, mm10 Qualimap
   `41537371` completed successfully with exit `0:0` after `04:38`; legacy
   hg38 mapper `41533294` remains the only active `step2` critical path.
+- Modern Xenofilx `41537429` subsequently reached its fixed eight-hour Slurm
+  walltime and ended `TIMEOUT` after `08:00:13` with `0:0`; the outer
+  Otter-to-Craftmake controller `41537404` then ended `FAILED 5:0`. This is a
+  time-envelope incident after the 128-GiB memory recovery, not an OOM result.
+  The failed snapshot remains immutable and published no accepted filtered
+  BAM, BAI, or validation manifest. A recovery must extend only the
+  `step2-check` time contract in a new immutable snapshot; it must preserve
+  the validated 128-GiB Xenofilx task contract and accepted parent outputs.
+- Independent legacy-equivalent `step2` completed successfully through
+  Craftmake. Its host mm10 and graft hg38 standardized BAM/BAI pairs were
+  published, with hg38 BAM `29,303,457,531` bytes and mm10 BAM
+  `5,571,590,902` bytes. Both required Qualimap and GC-bias branches completed
+  before Craftmake emitted the successful `run.finished` event. This accepted
+  legacy output set remains isolated from the modern recovery state.
 
 ## Completion criteria
 
