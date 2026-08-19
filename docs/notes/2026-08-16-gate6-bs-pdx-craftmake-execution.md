@@ -558,6 +558,11 @@ compatibility path.
   `fastqc_raw`, `fastqc_clean`, and `bsmap` work directories. It has no
   `state/runs` entry, preserving isolated Craftmake state and cache evaluation
   for the twelve-hour recovery attempt.
+- Otter-to-Craftmake `step2-check` dry-runs completed successfully for both
+  the new twelve-hour modern snapshot and the accepted independent
+  legacy-equivalent snapshot. Each plan is contract-valid against the sealed
+  128-GiB catalog before its own production controller submits a workflow
+  child task.
 
 ## Completion criteria
 
