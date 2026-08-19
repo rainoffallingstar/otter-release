@@ -599,6 +599,12 @@ compatibility path.
   Craftmake state initialized: it submitted independent hg38/mm10 artifact
   validators as Slurm `41546623` and `41546624`. The legacy Xenofilx task
   remains dependency-blocked until both validator manifests are accepted.
+- Xenofilx performance diagnosis on the large graft BAM found the input
+  queryname-sort memory budget hard-coded at 256 MiB, causing 50+ GiB of
+  external-sort I/O for the 29.3-GiB hg38 BAM. The optimized release adds a
+  `--sort-memory` option (binary `0.1.0-direct-bamdriver-region-r35`,
+  commit `1184b72`) while preserving the default 256 MiB behavior. All
+  unit/race/vet checks passed before commit.
 
 ## Completion criteria
 
