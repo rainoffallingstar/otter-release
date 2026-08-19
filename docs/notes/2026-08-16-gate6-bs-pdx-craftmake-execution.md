@@ -547,6 +547,17 @@ compatibility path.
   `5,571,590,902` bytes. Both required Qualimap and GC-bias branches completed
   before Craftmake emitted the successful `run.finished` event. This accepted
   legacy output set remains isolated from the modern recovery state.
+- The approved time recovery extends only modern `step2-check.time` from eight
+  to twelve hours, retaining its 128-GiB Xenofilx task, four cores, and
+  `amd_512` partition. The canonical update passed `otter config validate`.
+  Resolve controller `41545488` published immutable snapshot
+  `run-20260819T063359Z-cgxken`, directly parented to accepted modern step2
+  run `run-20260817T001228Z-vclyug`; its snapshot records
+  `4 CPU / 128GiB / 12:00:00 / amd_512` for `step2-check`.
+- `run-20260819T063359Z-cgxken` binds only accepted parent `trim`, `QC`,
+  `fastqc_raw`, `fastqc_clean`, and `bsmap` work directories. It has no
+  `state/runs` entry, preserving isolated Craftmake state and cache evaluation
+  for the twelve-hour recovery attempt.
 
 ## Completion criteria
 
