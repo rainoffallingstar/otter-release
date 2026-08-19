@@ -563,6 +563,12 @@ compatibility path.
   legacy-equivalent snapshot. Each plan is contract-valid against the sealed
   128-GiB catalog before its own production controller submits a workflow
   child task.
+- Modern twelve-hour checker controller `41545831` and legacy-equivalent
+  checker controller `41545832` were submitted through Otter foreground to
+  Craftmake. Both are presently Slurm `PENDING`; neither has started a
+  Craftmake run or submitted a workflow child task. Their independent states
+  and cache decisions will begin only after their outer controller allocations
+  are scheduled.
 
 ## Completion criteria
 
