@@ -580,6 +580,14 @@ compatibility path.
   resource-contract mismatch, not a legacy artifact failure. Recovery requires
   a new legacy immutable snapshot with the matching 128-GiB contract and a
   time budget sufficient for the observed Xenofilx workload.
+- The legacy canonical `step2-check` envelope was updated to
+  `4 CPU / 128GiB / 12:00:00 / amd_512` and passed `otter config validate`.
+  Resolve controller `41546468` published legacy immutable snapshot
+  `run-20260819T094930Z-huiocb`, directly parented to accepted legacy step2
+  run `run-20260817T102532Z-emvbei`, with the matching checker contract.
+- `run-20260819T094930Z-huiocb` binds only accepted parent `trim`, `QC`,
+  `fastqc_raw`, `fastqc_clean`, and `bsmap` work directories, with no
+  `state/runs` entry, so its Craftmake checker state and cache remain isolated.
 
 ## Completion criteria
 
