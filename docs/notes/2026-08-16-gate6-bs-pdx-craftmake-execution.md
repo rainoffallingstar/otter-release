@@ -569,6 +569,17 @@ compatibility path.
   Craftmake run or submitted a workflow child task. Their independent states
   and cache decisions will begin only after their outer controller allocations
   are scheduled.
+- Once scheduled, modern controller `41545831` initialized its new Craftmake
+  state and submitted independent hg38/mm10 artifact validators `41545870`
+  and `41545871`. Legacy controller `41545832` instead stopped before
+  Craftmake could create state or submit a workflow child task: its immutable
+  legacy snapshot declares a 16-GiB `step2-check` envelope, while the sealed
+  Xenofilx catalog now requests 128 GiB. The exact preflight rejection was
+  `phase resource envelope "step2-check" has 17179869184 bytes but allocation
+  "BeaverPDX/step2-check/xenofilx" requests 137438953472`. This is a valid
+  resource-contract mismatch, not a legacy artifact failure. Recovery requires
+  a new legacy immutable snapshot with the matching 128-GiB contract and a
+  time budget sufficient for the observed Xenofilx workload.
 
 ## Completion criteria
 
