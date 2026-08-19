@@ -595,6 +595,10 @@ compatibility path.
 - On the modern twelve-hour recovery, both artifact validators `41545870`
   (hg38) and `41545871` (mm10) completed successfully under the new snapshot.
   Modern controller `41545831` remains `RUNNING/0:0`.
+- Legacy production checker controller `41546541` was scheduled and its
+  Craftmake state initialized: it submitted independent hg38/mm10 artifact
+  validators as Slurm `41546623` and `41546624`. The legacy Xenofilx task
+  remains dependency-blocked until both validator manifests are accepted.
 
 ## Completion criteria
 
