@@ -605,6 +605,12 @@ compatibility path.
   `--sort-memory` option (binary `0.1.0-direct-bamdriver-region-r35`,
   commit `1184b72`) while preserving the default 256 MiB behavior. All
   unit/race/vet checks passed before commit.
+- The sealed BeaverPDX `step2-check` catalog now invokes Xenofilx with
+  `--sort-memory 96G` so the 128-GiB checker allocation keeps the graft/host
+  queryname sorts largely in memory instead of spilling to disk. The Craftmake
+  compiler suite passed after the catalog update (commit `9667551`). The
+  root repository pins the updated Craftmake and Xenofilx pointers, and the
+  currently running modern/legacy checker tasks continue unchanged.
 
 ## Completion criteria
 
