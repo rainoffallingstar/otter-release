@@ -91,26 +91,54 @@
 | 输入 | 表达矩阵文本 | 2.91 GB hg38 BAM + 88 MB mm10 BAM |
 | 核心计算 | 计数聚合 | 对 7124 万配对读段做全基因组比对特征解析、C-to-T 校正、人/鼠裁决 |
 
-### 5.2 已发现的优化点
+### 4.5 Step3（BeaverPDX 甲基化提取）
 
-- Xenofilx 分类阶段 `--threads 4` 但实际仅用 **~1.85 核**（CPU 185%），存在**串行瓶颈或 I/O 受限**（读取 6.7 GB queryname BAM 时等待磁盘）。
-- 排序阶段占用了大量时间（graft queryname 排序 ~41 分钟）。
-- 内存完全安全（峰值 31.9 GB，远低于 128 GB 配额）。
+- Controller `41576841`：**COMPLETED `0:0`，2 小时 19 分**
+- 产出（`work/mCall/` 与 `work/bsmap/`）：
+  - `SRR36187610_nsort.bismark.cov.gz` (98 MB) 全基因组 CpG 覆盖矩阵
+  - `SRR36187610_nsort.bedGraph.gz` (96 MB)
+  - `CpG_context_SRR36187610_nsort.txt.gz` (1.7 GB)
+  - `Non_CpG_context_SRR36187610_nsort.txt.gz` (4.0 GB)
+  - `SRR36187610_nsort.M-bias.txt`、`SRR36187610_nsort_splitting_report.txt`
+  - `SRR36187610_nsort.bam` (6.7 GB)
 
-### 5.3 待办：下载 BAM 到本地 profiling
+### 4.6 Step3-check（QC 与 Methrix 汇总）
 
-用户希望下载 hg38 BAM 到本地测试分析性能瓶颈。本地磁盘有 802G 可用。建议：
-1. 下载 `SRR36187610_hg38.bam`（2.9 GB）到本地；
-2. 用 `go tool pprof` 分析 Xenofilx 分类阶段的 CPU 热点；
-3. 确认是串行瓶颈还是 I/O 受限，评估是否值得优化 `--threads` 或并行化策略。
+- Controller `41581091`：已提交并运行（调度中）。
+- `prepare_methrix_reference`、`sample_artifacts`、`species_qc_artifacts` (hg38/mm10)、`bismark_report`、`bismark_summary` 全部已完成。
+
+## 5. 性能分析结论与本地代码优化
+
+### 5.1 为什么比 RNA-seq 慢很多？
+
+这是**算法本质差异**，不是性能退化：
+
+| 对比项 | RNA-seq step2-check | BS-PDX step2-check (Xenofilx) |
+|---|---|---|
+| 任务内容 | 表达矩阵 + 剪接分析（轻量） | 双参考宿主过滤 + NM 重算 + 亚硫酸盐分类（计算密集） |
+| 输入 | 表达矩阵文本 | 2.91 GB hg38 BAM + 88 MB mm10 BAM |
+| 核心计算 | 计数聚合 | 对 7124 万配对读段做全基因组比对特征解析、C-to-T 校正、人/鼠裁决 |
+
+### 5.2 本地 Profiling 实验与瓶颈发现
+
+基于本地下载的真实 `SRR36187610_mm10.bam`（88 MB / 188.5 万记录）进行了基准测试与 Go `pprof` CPU 剖析：
+- **GC 占用 ~40% CPU**：单片段分类时频繁构建 `map[string]*ReadPair` 和 `map[string]Classification`，产生数十亿次短生命周期堆对象分配（每片段 10 次 malloc，928 B/op）。
+- **单线程阶段多**：Graft 与 Host 的输入 BAM 排序原本为串行执行。
+
+### 5.3 已完成的代码级性能优化（已提交）
+
+在 `xenofilx` 子模块（commit `e010d68`）完成了以下深度优化：
+1. **零分配单片段分类（Zero-Alloc Group Classifier）**：
+   - 实现 `BuildSinglePair` / `BuildSingleRecord`，单片段分类直接在定长结构体中比较 Forward/Reverse 读段得分，**完全消除 map 堆分配**；
+   - 基准测试：单次分类从 **1592 ns / 10 allocs / 928 B** 降至 **299.5 ns / 2 allocs / 64 B**（**提速 5.3 倍，内存分配减少 93%**）。
+2. **双物种 BAM 并行排序**：
+   - 将 Graft 与 Host 输入 BAM 的 Queryname 排序改为并发 goroutine 执行，充分利用多核资源。
 
 ## 6. 下一步计划
 
-1. **（可选）下载 BAM 到本地 profiling**：分析 Xenofilx 分类阶段性能瓶颈。
-2. **推进 step3（甲基化提取）**：在 `run-20260821T112353Z-tunvxb` 上运行 `otter run --phase step3`（BeaverPDX 甲基化提取，20 cores / 64 GiB）。
-3. **推进 step3-check**：生成 `qc_summary.xlsx`。
-4. **artifact verify / compare**：执行 `otter artifact verify` 及跨版本 `otter artifact compare`。
-5. **（可选）创建 legacy-equivalent 项目**：如需 modern/legacy 对比，需为 SRR36187610 创建 `bs-pdx-SRR36187610-legacy-equivalent` 项目（toolchain: legacy-equivalent）。
+1. **监控 step3-check 完成**：等待生成 `qc_summary.xlsx` 及 Methrix 产物。
+2. **artifact verify / compare**：执行 `otter artifact verify` 及对比。
+3. **（可选）创建 legacy-equivalent 项目**：为 SRR36187610 创建 `bs-pdx-SRR36187610-legacy-equivalent` 项目并完成工具链对比。
 
 ## 7. 关键约束（必须遵守）
 
@@ -123,14 +151,14 @@
 
 | 仓库 | 提交 | 说明 |
 |---|---|---|
-| 根仓库 | `0aceacf` | docs: handoff Xenofilx sort-memory optimization（上一轮） |
-| 根仓库 | `9e026fc` | feat: wire Xenofilx sort memory optimization |
-| craftmake | `9667551` | catalog 增加 `--sort-memory` + 编译器测试 |
+| xenofilx | `e010d68` | perf: eliminate map allocations in per-fragment classification and sort species in parallel |
+| craftmake | `700c592` | fix: tune BS-PDX Xenofilx sort memory contract to 12G |
+| 根仓库 | `9b1dd62` | feat: optimize Xenofilx classification and switch BS-PDX to SRR36187610 |
 
 ## 9. 重要参考路径
 
 - 执行记录：`docs/notes/2026-08-16-gate6-bs-pdx-craftmake-execution.md`（已补充 SRR36187610 切换章节）
 - 远端获取根：`/public3/home/scg9946/otter-gate6/acquisitions/bs-pdx-SRR36187610-20260821T091900Z/`
 - 远端项目：`/public3/home/scg9946/otter-gate6/toolchain-comparison-20260815T070000Z/projects/bs-pdx-SRR36187610/`
-- 本地 staging：`/home/fallingstar10/.cache/otter-gate6-sra-20260813T041223Z-local-getdown/bs-pdx-SRR36187610/`
-- 本地脚本：`scripts/bs-pdx-SRR36187610-*.sh`、`scripts/step{1,2,2-check}-bs-pdx-SRR36187610-controller.sh`
+- 本地数据：`/home/fallingstar10/shire/xdxtools/testdata/pdx-srr36187610/`
+- 本地脚本：`scripts/bs-pdx-SRR36187610-*.sh`、`scripts/step{1,2,2-check,3,3-check}-bs-pdx-SRR36187610-controller.sh`
