@@ -612,6 +612,120 @@ compatibility path.
   root repository pins the updated Craftmake and Xenofilx pointers, and the
   currently running modern/legacy checker tasks continue unchanged.
 
+## Sort-memory snapshot resolution and execution
+
+- Because the workflow catalog was updated with the `--sort-memory 96G`
+  contract, fresh immutable Otter snapshots were resolved on a compute-node
+  context (Slurm job `41561813`):
+  - Modern snapshot: `run-20260820T103531Z-tjhxpo` parented to accepted
+    modern step2 run `run-20260817T001228Z-vclyug`.
+  - Legacy snapshot: `run-20260820T103656Z-gnahig` parented to accepted
+    legacy step2 run `run-20260817T102532Z-emvbei`.
+- Both new snapshots bound only the accepted parent `trim`, `QC`,
+  `fastqc_raw`, `fastqc_clean`, and `bsmap` work directories via symlinks,
+  leaving `state/` and `results/` unpopulated for fresh Craftmake planning.
+- Otter-to-Craftmake `step2-check` dry-runs verified valid execution plans
+  for both snapshots (`plan-exit modern 0`, `plan-exit legacy 0` under
+  compute job `41561833`).
+- Initial checker submissions (controllers `41561889` and `41561890`) completed
+  all `sample_artifacts` validation tasks with `0:0`, but their initial
+  Xenofilx invocations failed with `unknown flag: --sort-memory` due to a
+  `PATH` ordering precedence where `/public3/home/scg9946/otter-gate6/binaries/current/bin`
+  preceded `~/.cargo/bin`.
+- The controller environment was updated to prepend `~/.cargo/bin` to `PATH`,
+  ensuring the validated statically-built Xenofilx r35 binary is resolved.
+- Controllers were resumed via Craftmake's state store:
+  - Modern controller `41562325` evaluated `sample_artifacts` cache hits and
+    submitted Xenofilx worker `41562351` on node `e1101`.
+  - Legacy controller `41562326` evaluated `sample_artifacts` cache hits and
+    submitted Xenofilx worker `41562350` on node `e1007`.
+- Live process telemetry (`sstat`) confirmed active in-memory external BAM
+  queryname sorting: modern `41562351.0` attained `99.5 GiB` RSS, and legacy
+  `41562350.0` attained `112.2 GiB` RSS. However, because Go runtime heap
+  management (`GOGC=100`) allows total resident allocation to expand beyond
+  raw record buffers, both workers exceeded the 128 GiB Slurm allocation
+  boundary and were terminated by the Slurm OOM killer (`exit 137`) after
+  approximately 7 minutes.
+- To provide safe operating headroom within the 128 GiB cgroup envelope, the
+  BeaverPDX `step2-check` catalog was tuned to `--sort-memory 48G` with
+  `export GOMEMLIMIT=110GiB GOGC=50`. For the 29.3 GiB BAM, 48 GiB requires
+  only two in-memory sort runs with a single fast merge pass, keeping peak RSS
+  under ~65 GiB while completely eliminating disk spill thrashing.
+- Because the workflow catalog definition changed, fresh immutable snapshots
+  were resolved under compute job `41562701`:
+  - Modern snapshot: `run-20260820T122315Z-qtwuxw` (parent `run-20260817T001228Z-vclyug`).
+  - Legacy snapshot: `run-20260820T122425Z-ibgihb` (parent `run-20260817T102532Z-emvbei`).
+- Parent `work/` output directories (`trim`, `QC`, `fastqc_raw`, `fastqc_clean`, `bsmap`)
+  were bound to both snapshots.
+- Production checker controllers `41562714` (modern) and `41562715` (legacy)
+  started Xenofilx workers `41562731` and `41562733` with `--sort-memory 48G`.
+  However, because Go object graphs (allocating individual slice/string/struct
+  members per alignment record across ~150M records) incur ~3-4x memory overhead
+  over raw record data during multi-run external sorting, resident memory
+  gradually accumulated to ~92 GiB before hitting the Slurm 128 GiB allocation
+  limit (`exit 137` OOM).
+- Memory modeling and empirical calibration determined that `--sort-memory 12G`
+  provides optimal performance: for the 29.3 GiB graft BAM, 12 GiB partitions
+  the records into ~3-4 in-memory runs (well below the single-pass fan-in limit
+  of 64), eliminating intermediate merge passes while keeping peak Go heap
+  strictly bounded under ~35 GiB (leaving >90 GiB headroom).
+- The BeaverPDX `step2-check` catalog was updated to `--sort-memory 12G` and
+  verified with compiler tests. Fresh immutable snapshots were resolved
+  (Slurm job `41565724`):
+  - Modern snapshot: `run-20260821T002101Z-hycjez` (parent `run-20260817T001228Z-vclyug`).
+  - Legacy snapshot: `run-20260821T002226Z-nfioxh` (parent `run-20260817T102532Z-emvbei`).
+- Parent outputs were bound via symlinks, and production checker controllers
+  `41565778` (modern) and `41565779` (legacy) were submitted.
+- Both controllers validated input artifacts (`sample_artifacts` completed with `0:0`)
+  and launched Xenofilx workers `41565810` (modern on `e0706`) and `41565820`
+  (legacy on `e0808`).
+- Real-time telemetry (`sstat`) confirms rock-solid execution:
+  - Modern `41565810.0`: MaxRSS flat at `35.2 GiB`, AveCPU `>03:34:00`, DiskWrite `>56.9 GiB`.
+  - Legacy `41565820.0`: MaxRSS flat at `33.3 GiB`, AveCPU `>03:34:00`, DiskWrite `>59.9 GiB`.
+  - Both workers are actively streaming sorted paired alignments, calculating
+    bisulfite edit distances, and executing host read filtering without any
+    memory pressure.
+
+## Dataset switch: BS-PDX SRR23802966 to SRR36187610
+
+- The BS-PDX `SRR23802966` dataset is exceptionally large: a Whole-Genome
+  Bisulfite 30X run with `387,683,390` paired records (116.3 Gb), producing a
+  `29.3 GiB` hg38 graft BAM. Its queryname external sort in Xenofilx needs
+  hundreds of GiB of working memory. Even with a `--sort-memory 12G` budget
+  (peak RSS ~35 GiB), the modern worker `41565810` was killed by the Slurm OOM
+  killer after 6.5 h because the host node `e0706` was 100% co-tenanted
+  (`CPUAlloc=128/128`, `CPULoad=96.55`, `AllocMem=512000`); host-level memory
+  exhaustion from co-tenant jobs triggered the kill despite the process's own
+  modest resident set.
+- Decision: switch the BS-PDX comparison to a substantially smaller, tractable
+  public patient-derived-xenograft bisulfite dataset `SRR36187610`
+  (LTL331R PDX eRRBS, project PRJNA1368947 / GSE311321; human prostate tumor
+  graft in mouse host; maps to both `hg38` graft and `mm10` host).
+- **Local acquisition (getdown)**: `SRR36187610.sra` downloaded with the native
+  NCBI SDL resolver (`getdown sra --kind sra --decode none`); verified size
+  `2,424,481,661` bytes, MD5 `1f531242d95d33fd6547e274a53fd086`, SHA-256
+  `713d1eb153b3db279e8aff6df7139c48687458e79a79008f2ceed5248b2569bb`.
+- **Upload + decode**: archive uploaded to
+  `acquisitions/bs-pdx-SRR36187610-20260821T091900Z/archive/`, remote SHA-256
+  verified, then decoded on a Slurm compute node (job `41572083`) via
+  `fasterq-dump --split-files -e 8` + `pigz -n`. Output: `71,242,412` paired
+  records, R1 `aa8a2225…0706` (2,235,653,837 B), R2 `2d564420…c05` (2,291,050,570 B).
+- **Independent verify** (job `41572209`): `sha256sum -c checksums.sha256`,
+  `gzip -t`, SHA-256 recomputation, and paired record count all passed.
+- **Provenance**: `otter acquisition publish` produced immutable
+  `otter.sra-acquisition/v1` at
+  `…/bs-pdx-SRR36187610-20260821T091900Z/provenance/otter-sra-acquisition.json`
+  (`sra-20260821T111642Z-srr36187610`), binding the archive/FASTQ identity and
+  the hg38 graft + mm10 host reference manifest digests.
+- **New canonical project**: `bs-pdx-SRR36187610` created (project.yaml,
+  samples.tsv with the new accession, references.lock.yaml, project.lock.yaml,
+  `data/` symlinks to the decoded FASTQ). Config validated; immutable snapshot
+  `run-20260821T112353Z-tunvxb` resolved under compute job `41572235`.
+- **Step1** (Trim Galore + FastQC) controller `41572248` COMPLETED `0:0` in
+  `00:28:14` — dramatically faster than the prior 28-GiB dataset.
+- **Step2** (BeaverPDX dual-reference Bismark map_and_sort) controller
+  `41572422` is running; hg38 and mm10 workers submitted and healthy.
+
 ## Completion criteria
 
 - Complete BS-PDX `step2`, its applicable checker phase, and methylation

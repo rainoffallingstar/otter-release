@@ -1,0 +1,24 @@
+schema_version: craftmake.standalone/v1
+workflow:
+  name: SRAArchiveDecode
+  phase: decode
+  backend: slurm
+run:
+  id: sra-20260821T091900Z-bs-pdx-decode
+  project_dir: /public3/home/scg9946/otter-gate6/acquisitions/bs-pdx-SRR36187610-20260821T091900Z
+  state_dir: /public3/home/scg9946/otter-gate6/acquisitions/bs-pdx-SRR36187610-20260821T091900Z/.craftmake
+execution:
+  slurm:
+    partition: amd_512
+    max_jobs: 1
+    default_time: 24:00:00
+acquisition:
+  accession: SRR36187610
+  archive_path: /public3/home/scg9946/otter-gate6/acquisitions/bs-pdx-SRR36187610-20260821T091900Z/archive/SRR36187610.sra
+  archive_checksum_path: /public3/home/scg9946/otter-gate6/acquisitions/bs-pdx-SRR36187610-20260821T091900Z/archive/archive.sha256
+  archive_sha256: 713d1eb153b3db279e8aff6df7139c48687458e79a79008f2ceed5248b2569bb
+  archive_md5: 1f531242d95d33fd6547e274a53fd086
+  archive_bytes: 2424481661
+  output_root: /public3/home/scg9946/otter-gate6/acquisitions/bs-pdx-SRR36187610-20260821T091900Z/decoded
+  fasterq_dump: /public3/home/scg9946/TTest/soft/MyMiniconda/bin/fasterq-dump
+  pigz: /public3/home/scg9946/TTest/soft/MyMiniconda/bin/pigz
