@@ -104,8 +104,19 @@
 
 ### 4.6 Step3-check（QC 与 Methrix 汇总）
 
-- Controller `41581091`：已提交并运行（调度中）。
-- `prepare_methrix_reference`、`sample_artifacts`、`species_qc_artifacts` (hg38/mm10)、`bismark_report`、`bismark_summary` 全部已完成。
+- Controller `41581091`：运行中（节点 `e0301`）。
+- `prepare_methrix_reference`、`sample_artifacts`、`species_qc_artifacts` (hg38/mm10)、`bismark_report`、`bismark_summary` 全部已完成；`create_methrix_object`（任务 `41581092`）正在稳健运行中。
+
+### 4.7 其它待跑项目推进状态（最新）
+
+1. **3 个 RNA-seq 项目（全部完成并发布校验通过 ✅）**：
+   - `human-rnaseq-SRR1039508`：`phase: publish` 完成，`otter artifact verify` 输出 `{"passed": true}`。
+   - `human-rnaseq-SRR018258`：`phase: publish` 完成，`otter artifact verify` 输出 `{"passed": true}`。
+   - `mouse-rnaseq-SRR037954`：`phase: publish` 完成，`otter artifact verify` 输出 `{"passed": true}`。
+2. **人类 RRBS (`human-rrbs-SRR31480456`)**：
+   - Controller `41581372` 提交并运行于节点 `e0403`；`step3` 甲基化提取中，`SRR31480456_nsort.bam.tmp.bam` 已生成 ~5.5 GB。
+3. **RNA-PDX (`rna-pdx-SRR30880970`)**：
+   - Controller `41581373` 提交并运行于节点 `e0410`；`step2-check` Xenofilx RNA 宿主过滤中。
 
 ## 5. 性能分析结论与本地代码优化
 

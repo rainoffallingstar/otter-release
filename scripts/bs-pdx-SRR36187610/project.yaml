@@ -48,7 +48,7 @@ resources:
     step3-check:
       cores: 10
       memory: 34GiB
-      time: 02:00:00
+      time: 08:00:00
       partition: amd_512
 observability:
   metrics: true
