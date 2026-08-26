@@ -2,6 +2,23 @@
 
 This matrix freezes the production-grade canary inputs and comparison cells for the active non-WGBS scenarios. It applies only after the paired source FASTQs and selected reference release pass compute-node visibility and checksum verification.
 
+> **Current report:** See [Gate 6 新旧工具链比较报告](gate6-toolchain-comparison-report.md) for the 2026-08-26 consolidated evidence, including the BS-PDX `SRR36187610` Methx benchmark and formal `step3-check` acceptance. The current evidence is bounded canary and implementation acceptance; it does not close the representative, scale, WGBS, or full fresh modern-vs-legacy matrix gates.
+
+## Consolidated Status (2026-08-26)
+
+| Evidence area | Status | Evidence |
+|---|---|---|
+| Modern Craftmake production path | Passed for completed scenario phases | Real Otter immutable snapshots, Craftmake controllers, Slurm accounting, and artifact verification are retained per project |
+| RRBS executor parity | Accepted bounded evidence | Historical clean Craftmake/Snakemake pair, semantic comparison, and recovery evidence |
+| RNA-seq executor parity | Accepted bounded evidence | r31 fresh Craftmake/Snakemake pair completed all phases with artifact verify/compare |
+| PDX executor parity | Accepted bounded scheduler evidence | BS-PDX and RNA-PDX real Slurm paired `step2-check` repeats; performance interpretation remains descriptive |
+| BS-PDX Methx annotation | Passed bounded performance acceptance | 7,290,833 CpGs, v2 binary index, 5/5 outputs, details rows 7,290,834, formal checker controller `41687475` exit 0 |
+| Fresh seven-input modern-vs-legacy scientific parity | Open | Requires fresh paired immutable snapshots and complete artifact/semantic comparisons |
+| Representative and scale gates | Open | `20 samples × 3 repeats` and scheduler-pressure evidence are not complete |
+| WGBS | Deferred | `SRR6373947` needs primary-reference requalification and acquisition provenance |
+
+The `modern` and `legacy-equivalent` labels describe workflow/tool mappings. Rust Bismark 3.1.0 and Bowtie2 2.5.4 remain shared pinned runtime dependencies and are not a Perl-versus-Rust comparison axis.
+
 ## Independent Comparison Axes
 
 ```mermaid

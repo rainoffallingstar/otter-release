@@ -1,8 +1,8 @@
 # Otter Benchmark Plan
 
-> 状态（2026-08-13）：Paracloud runtime、immutable reference registry 与四个 active non-WGBS 的 deterministic canary inputs 已接受。RRBS、RNA-seq、BS-PDX 与 RNA-PDX 均已完成 Craftmake 对 explicit Snakemake compatibility executor 的有界 parity：输入/reference/toolchain/resource contract 固定，适用的 artifact verify/compare、BAM/BAI checksum 与 mapped-read checks 均通过。BS-PDX 与 RNA-PDX 的 `step2-check` 各已完成 3 个 balanced paired scheduler repeats（12 cells total）；结果仅支持有界的 controller-reconciliation 描述性比较。representative 20-cell matrix、scale、production input reacquisition 与 clean-host release gate 仍未完成；WGBS 继续暂缓。
+> **Current status (2026-08-26):** The consolidated Gate 6 evidence is recorded in [Gate 6 新旧工具链比较报告](gate6-toolchain-comparison-report.md). The historical RRBS and RNA-seq executor-parity gates are accepted; PDX has bounded real-Slurm paired evidence; BS-PDX `SRR36187610` Methx annotation benchmark and formal `step3-check` are accepted. The representative 20-cell × 3-repeat matrix, production-scale scheduler-pressure gate, WGBS, and a complete fresh seven-input modern-vs-legacy scientific comparison remain open.
 
-> 生产数据状态：五个登记 accession 均为 `missing_reacquire_for_production`。当前 accepted parity 不能被重述为 production-data、representative 或 throughput acceptance。
+> **Interpretation boundary:** Methx's 3m40s full-process result and the 1m55s formal checker result are implementation/performance evidence for the v2 annotation index and interval-query optimization. They are not a whole-pipeline modern-vs-legacy speedup claim. The BS-PDX dataset switch from `SRR23802966` to `SRR36187610` also makes direct end-to-end timing comparisons non-equivalent.
 
 ## 0. Execution Plan and Delivery Gates
 

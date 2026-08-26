@@ -10,7 +10,7 @@ import (
 func TestMarshalWithMapstructureTagsUsesLegacyKeys(t *testing.T) {
 	configuration := &OtterConfig{
 		Workflow: WorkflowConfig{UserID: "cohort", JobID: "run-1"},
-		Output: OutputConfig{BaseDir: "/results", WorkflowDir: "/work"},
+		Output:   OutputConfig{BaseDir: "/results", WorkflowDir: "/work"},
 		StepResources: map[int]*StepResource{
 			2: {Cores: 8, Memory: "16GiB"},
 		},
