@@ -1,119 +1,124 @@
-# Otter–Craftmake 执行协议
+# Otter–Craftmake execution contract
 
-> 状态：目标协议。当前 Craftmake CLI 已具备相关命令，但输出和 `run.yaml` 单输入边界仍需按本协议实现。
+This document defines the machine boundary between Otter and Craftmake. It describes the current canonical interface and keeps the legacy Snakemake path explicit.
 
-## 职责边界
+## Responsibilities
 
-```mermaid
-flowchart LR
-    otterTask["Otter task"] --> resolver["Config resolver"]
-    resolver --> runSnapshot["Immutable run.yaml"]
-    runSnapshot --> router["Executor router"]
-    router -->|"default"| craftmake["Craftmake CLI"]
-    router -->|"explicit"| snakeCompat["Snakemake compatibility"]
-    craftmake --> scheduler["Craftmake scheduler"]
-    scheduler --> localBackend["Local backend"]
-    scheduler --> slurmBackend["SLURM backend"]
+```text
+otter project/config
+        ↓
+immutable run.yaml
+        ↓
+executor router
+   ↙             ↘
+Craftmake      Snakemake compatibility
+        ↓
+Local or SLURM backend
 ```
 
-- Otter 管理项目、解析、顶层 task、run directory 和 executor process。
-- Craftmake 管理 DAG、submission、task、cache、metrics、Local/SLURM backend 和 executor state。
-- Snakemake adapter 只作为显式兼容路径，消费同一 `run.yaml`。
-- Otter 不在 Craftmake 路径中重复实现 scheduler 或 SLURM job array。
+- Otter owns project/configuration resolution, task records, process lifecycle, and top-level user commands.
+- Craftmake owns workflow compilation, scheduling, task attempts, cache decisions, backend submission, SQLite state, controller JSONL, and reports.
+- Snakemake is an explicit compatibility executor. It is not a failure fallback.
 
-## Run ID
+## Canonical Craftmake input
 
-格式：`run-YYYYMMDDTHHMMSSZ-abcdef`。时间为 UTC，后缀为 6 位安全随机小写英文。ID 同时写入 `run.yaml`、manifest、Otter task 和 Craftmake state。resume 复用原 ID。
-
-## CLI
-
-目标机器接口：
+Craftmake reads one resolved snapshot:
 
 ```bash
-craftmake validate --config <run.yaml> --format json
-craftmake plan     --config <run.yaml> --format json
-craftmake run      --config <run.yaml> --format json
-craftmake resume   --config <run.yaml> --run-id <id> --format json
-craftmake status   --state <state.sqlite> --run-id <id> --format json
-craftmake cancel   --state <state.sqlite> --run-id <id> --format json
-craftmake report   --state <state.sqlite> --run-id <id> --format json
+craftmake validate \
+  --config runs/<run-id>/run.yaml \
+  --phase step1 \
+  --catalog workflows/ \
+  --format json
+
+craftmake plan \
+  --config runs/<run-id>/run.yaml \
+  --phase step1 \
+  --catalog workflows/
 ```
 
-Craftmake 只解析一个 `run.yaml`；不读取 `project.yaml`、samples、reference registry、site profile 或 legacy fields。QCTB 同样只从该 immutable snapshot 派生其运行配置：workflow 应声明 `run.yaml` 作为输入并调用 `qctb --config <run.yaml>`；人工调用可使用 `qctb --config-dir <run-root>`。`--config-dir` 仅解析 `<run-root>/run.yaml`，不是多文件配置目录。
+`run.yaml` is the source for scenario, workflow identity, backend, resources, references, inputs, and run-local paths. Craftmake does not read `project.yaml`, `samples.tsv`, a reference registry, or legacy configuration to fill in missing values.
 
-## JSON envelope
+## Execute, inspect, and recover
 
-stdout 只输出版本化 envelope：
+```bash
+craftmake run \
+  --config runs/<run-id>/run.yaml \
+  --phase step1 \
+  --backend local \
+  --max-parallel 4 \
+  --max-cores 16 \
+  --max-memory 64G
 
-```json
-{
-  "protocol_version": "otter.craftmake/v1",
-  "command": "run",
-  "ok": true,
-  "run_id": "run-20260726T013245Z-kxqjrm",
-  "state_path": ".../state/craftmake/state.sqlite",
-  "controller_log": ".../logs/craftmake/controller.jsonl",
-  "data": {}
-}
+craftmake status \
+  --state workflow/.craftmake/state.sqlite \
+  --run <run-id>
+
+craftmake logs \
+  --state workflow/.craftmake/state.sqlite \
+  --run <run-id>
+
+craftmake report \
+  --state workflow/.craftmake/state.sqlite \
+  --run <run-id> \
+  --output reports
+
+craftmake resume \
+  --state workflow/.craftmake/state.sqlite \
+  --run <run-id>
 ```
 
-- stderr 只包含人类诊断，不作为 Otter 状态解析源。
-- 长期事件写 JSONL，至少包含 timestamp、run/task/submission/backend job ID、status、reason 和 metrics references。
-- 协议版本不兼容时在执行前失败。
+Use `craftmake doctor --backend local` or `craftmake doctor --backend slurm` before execution. A Slurm run may remain briefly in `COMPLETING`; inspect both Craftmake state and `sacct`.
 
-## 退出码
+## Output formats
 
-| 类别 | 语义 |
-|---|---|
-| success | 命令成功 |
-| usage | CLI 参数错误 |
-| config | run schema、digest 或 immutable invariant 错误 |
-| state | SQLite/run state 错误 |
-| backend | Local/SLURM 初始化或控制面错误 |
-| task | 科学任务失败或被依赖阻断 |
-| internal | 未分类内部错误 |
+Commands support human-readable text and versioned JSON/JSONL envelopes through `--format`. The envelope identifies the command, success state, run ID, state database, controller log, and command payload. Human diagnostics remain on stderr and are not a durable state protocol.
 
-具体数值沿用 Craftmake 已有固定退出码，文档实施时不得重排已发布值。
+The controller log records timestamps, run/task/submission IDs, backend job IDs, status, reasons, and metrics references. Reports export task timing, allocation information, cache decisions, and an evidence bundle.
 
-## 状态关联
+## Identity and correlation
 
 ```text
 Otter task ID
-  -> executor run ID
-      -> submission ID
-          -> task/attempt ID
-              -> SLURM job/step ID
+  → executor run ID
+    → submission ID
+      → task attempt ID
+        → SLURM job/step ID
+          → result + controller log + manifest
 ```
 
-这些 ID 必须可从 Otter task record、Craftmake SQLite、controller JSONL 和 manifest 双向追溯。
+Changing samples, references, workflow assets, executor, toolchain, or immutable resources requires a new run. Resume is for recovering the existing contract, not for mutating it.
 
-## Runtime Incident Evidence
+## Cancellation
 
-A failed or cancelled task attempt creates an `otter.runtime-incident/v1` record. Its stable classifier is independent from human-readable stderr and includes category, scope, retry safety/policy, owner, escalation rule, remediation status, first-observed timestamp, executor/backend and backend job IDs, exit code/signal, and bounded diagnostic/evidence paths.
-
-The initial categories are `input_reference_digest`, `environment_tool`, `scheduler_submission`, `queue_timeout`, `resource_exhaustion`, `filesystem_io`, `network_acquisition`, `tool_invocation`, `scientific_qc`, `artifact_integrity`, `cancellation_recovery`, and `internal_unknown`. A retry can be automatic only for bounded transient scheduler submission or acquisition failures. Any `internal_unknown` incident blocks Gate 6 promotion until classified; stderr remains a retained diagnostic, never the durable classification key.
-
-The correlation chain therefore extends to evidence:
-
-```text
-Otter task ID -> executor run ID -> submission ID -> task/attempt ID -> SLURM job/step ID
-  -> task result + controller JSONL + SQLite incident + metrics/accounting + artifact report
+```bash
+craftmake cancel \
+  --state workflow/.craftmake/state.sqlite \
+  --run <run-id>
 ```
 
-`craftmake report` exports task, timing, allocation, and `run-evidence.json` records even for failed/cancelled runs. Evidence retention must preserve the result path, referenced logs, controller stream, incident record, and Slurm accounting until incident remediation is resolved or waived.
+Craftmake cancels active backend submissions, records the request and resulting status, and preserves controller evidence. Otter task cancellation also terminates the associated local process group when appropriate.
 
-## Cancel、signal 与 resume
+## Artifact boundary
 
-- Otter 将 SIGINT/SIGTERM 转发给 Craftmake。
-- Craftmake 对 SLURM 调用 `scancel`，对 Local 终止受管 process group。
-- cancel 必须记录请求、后端确认和最终状态。
-- resume 使用原 `run.yaml` 和 run ID；任何 config/reference/workflow digest 不一致都拒绝。
-- controller 在标记 child allocation 失败前必须通过 `sacct` 复核任何 empty/transient `squeue` result；控制面不可用必须保持非终态并继续轮询，不得作为任务失败证据。
-- 需要改变 reference、executor、toolchain、samples 或资源解析时创建新 run，并用 lineage 字段关联旧 run。
+A successful workflow publishes declarations and then a create-only `results/artifacts.json` manifest. The manifest binds:
 
-## 默认选择与来源
+- immutable run ID;
+- run snapshot digest;
+- scenario, toolchain, executor, and backend;
+- artifact paths relative to `results/`;
+- checksums and declared comparison tiers.
 
-- executor 默认 Craftmake；Snakemake 只能显式选择。
-- backend 默认 auto；SLURM 不完整时 fail closed。
-- executor/backend/toolchain/site 的值和来源（default/project/CLI/detection/profile）都写入 `run.yaml` 与 manifest。
-- 禁止 Craftmake 失败后自动回退 Snakemake。
+Manifest verification confirms identity and file integrity. It is necessary for publication but is not, by itself, scientific parity.
+
+## Failure classification
+
+Failed or cancelled attempts may produce `otter.runtime-incident/v1` evidence with a stable category, retry policy, owner, backend identifiers, exit information, and bounded diagnostic paths. Human-readable stderr is retained as diagnosis, not used as the classification key.
+
+Automatic retry is limited to bounded transient conditions such as selected scheduler submission or acquisition failures. Unknown internal incidents must be classified before promotion.
+
+## Current status
+
+The protocol and canonical snapshot boundary are implemented and covered by local contract tests. Real Slurm and paired executor evidence is accepted only within the bounded Gate 6 scope. Production-scale qualification and complete Snakemake replacement remain separate decisions.
+
+[Back to the documentation hub](README.md)

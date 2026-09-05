@@ -1,10 +1,10 @@
-# Otter Benchmark Plan
+# Otter benchmark plan
 
-> **Current status (2026-09-05):** The accepted Gate 6 comparison scope is complete for the real-Slurm Craftmake–Snakemake executor evidence, corrected Gate A–D evidence, and Methx/Methrix parity. The planned fresh seven-input legacy-equivalent matrix was not run and is a deferred, non-blocking limitation. WGBS requalification, representative `20 samples × 3 repeats`, production-scale scheduler-pressure, and additional Snakemake recovery are deferred extensions. See the [Gate 6 closeout plan](notes/2026-09-02-gate6-closeout-plan.md) and [closeout evidence register](gate6-closeout-evidence-register.json).
+> **Current status:** The accepted Gate 6 scope includes bounded real-SLURM Craftmake–Snakemake executor evidence, corrected Gate A–D evidence, and Methx/Methrix parity. The fresh seven-input legacy-equivalent matrix, representative `20 samples × 3 repeats`, production-scale scheduler-pressure qualification, WGBS requalification, and additional Snakemake recovery are deferred extensions.
 
-> **Interpretation boundary:** Methx's 3m40s full-process result and the 1m55s formal checker result are implementation/performance evidence for the v2 annotation index and interval-query optimization. They are not a whole-pipeline modern-vs-legacy speedup claim. The BS-PDX dataset switch from `SRR23802966` to `SRR36187610` also makes direct end-to-end timing comparisons non-equivalent.
+> **Interpretation boundary:** A component timing result is evidence about that component and its tested inputs. It is not a whole-pipeline modern-versus-legacy speedup claim unless the input, reference, workflow, toolchain, and measurement boundary are identical.
 
-> **Evidence boundary:** Gate D's full mapping and score-decision accounting is closed with zero unexplained disagreement; the bounded legacy/modern semantic difference is documented and does not assert exact membership equality. The corrected XG-aware human/mouse mixture benchmark is complete and archived under `xenofilx/benchmark/`.
+> **Evidence boundary:** The corrected Gate A–D accounting is accepted within its documented scope. A complete artifact manifest proves publication integrity; it does not prove scientific parity by itself.
 
 
 本计划将“已有对比数据”“可用于技术判断的对比数据”和“可用于生产放行的对比数据”严格区分。所有时间均按实际 Paracloud Slurm 队列可用性估算，不把排队时间伪装成执行时间。
@@ -37,7 +37,7 @@
 | BS-PDX | ✅ fastqcx + xenofilx + methx + qctb | FastQC + XenofilteR + Bismark + Methrix | ✅ bounded executor parity; 3-repeat `step2-check` scheduler evidence | □ | □ |
 | RNA-PDX | ✅ fastqcx + xenofilx + seq2mat + matsrun + qctb | FastQC + XenofilteR + STAR + HTSeq + rMATS | ✅ bounded executor parity; 3-repeat `step2-check` scheduler evidence | □ | □ |
 
-The `✅` marks in the Modern and Legacy-equivalent columns describe available toolchain mappings only; they do not mean that the corresponding scenario has passed a production-grade canary or parity gate. `△` records partial evidence that is intentionally insufficient for promotion.
+**Current status:** The matrix below is a planning and evidence index. A check mark means that the toolchain mapping or bounded test exists; it does not mean production-scale qualification is complete.
 
 ## 1.1 Seven-Decoded-FASTQ Toolchain Comparison (2026-08-15; deferred extension)
 
@@ -62,9 +62,9 @@ The corrected Gate A–D prerequisite is complete for the accepted Gate 6 scope.
 | **Scientific** | 领域容差内结果等价 | 预定义 tolerance（甲基化 ±0.01、counts ±5%、splicing ±1% PSI） | 需 root-cause 分析 + waiver |
 | **Informational** | logs/images/timestamps 合理 | 无硬性要求 | 记录偏差，不阻断 |
 
-## 3. Cluster Dependencies
+## 3. Cluster dependencies
 
-The accepted Gate 6 scope does not include a new representative matrix, production-scale pressure test, WGBS requalification, or additional Snakemake recovery exercise. Those are deferred non-blocking extensions. Existing real-Slurm Craftmake–Snakemake paired evidence remains historical/accepted executor evidence, while the corrected Gate A–D and Methx/Methrix results are recorded in the [closeout register](gate6-closeout-evidence-register.json).
+The accepted Gate 6 scope does not include a new representative matrix, production-scale pressure test, WGBS requalification, or additional Snakemake recovery exercise. Existing real-SLURM paired evidence remains bounded acceptance evidence; future qualification work requires a new approved matrix and evidence register entry.
 
 | Gate 6 子项 | 集群需求 | 状态 |
 |---|---|---|

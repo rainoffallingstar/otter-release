@@ -1,88 +1,95 @@
-# 第一章：安装指南
+# 1. Installation
 
-## 支持状态
+This chapter covers release installation, source builds, runtime environments, and a first verification.
 
-主仓统一为 `rainoffallingstar/otter`。当前运行时仍需 Snakemake；`craftmake` 是正在接入的 Go 替代执行层，暂时与 Snakemake 双轨。
+## Requirements
 
-## 安装前要求
+- Linux or macOS; Linux with SLURM is the primary production target.
+- Git with recursive submodule support.
+- Go 1.24+ for the root and Go submodules.
+- Rust/Cargo for `enva`, `fastqcx`, `methx`, and `qctb`.
+- HDF5 build/runtime support for `methx`.
+- Access to GitHub and the configured package channels.
 
-- Linux 或 macOS；SLURM 集群以 Linux 为主
-- Git、Go 1.24+
-- 构建 Rust 组件时需要 Rust 工具链
-- `methx` 构建/运行需要 HDF5
-- 能访问 GitHub 和配置的软件包频道
-
-## Release 安装
+## Release installation
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/rainoffallingstar/otter/main/scripts/install.sh)
 ```
 
-安装脚本和 release 资产也处于命名迁移范围。如果当前 release 仍包含旧二进制名或旧环境前缀，应作为兼容资产记录，不要把它误写成已完成迁移。
+After installation, verify the selected binary and asset set rather than assuming the latest pre-release is production-qualified:
 
-## 源码安装
+```bash
+otter --help
+otter --version
+command -v otter
+```
+
+## Source installation
 
 ```bash
 git clone --recurse-submodules https://github.com/rainoffallingstar/otter.git
 cd otter
 conda activate go-env
 go build -o otter .
-install -m 755 otter "$HOME/.cargo/bin/otter"
+./otter --help
 ```
 
-当前源码根命令可能仍显示 `xdxtools`。输出文件名改为 `otter` 不等于代码迁移完成，打包前必须运行 `./otter --help` 核对。
-
-## 子模块
-
-```text
-craftmake enva fastqcx xenofilx pairbam seq2mat matsrun qctb methx bamdriver
-```
-
-若目录为空：
+If the checkout was cloned without submodules:
 
 ```bash
+git submodule sync --recursive
 git submodule update --init --recursive
+git submodule status --recursive
 ```
 
-## 环境
+The independent component directories are `craftmake`, `enva`, `fastqcx`, `xenofilx`, `pairbam`, `seq2mat`, `matsrun`, `qctb`, `methx`, and `bamdriver`.
+
+## Runtime environments
+
+Use `enva` to create the standard environments:
 
 ```bash
-enva create --core
-enva create --snakemake
-enva create --extra
+enva create --all
 enva list --detailed
 enva validate --all
 ```
 
-期望环境名：
+| Environment | Purpose |
+| --- | --- |
+| `otter-core` | Core workflow dependencies and operators. |
+| `otter-snakemake` | Current Snakemake compatibility runtime. |
+| `otter-extra` | Additional analysis and visualization tools. |
 
-| 环境 | 用途 |
-|---|---|
-| `otter-core` | 核心生信工具与算子 |
-| `otter-snakemake` | 当前 Snakemake 兼容路径 |
-| `otter-extra` | 附加分析和可视化工具 |
+The production runtime remains dual-track. Install `otter-snakemake` for existing workflows and install/build `craftmake` for the canonical migration path.
 
-## 验证
+## Verify component binaries
 
 ```bash
 command -v otter craftmake enva
-command -v fastqcx xenofilx pairbam seq2mat matsrun qctb methx bamdriver
-
-otter --help
+command -v fastqcx xenofilx pairbam seq2mat matsrun qctb methx
 craftmake --help
 enva --version
 ```
 
-`craftmake --help` 成功不代表 `otter run` 已切换到 craftmake。
+Not every operator exposes `--version`; use `--help` for those tools.
 
-## HDF5
+## HDF5 build environment
+
+When building `methx` locally, configure HDF5 from the active environment or the platform installation:
 
 ```bash
 export HDF5_DIR="$CONDA_PREFIX"
 export HDF5_INCLUDE_DIR="$HDF5_DIR/include"
 export HDF5_LIB_DIR="$HDF5_DIR/lib"
-export PKG_CONFIG_PATH="$HDF5_DIR/lib/pkgconfig:$PKG_CONFIG_PATH"
-export LD_LIBRARY_PATH="$HDF5_DIR/lib:$LD_LIBRARY_PATH"
+export PKG_CONFIG_PATH="$HDF5_DIR/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+export LD_LIBRARY_PATH="$HDF5_DIR/lib:${LD_LIBRARY_PATH:-}"
 ```
 
-下一章：[数据准备](02-data-preparation.md)
+See the [`methx` HDF5 guide](../../methx/docs/HDF5_DEPENDENCY.md) for component-specific details.
+
+## Compatibility note
+
+Some source-level symbols, generated state paths, or older release assets may still use `xdxtools`. That is a migration-era compatibility name; do not infer from a renamed output file that every code and runtime path has been renamed.
+
+[Back to the manual](README.md) · [Documentation hub](../README.md)

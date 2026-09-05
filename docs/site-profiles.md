@@ -1,8 +1,8 @@
-# Otter Site 与 Backend 探测契约
+# Site and backend profiles
 
-> 状态：目标契约。用于把可移植项目配置解析为特定集群上的不可变 run snapshot。
+Site resolution turns portable project intent into an execution-ready run snapshot. The selected backend, site, resource envelope, and evidence supporting that choice must be recorded before execution.
 
-## 默认值
+## Default selection
 
 ```yaml
 execution:
@@ -11,69 +11,89 @@ execution:
   site: auto
 ```
 
-## Backend auto 状态机
+Use `--backend local` for development or contract tests. Use `--backend slurm` for real workflow execution when the site is configured and visible from compute nodes.
 
-```mermaid
-flowchart TD
-    startNode["backend=auto"] --> detectTools["Detect SLURM toolchain"]
-    detectTools -->|"No SLURM commands"| localNode["Select local"]
-    detectTools -->|"All commands available"| validateCluster["Validate cluster and paths"]
-    detectTools -->|"Partial toolchain"| failNode["Fail closed"]
-    validateCluster -->|"All constraints satisfied"| slurmNode["Select slurm"]
-    validateCluster -->|"Missing partition/account/path/resources"| failNode
+## Backend detection
+
+```text
+backend=auto
+     ↓
+check sbatch/squeue/sacct/scancel/srun
+     ↓
+none available ─────────→ local
+all available ──────────→ validate cluster and paths
+partial/inconsistent ───→ fail closed
 ```
 
-成套 SLURM 命令至少包括 `sbatch`、`squeue`、`sacct` 和 `scancel`。探测还必须覆盖：
+A complete SLURM toolchain is not enough. Detection also validates the cluster, selected partition/account/QOS, resource limits, shared project/reference paths, scratch policy, and compute-node visibility.
 
-- cluster name；
-- partition、account、QOS；
-- CPU、memory、time、submit/job-array limits；
-- shared project/reference paths；
-- scratch root 和 cleanup policy；
-- compute node 对 resolved reference/output 的可见性。
+Otter must not silently choose Local when SLURM is partially available or when a production reference path cannot be proven accessible.
 
-完全没有 SLURM 时可选择 Local，但 Local 只用于 contract tests。检测到部分 SLURM 能力或资源不足时不得自动回退 Local。
+## Inspect the current environment
+
+```bash
+otter site list
+otter site validate
+otter site validate production-cluster
+```
+
+The validation result reports backend, site ID, source, reason, cluster, and detected commands.
 
 ## Site profile
 
-命名 profile 用于覆盖或补全 auto detection：
+A profile can provide stable site defaults without embedding credentials:
 
 ```yaml
 schema_version: otter.site/v1
 site:
   id: production-cluster
   backend: slurm
-  slurm:
-    partition: cpu
-    account: genomics
-    qos: normal
-    max_jobs: 100
-    default_time: 24:00:00
-  paths:
-    reference_root: /shared/otter/references
-    scratch_root: /scratch/otter
+slurm:
+  partition: cpu
+  account: genomics
+  qos: normal
+  max_jobs: 100
+  default_time: 24:00:00
+paths:
+  reference_root: /shared/otter/references
+  scratch_root: /scratch/otter
 ```
 
-profile 不能包含用户 token 或 secrets。敏感认证必须由站点标准机制提供。
+Profiles may define defaults and constraints. Authentication, tokens, and private credentials belong to the site's standard environment, not to committed YAML.
 
-## 资源优先级
+## Resource precedence
 
 ```text
-CLI > site profile/auto detection > project.yaml > workflow defaults
+explicit CLI value > site profile/detection > project value > workflow default
 ```
 
-- 高层覆盖只能收紧或显式改变资源，不得产生无法调度的隐式值。
-- `run.yaml` 必须记录每个值及其来源。
-- resource preflight 在 sbatch 前完成；超出 partition/account 限制时 fail closed。
-- `--backend local` 是显式开发选择；生产文档和 benchmark 必须使用 `slurm`。
+For canonical immutable runs, the effective values are written to `run.yaml`. Craftmake then rejects runtime overrides that would change the snapshot. For legacy Snakemake runs, the existing `otter run` resource flags remain available:
 
-## 自动管理边界
+```bash
+otter run \
+  --config my_project/userspace/<jobid>/config/otter.yaml \
+  --executor snakemake \
+  --engine slurm \
+  --slurm-partition cpu \
+  --slurm-cores 16 \
+  --slurm-memory 64G
+```
 
-Otter 可以自动选择满足约束的 partition 和资源，但选择必须可审计：
+## Fail-closed rules
 
-- 输出候选与排除原因；
-- 使用确定性排序；
-- 将最终选择和探测时间写入 `run.yaml`；
-- 集群状态变化不会修改已生成 snapshot；重新解析必须创建新 run。
+Resolution must stop before `sbatch` when:
 
-当无法证明某个候选满足 reference 可见性、资源和 account/QOS 时，自动管理必须停止，而不是尝试提交后等待调度器报错。
+- required SLURM commands are missing or inconsistent;
+- the requested partition/account/QOS is unavailable;
+- CPU, memory, time, or submission limits cannot satisfy the run;
+- shared project, reference, or scratch paths are not visible where required;
+- a reference manifest or workflow asset digest differs;
+- an automatic choice cannot be explained deterministically.
+
+The diagnostic should identify the candidate, rejected constraint, expected value, actual value, and affected path or resource.
+
+## Snapshot stability
+
+Site state can change after a snapshot is written. That must not mutate the existing run. Re-resolve to create a new run when the selected site, backend, partition, resource envelope, or reference visibility changes.
+
+[Back to the documentation hub](README.md)

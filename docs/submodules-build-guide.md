@@ -1,79 +1,54 @@
-# otter 子模块构建指南
+# Submodule build guide
 
-## 边界
-
-`otter` 父仓通过 Git submodule 组合 10 个独立仓库。子模块有各自的历史、测试和发布节奏；父仓文档修改不应进入子模块目录。
+The root repository records ten independent component repositories as Git submodules. Each submodule has its own history, tests, release cadence, and working-tree boundary.
 
 ```text
-otter → craftmake → enva → 算子 → bamdriver
+otter → craftmake → enva → operators → bamdriver
 ```
 
-`craftmake` 是 Snakemake 的 Go 替代执行层，但当前仍在接入，必须按双轨状态构建和验证。
-
-## 当前子模块
-
-| 层级 | 子模块目录 | 语言 | 目标二进制 | 角色 |
-|---|---|---|---|---|
-| 执行 | `craftmake/` | Go | `craftmake` | workflow spec/DAG/local/SLURM |
-| 环境 | `enva/` | Rust | `enva` | rattler-first 环境管理 |
-| 算子 | `fastqcx/` | Rust | `fastqcx` | FASTQ 质控，FastQC/MultiQC 兼容 |
-| 算子 | `xenofilx/` | Go | `xenofilx` | PDX 物种过滤 |
-| 算子 | `pairbam/` | Go | `pairbam` | 配对 BAM 过滤 |
-| 算子 | `seq2mat/` | Go | `seq2mat` | HTSeq count-to-matrix |
-| 算子 | `matsrun/` | Go | `matsrun` | rMATS 编排 |
-| 算子 | `qctb/` | Rust | `qctb` | QC 汇总 |
-| 算子 | `methx/` | Rust | `methx` | 甲基化/HDF5 处理 |
-| 基础 | `bamdriver/` | Go | `bamdriver` | BAM 共享底层能力 |
-
-## 初始化
+## Initialize a checkout
 
 ```bash
 git clone --recurse-submodules https://github.com/rainoffallingstar/otter.git
 cd otter
-```
-
-已有 checkout：
-
-```bash
 git submodule sync --recursive
 git submodule update --init --recursive
 git submodule status --recursive
 ```
 
-不要在没有审查的情况下运行 `git submodule update --remote --merge`，因为它会改变父仓记录的子模块指针。
+Do not run `git submodule update --remote --merge` as a routine build step. It changes the parent repository's recorded gitlink.
 
-## Go 子模块
+## Component matrix
 
-推荐环境：
+| Layer | Directory | Language | Build output or role |
+| --- | --- | --- | --- |
+| Execution | `craftmake/` | Go | `craftmake` |
+| Environment | `enva/` | Rust | `enva` |
+| FASTQ QC | `fastqcx/` | Rust | `fastqcx` |
+| PDX separation | `xenofilx/` | Go | `xenofilx` |
+| Paired BAM | `pairbam/` | Go | `pairbam` |
+| Count matrix | `seq2mat/` | Go | `seq2mat` |
+| Splicing | `matsrun/` | Go | `matsrun` |
+| QC aggregation | `qctb/` | Rust | `qctb` |
+| Methylation | `methx/` | Rust | `methx` |
+| BAM foundation | `bamdriver/` | Go | shared packages |
+
+## Go submodules
 
 ```bash
 conda activate go-env
 export CGO_ENABLED=0
-```
-
-对每个 Go 子模块，在其目录内按模块实际入口构建：
-
-```bash
 go test ./...
 go vet ./...
 go build ./...
 ```
 
-适用目录：`craftmake/`、`xenofilx/`、`pairbam/`、`seq2mat/`、`matsrun/`、`bamdriver/`。
+Run these commands inside `craftmake/`, `xenofilx/`, `pairbam/`, `seq2mat/`, `matsrun/`, or `bamdriver/`. Check the component README when the repository exposes a command under `cmd/<name>` rather than the module root.
 
-发布构建应使用该仓库声明的 `cmd/<name>` 或根包入口，不要根据历史仓库名猜测入口。
-
-## Rust 子模块
-
-推荐环境：
+## Rust submodules
 
 ```bash
 conda activate rust_build
-```
-
-在 `enva/`、`fastqcx/`、`qctb/`、`methx/` 中执行：
-
-```bash
 cargo fmt --check
 cargo check --locked --all-targets
 cargo clippy --locked --all-targets -- -D warnings
@@ -81,7 +56,7 @@ cargo test --locked
 cargo build --locked --release
 ```
 
-`methx` 需要 HDF5：
+Run these commands inside `enva/`, `fastqcx/`, `qctb/`, or `methx/`. `methx` needs an HDF5 development environment:
 
 ```bash
 export HDF5_DIR="$CONDA_PREFIX"
@@ -91,42 +66,25 @@ export PKG_CONFIG_PATH="$HDF5_DIR/lib/pkgconfig:$PKG_CONFIG_PATH"
 export LD_LIBRARY_PATH="$HDF5_DIR/lib:$LD_LIBRARY_PATH"
 ```
 
-## 安装结果
-
-建议把二进制安装到用户可写目录：
+## Install and verify binaries
 
 ```bash
 install -d "$HOME/.cargo/bin"
 install -m 755 <built-binary> "$HOME/.cargo/bin/<current-name>"
+command -v craftmake enva fastqcx xenofilx pairbam seq2mat matsrun qctb methx
 ```
 
-验证：
+`bamdriver` is primarily a shared Go package and may not provide a standalone executable in every checkout.
 
-```bash
-command -v craftmake enva fastqcx xenofilx pairbam seq2mat matsrun qctb methx bamdriver
-```
+## Dual-track validation
 
-## 双轨验证
+- `otter-snakemake` remains the compatibility runtime for established production assets.
+- `craftmake` build success does not prove root integration or scientific parity.
+- Before changing the default route, compare task graphs, resources, failure propagation, recovery, and key scientific artifacts under the same immutable input/reference contract.
+- Real workflow and benchmark evidence belongs on the approved SLURM path; Local tests are contract evidence.
 
-- Snakemake 继续在 `otter-snakemake` 环境中承担当前生产工作流。
-- `craftmake` 构建成功仅证明执行层可编译，不证明已接入 `otter`。
-- 切换前需对相同 fixture 比较任务图、资源参数、失败传播、恢复状态和关键科学产物。
-- `otter-core` 与 `otter-extra` 中的算子解析必须使用当前名称。
+## Parent gitlink delivery
 
-## 历史映射
+A submodule change must be tested and committed in the submodule repository before the parent pointer is updated. This documentation refactor changes no submodule code, gitlink, script, or CI configuration.
 
-| 当前目录 | 历史目录/仓库名 |
-|---|---|
-| `fastqcx/` | `fastqc-rs/` |
-| `xenofilx/` | `xenofilter-go/` |
-| `pairbam/` | `Paireads/` |
-| `seq2mat/` | `htseq2matrix-go/` |
-| `matsrun/` | `gomats/` |
-| `methx/` | `methrix-cli/` |
-| `bamdriver/` | `bamdriver-go/` |
-
-历史审查报告中的旧路径用于定位当时证据，不应被视为当前 checkout 指令。
-
-## 父仓指针交付
-
-只有在子模块自身门禁通过、变更已由有权限者提交/推送后，父仓才可更新 gitlink。本文档迁移没有修改任何子模块、gitlink、脚本或 CI，也没有提交或推送。
+[Back to the documentation hub](README.md)

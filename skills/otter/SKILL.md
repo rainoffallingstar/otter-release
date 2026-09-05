@@ -1,41 +1,78 @@
 ---
 name: otter
-description: "Use when working in the otter bioinformatics workflow repositories: the otter root CLI or its direct submodules enva, pairbam, bamdriver, fastqcx, matsrun, seq2mat, methx, qctb, and xenofilx. Helps Codex choose the right Go or Rust toolchain, respect submodule boundaries, run the right build and test commands, and understand how each repo fits into the workflow stack."
+description: "Use when working in the otter bioinformatics workflow repositories: the root CLI or its independent submodules craftmake, enva, fastqcx, xenofilx, pairbam, seq2mat, matsrun, qctb, methx, and bamdriver. Covers repository boundaries, toolchain selection, documentation maintenance, CLI-contract verification, and evidence-aware release language."
 ---
 
-# otter
+# otter repository skill
 
-Use this skill when the current workspace is the `otter` root repository or one of its direct submodules listed in [references/repo-map.md](references/repo-map.md).
+Use this skill for code, documentation, release, and validation work in the `otter` root repository or one of its direct submodules.
 
 ## First pass
 
-- Identify the active repo from `pwd`, top-level files, and the nearest `README.md`.
-- Treat each submodule as an independent module unless the task explicitly spans multiple repos.
-- Keep stable CLI flags, workflow file names, and user-facing outputs unless the task explicitly changes them.
-- When editing user-facing setup docs, update both `README.md` and `README_zh.md` in the root repo when both exist.
+1. Identify the active repository from the working directory, top-level files, nearest README, and git remote.
+2. Treat every submodule as an independent repository. A parent gitlink update is required when a submodule change is intended to affect the parent checkout.
+3. Read the owning README, CLI entrypoint, package manifest, and relevant tests before changing a user-facing contract.
+4. Keep current product names and external scientific standards distinct. See [repo-map.md](references/repo-map.md) for historical aliases.
+5. For documentation work, read [documentation.md](references/documentation.md) before restructuring an entrypoint.
+
+## Product model
+
+```text
+otter → craftmake → enva → operators → bamdriver
+```
+
+- `otter` owns project initialization, input/configuration, run orchestration, task control, embedded workflow assets, and user documentation.
+- `craftmake` owns native workflow compilation, Local/SLURM execution, SQLite state, recovery, cancellation, and reports.
+- `enva` owns rattler-first environment lifecycle and explicit compatibility with conda, mamba, and micromamba.
+- `fastqcx`, `xenofilx`, `pairbam`, `seq2mat`, `matsrun`, `qctb`, and `methx` are focused operator CLIs.
+- `bamdriver` owns shared BAM/BGZF primitives used by BAM-consuming operators.
+
+The runtime is dual-track. Existing production workflows use Snakemake compatibility assets; Craftmake integration is still being validated. Do not write documentation that implies complete Snakemake replacement unless the source and accepted evidence explicitly support that claim.
 
 ## Toolchain selection
 
-- Use `conda activate go-env` for `otter`, `pairbam`, `bamdriver`, `matsrun`, `seq2mat`, and `xenofilx`.
-- Use `conda activate rust_build` for `enva`, `fastqcx`, `methx`, and `qctb`.
-- Load the matching commands from [references/build-and-test.md](references/build-and-test.md) before building or testing.
+- Go work: `conda activate go-env` for the root, `craftmake`, `pairbam`, `bamdriver`, `matsrun`, `seq2mat`, and `xenofilx`.
+- Rust work: `conda activate rust_build` for `enva`, `fastqcx`, `methx`, and `qctb`.
+- Load focused commands from [build-and-test.md](references/build-and-test.md) before building or testing.
 
-## Working rules
+## Documentation mode
 
-1. Detect the target repo, then read only the matching section from the references.
-2. Prefer the local repo's `README.md`, entrypoint files, and existing tests over assumptions.
-3. Validate with the smallest relevant command set first: formatter, build, unit tests, then heavier integration flows.
-4. If a change touches the root repo plus a submodule, call out the coupling explicitly in the final response.
+When asked to redesign or beautify a README, use README mode: improve the whole information architecture, not only the decoration. Apply this order unless the repository has a stronger need:
 
-## Repo guardrails
+```text
+Value → Proof → Mechanism → First use → Detail
+```
 
-- `otter` root owns workflow orchestration, embedded assets under `inst/`, and end-user CLI flows.
-- `bamdriver` is shared library code for BAM and BGZF I/O used by `xenofilx` and `pairbam`; exported API changes can cascade.
-- `enva` owns environment creation, adoption, and execution logic; do not duplicate that behavior in `otter` unless the task is integration glue.
-- `matsrun`, `seq2mat`, `methx`, `qctb`, `xenofilx`, `pairbam`, and `fastqcx` are focused CLIs; keep interfaces explicit and narrow.
-- `fastqcx` is a standalone Rust FASTQ QC tool; preserve its crate-style CLI and report outputs unless the task explicitly targets behavior changes there.
+The first screen should answer what the repository is, who benefits, and where to go next. Prefer real CLI examples, output contracts, tests, benchmarks, and repository-native diagrams over generic decoration. Do not create a hero image merely to fill space; if a visual asset is useful, keep commands and essential instructions in Markdown.
 
-## References
+For the root repository:
 
-- Repo map: [references/repo-map.md](references/repo-map.md)
-- Build and test matrix: [references/build-and-test.md](references/build-and-test.md)
+- Update `README.md` and `README_zh.md` together when user-facing setup or product language changes.
+- Link current docs through `docs/README.md` and the task-oriented manual through `docs/manual/README.md`.
+- Keep `docs/archive/`, `docs/review/`, and dated `docs/notes/` as historical evidence unless a specific correction is requested.
+- Preserve visible limitations around Gate 6, WGBS, production scale, deferred matrices, and the Snakemake/Craftmake boundary.
+
+For a submodule:
+
+- Make its README independently useful: one-sentence value, input/output contract, install, minimal example, limits, tests, and repository link.
+- Do not import root-only assumptions into a standalone operator README.
+- Update root integration docs only when the submodule interface or workflow contract changes.
+
+## Validation
+
+Use the smallest relevant validation first:
+
+1. Markdown links, command names, and paths match source.
+2. README image references and SVG metadata pass the README audit when the audit script is available.
+3. Go: `gofmt`, focused tests, `go test ./...`, and `go vet ./...` as appropriate.
+4. Rust: `cargo fmt --all -- --check`, `cargo clippy --all-targets --all-features --locked -- -D warnings`, and `cargo test --all-targets --all-features --locked` when the repository workflow uses them.
+5. Run the linter on edited files after substantive changes.
+
+Never claim a command was tested when only the documentation was edited. Never change a submodule and silently leave the parent gitlink stale.
+
+## Safe operating rules
+
+- Preserve unrelated work and start with read-only inspection.
+- Do not rewrite historical evidence to apply current branding.
+- Do not commit, push, tag, publish assets, or open a PR without explicit authorization.
+- Do not add secrets, tokens, private paths, or undocumented local-machine assumptions to examples.
