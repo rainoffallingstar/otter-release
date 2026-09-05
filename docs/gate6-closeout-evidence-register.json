@@ -1,0 +1,217 @@
+{
+  "schema": "otter.gate6-closeout-evidence-register/v1",
+  "register_version": "2026-09-05",
+  "decision": {
+    "status": "scope_complete_pending_documentation_closeout",
+    "accepted_scope": [
+      "real-Slurm Craftmake-Snakemake executor comparison evidence",
+      "corrected Gate A BAM round-trip preservation",
+      "corrected Gate B pair and mate integrity",
+      "corrected Gate C NM/oracle and CT/GA controls",
+      "corrected Gate D fragment disagreement accounting",
+      "Methx-Methrix production CpG matrix parity",
+      "Methx custom HDF5 to native Methrix HDF5 R export and reload interoperability"
+    ],
+    "release_criterion_boundary": "The accepted scope does not require a fresh seven-input legacy-equivalent scientific matrix.",
+    "seven_input_fresh_matrix": {
+      "status": "not_run",
+      "accepted_as_evidence": false,
+      "release_blocking": false,
+      "note": "The planned matrix is recorded as an explicit limitation and deferred extension, never as completed evidence."
+    }
+  },
+  "provenance": {
+    "execution_platform": "Paracloud Slurm",
+    "active_bs_pdx_input": "SRR36187610",
+    "retired_bs_pdx_input": "SRR23802966",
+    "graft_reference": "hg38@GRCh38-gencode-v44",
+    "host_reference": "mm10@GRCm38-gencode-M25",
+    "reference_fasta": "/public3/home/scg9946/otter-gate6/references/genomes/hg38/GRCh38-gencode-v44/fasta/hg38.fa",
+    "reference_cpg_universe_sha256": "553b590409fdefbd392610f06d8444888fda7c65fb0e7c5f1ee3f2e908199f69",
+    "methx_input_cov_sha256": "da7b5b5ec2c1be5528c274d102eccb62b3bc647161c5eef2a6f2bb1d0f947c4f",
+    "methx_corrected_hdf5_sha256": "001145dcfd5345fbc8427e826cc76f9fe9dff615d46b7686bf703d89c18993bd",
+    "methx_source_commit": "d1f1741",
+    "runtime_binary_digests": {
+      "gate6-nmoracle": "5b69ef7e55fd258862d01eacf1b359322a79dcb63ac79b482f63877045a33630",
+      "gate6-xenofilx-scoreaudit": "2c797a4425f8837aba39e8c9b374fe4f5ee510e1131e73b5b49a1e891182b9dd",
+      "methx-gate6-cpg-collapse-remote-r5-20260904": "b674d63312b258f2ebf046017e4245c4b5463bb185d8fe46eac03ef5d6918b6d"
+    }
+  },
+  "accepted_evidence": [
+    {
+      "id": "gate-a-bam-roundtrip",
+      "gate": "A",
+      "status": "accepted",
+      "job_ids": ["41695184"],
+      "limits": [
+        "Real frozen BS-PDX graft and host BAMs were checked for canonical record, header, auxiliary-field, and quickcheck preservation.",
+        "The contract allows declared BGZF/BAI layout and program-header changes only."
+      ],
+      "artifact_reference": "docs/gate6-toolchain-comparison-report.md"
+    },
+    {
+      "id": "gate-b-pair-integrity",
+      "gate": "B",
+      "status": "accepted",
+      "job_ids": ["41696363"],
+      "limits": [
+        "The frozen real-data input contained no incomplete fragments; mixed incomplete-fixture coverage remains a future enhancement.",
+        "The accepted result is complete-primary-mates integrity on the declared real BAM."
+      ],
+      "artifact_reference": "docs/gate6-toolchain-comparison-report.md"
+    },
+    {
+      "id": "gate-c-corrected-nm-audit",
+      "gate": "C",
+      "status": "accepted",
+      "job_ids": ["41965556", "41965558", "41965559", "41728384", "41728385"],
+      "result": {
+        "audited_records_per_primary_cell": 200000,
+        "xenofilx_oracle_equality": "200000/200000 in RNA, BS-PDX host, and BS-PDX graft cells",
+        "ct_ga_controls": "exact within each converted-reference identity universe",
+        "reference_lookup_failures": 0,
+        "malformed_alignment_failures": 0
+      },
+      "limits": [
+        "The original-reference Xenofilx current-contract semantics and strand-specific CT/GA converted-reference semantics are distinct measured contracts.",
+        "The result is not a claim that the two conversion contracts are interchangeable."
+      ],
+      "artifact_reference": "docs/active_context.md#0-gate-6-nm-semantic-correction-and-corrected-source-audit-status"
+    },
+    {
+      "id": "gate-d-corrected-disagreement-accounting",
+      "gate": "D",
+      "status": "accepted_with_documented_semantic_limitation",
+      "job_ids": ["41964124", "41967198", "41973923", "41973925"],
+      "result": {
+        "agreements": {
+          "graft_graft": 44005684,
+          "discarded_discarded": 39106
+        },
+        "disagreements": {
+          "total": 1115240,
+          "modern_only_graft": 1115239,
+          "legacy_only_graft": 1
+        },
+        "modern_only_partition": {
+          "host_absent_modern_graft_legacy_discarded": 1025732,
+          "complete_graft_host_pair_modern_graft_better_total_legacy_threshold_discarded": 88923,
+          "both_discarded_different_reason": 584,
+          "missing_score_records": 0,
+          "unexplained_disagreements": 0
+        }
+      },
+      "semantic_waiver": "The corrected modern and legacy-equivalent paths retain a bounded semantic difference in fragment membership. Every modern-only disagreement is assigned to a reproducible mapping or score-decision category, with zero unexplained disagreements. This is accepted as a documented legacy/modern semantic limitation for the current Gate 6 scope; it is not an implementation-failure waiver and does not assert exact membership equality.",
+      "historical_boundary": "The pre-fix 41,892,990 disagreement count remains historical/provenance evidence and is not used as corrected-source acceptance.",
+      "artifact_reference": "docs/gate6-toolchain-comparison-report.md#7-bam-nm-and-pdx-classification-parity-prerequisite"
+    },
+    {
+      "id": "methx-methrix-cpg-universe-parity",
+      "gate": "Methx/Methrix",
+      "status": "accepted",
+      "job_ids": ["41980752", "42034207", "42034291"],
+      "result": {
+        "cpg_count": 29401795,
+        "normalized_coordinate_sha256": "553b590409fdefbd392610f06d8444888fda7c65fb0e7c5f1ee3f2e908199f69",
+        "comparison": "Biostrings matchPattern(CG) on the frozen FASTA equals Methx reference_cpgs.ron after coordinate normalization",
+        "production_methrix_parameters": {
+          "stranded": true,
+          "collapse_strands": true,
+          "pipeline": "Bismark_cov",
+          "zero_based": false
+        },
+        "matrix_rows": 10033858,
+        "coordinate_set_match": true,
+        "coverage_value_mismatches": 0,
+        "beta_mismatches_over_1e-6": 0,
+        "matrix_mismatch_cells": 0,
+        "beta_max_abs_difference": 2.9706e-08
+      },
+      "limits": [
+        "The compute node did not have BSgenome.Hsapiens.UCSC.hg38 installed; the accepted universe claim is frozen-FASTA Biostrings/Methx RON parity, not a direct package-to-RON execution.",
+        "Methrix GRanges strand '*' and Methx RON '+' are representation differences and do not change the coordinate set."
+      ],
+      "artifact_reference": "docs/active_context.md#0-gate-6-nm-semantic-correction-and-corrected-source-audit-status"
+    },
+    {
+      "id": "methx-native-methrix-hdf5-interoperability",
+      "gate": "Methx/Methrix",
+      "status": "accepted",
+      "job_ids": ["42035667"],
+      "result": {
+        "export_function": "methx/scripts/export_methrix_hdf5.R::export_methx_h5_to_methrix",
+        "native_reload": "methrix::load_HDF5_methrix",
+        "validated": true,
+        "rows": 10033858,
+        "samples": 1,
+        "validation": [
+          "native Methrix class",
+          "row and sample metadata",
+          "assay shape",
+          "coverage exact equality",
+          "beta tolerance 1e-6",
+          "missingness mask equality"
+        ]
+      },
+      "artifact_reference": "methx/README.md"
+    },
+    {
+      "id": "craftmake-snakemake-executor-comparison",
+      "gate": "Executor parity",
+      "status": "accepted_for_declared_scope",
+      "job_ids": [],
+      "result": {
+        "accepted_evidence": [
+          "RRBS clean executor pairs",
+          "RNA-seq clean executor pairs",
+          "PDX real-Slurm paired evidence with three step2-check repeats per PDX scenario"
+        ],
+        "claim_boundary": "This is executor/completion-path evidence, not a fresh seven-input legacy-equivalent scientific matrix."
+      },
+      "artifact_reference": "docs/gate6-toolchain-comparison-report.md#2.3"
+    }
+  ],
+  "deferred_nonblocking_work": [
+    {
+      "id": "fresh-seven-input-legacy-equivalent-matrix",
+      "status": "deferred",
+      "release_blocking": false,
+      "reason": "The accepted comparison scope is closed without this unrun matrix; retaining it as future evidence avoids falsely claiming completion."
+    },
+    {
+      "id": "representative-20-by-3",
+      "status": "deferred",
+      "release_blocking": false,
+      "reason": "Future reproducibility qualification, not required for the current scope decision."
+    },
+    {
+      "id": "production-scale-scheduler-pressure",
+      "status": "deferred",
+      "release_blocking": false,
+      "reason": "Future performance qualification; existing Methx and PDX observations are bounded and must not be generalized to whole-toolchain throughput."
+    },
+    {
+      "id": "wgbs-srr6373947",
+      "status": "deferred",
+      "release_blocking": false,
+      "reason": "Primary reference and acquisition provenance requalification remain future work."
+    },
+    {
+      "id": "snakemake-pdx-interruption-recovery",
+      "status": "deferred",
+      "release_blocking": false,
+      "reason": "The accepted Craftmake-Snakemake comparison is complete; further interruption, retry, resume, and post-recovery scientific comparison requires separate authorization."
+    }
+  ],
+  "remaining_closeout": [
+    "Review and archive this evidence register",
+    "Record the final Gate 6 decision log",
+    "Perform BS-PDX publication and complete artifact-manifest verification only if formal publication is required"
+  ],
+  "document_boundaries": {
+    "historical_records_modified": false,
+    "production_artifacts_modified": false,
+    "archived_evidence_rewritten": false,
+    "fresh_seven_input_matrix_claimed_complete": false
+  }
+}

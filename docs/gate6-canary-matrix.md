@@ -2,9 +2,11 @@
 
 This matrix freezes the production-grade canary inputs and comparison cells for the active non-WGBS scenarios. It applies only after the paired source FASTQs and selected reference release pass compute-node visibility and checksum verification.
 
-> **Current report:** See [Gate 6 新旧工具链比较报告](gate6-toolchain-comparison-report.md) for the 2026-08-26 consolidated evidence, including the BS-PDX `SRR36187610` Methx benchmark and formal `step3-check` acceptance. The current evidence is bounded canary and implementation acceptance; it does not close the representative, scale, WGBS, or full fresh modern-vs-legacy matrix gates.
+> **Current Gate 6 decision (2026-09-05):** The accepted Craftmake–Snakemake executor-comparison scope, corrected Gate A–D evidence, and Methx/Methrix parity are complete. The fresh seven-input legacy-equivalent scientific matrix was not run and is a deferred non-blocking limitation. WGBS `SRR6373947`, representative `20 samples × 3 repeats`, production-scale pressure testing, and additional Snakemake recovery work are deferred extensions, not current promotion blockers. See the [closeout evidence register](gate6-closeout-evidence-register.json).
+>
+> **Current report:** See [Gate 6 新旧工具链比较报告](gate6-toolchain-comparison-report.md) for the consolidated evidence and final scope boundary. The current evidence is bounded canary, implementation, and accepted executor-parity evidence; it does not claim the unrun fresh seven-input matrix or production-scale qualification.
 
-## Consolidated Status (2026-08-26)
+## Consolidated Status (2026-09-05)
 
 | Evidence area | Status | Evidence |
 |---|---|---|
@@ -13,9 +15,11 @@ This matrix freezes the production-grade canary inputs and comparison cells for 
 | RNA-seq executor parity | Accepted bounded evidence | r31 fresh Craftmake/Snakemake pair completed all phases with artifact verify/compare |
 | PDX executor parity | Accepted bounded scheduler evidence | BS-PDX and RNA-PDX real Slurm paired `step2-check` repeats; performance interpretation remains descriptive |
 | BS-PDX Methx annotation | Passed bounded performance acceptance | 7,290,833 CpGs, v2 binary index, 5/5 outputs, details rows 7,290,834, formal checker controller `41687475` exit 0 |
-| Fresh seven-input modern-vs-legacy scientific parity | Open | Requires fresh paired immutable snapshots and complete artifact/semantic comparisons |
-| Representative and scale gates | Open | `20 samples × 3 repeats` and scheduler-pressure evidence are not complete |
-| WGBS | Deferred | `SRR6373947` needs primary-reference requalification and acquisition provenance |
+| Fresh seven-input modern-vs-legacy scientific parity | Deferred, non-blocking | Matrix was not run; this is an explicit limitation, not completed evidence |
+| Representative and scale gates | Deferred, non-blocking | `20 samples × 3 repeats` and scheduler-pressure evidence are future qualification |
+| Gate D fragment accounting | Accepted with documented semantic limitation | Jobs `41973923`/`41973925`; all `1,115,239` modern-only disagreements partitioned, unexplained `0` |
+| Methx/Methrix CpG and matrix parity | Accepted | CpG universe and production `stranded=TRUE, collapse_strands=TRUE` matrix parity; see closeout register |
+| WGBS | Deferred | `SRR6373947` requalification is outside the current Gate 6 scope |
 
 The `modern` and `legacy-equivalent` labels describe workflow/tool mappings. Rust Bismark 3.1.0 and Bowtie2 2.5.4 remain shared pinned runtime dependencies and are not a Perl-versus-Rust comparison axis.
 
@@ -68,15 +72,15 @@ Archive identities were SDL-verified before upload and rechecked by each decode 
 
 The previously accepted BS-PDX and RNA-PDX Xenofilx replays remain executor evidence only. They do not satisfy this source-input gate and must not be extrapolated to full production qualification.
 
-## Seven-Input Craftmake Toolchain Cells (2026-08-15)
+## Seven-Input Craftmake Toolchain Cells (2026-08-15; deferred extension)
 
-The seven decoded inputs above form the next toolchain-comparison corpus. Before submission, each accepted input must be represented by an immutable `otter.sra-acquisition/v1` record and a fresh Otter-resolved `otter.run/v1` snapshot. Otter owns project/sample/reference/provenance validation and snapshot generation; Craftmake, reached through `otter run --executor craftmake`, is the only workflow planner, Slurm submitter, resume controller, status/log provider, and report generator. Handwritten production `run.yaml` and direct workflow `sbatch` submission are prohibited.
+The seven decoded inputs below were prepared as a potential Craftmake-driven comparison corpus. The fresh legacy-equivalent scientific matrix was not run and is no longer a Gate 6 release criterion. The acquisition and step1 records are retained as historical provenance; they do not constitute completed seven-input matrix evidence.
 
 The shared phase envelope is raw `fastqcx` plus FastQC/SeqKit oracle QC, common pinned Trim Galore, and trimmed `fastqcx` plus FastQC/SeqKit oracle QC. Trim Galore is fixed across both toolchains. Downstream comparison is assay-specific: two RRBS inputs, three RNA-seq inputs, one BS-PDX input, and one RNA-PDX input. `pairbam`/`bamdriver` applies only to BS (RRBS/WGBS) and BS-PDX paired-BAM phases; RNA-seq and RNA-PDX must not schedule it. WGBS is not part of this corpus. Snakemake is excluded from these main toolchain cells and remains only for minimal compatibility/recovery closeout.
 
-### Step1 (QC + Trim Galore) execution status (2026-08-15)
+### Historical Step1 record (2026-08-15)
 
-All seven inputs now have create-only `otter.sra-acquisition/v1` records and fresh Otter-resolved `otter.run/v1` snapshots (per-project `data/<sample>_R1/_R2.fastq.gz` symlinks to the acquisition-declared `decoded/R1/R2.fastq.gz`; frozen digests match the acquisition manifests). The comparison runtime is isolated at `otter-gate6/toolchain-comparison-20260815T070000Z/runtime` with a static Otter, a static current-session Craftmake, and the current workflow catalog. The catalog step1 YAML files run six per-sample tasks: modern `fastqc_before`/`fastqc_after` (fastqcx), shared `trim_reads` (Trim Galore), and legacy `fastqc_before`/`fastqc_after` (FastQC 0.12.1) + `seqkit_statistics` (SeqKit 2.13.0) via `enva run otter-core --`.
+The following records document the prepared seven-input corpus and must not be interpreted as completion of the deferred fresh matrix. They are retained for provenance and incident history.
 
 Step1 was submitted through `otter run --foreground --executor craftmake --phase step1` per project (Slurm controller jobs). Completed with `status: succeeded`:
 

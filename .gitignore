@@ -103,6 +103,9 @@ coverage.out
 test_results/
 *.test
 
+# Local Gate 6 scratch notebooks
+/scripts/test.ipynb
+
 # Build artifacts
 dist/
 build/

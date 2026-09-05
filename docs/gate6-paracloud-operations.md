@@ -1,5 +1,9 @@
 # Gate 6 Paracloud Operations Record
 
+> **Current Gate 6 decision (2026-09-05):** The accepted real-Slurm Craftmake–Snakemake executor evidence, corrected Gate A–D evidence, and Methx/Methrix parity are complete for the declared scope. The fresh seven-input legacy-equivalent matrix was not run. WGBS requalification, representative repeats, production-scale pressure testing, and additional Snakemake recovery are deferred non-blocking extensions. This record preserves immutable operational history and must not be read as a requirement to reopen those workstreams.
+>
+> See the [Gate 6 closeout evidence register](gate6-closeout-evidence-register.json) and [consolidated comparison report](gate6-toolchain-comparison-report.md) for the current decision boundary.
+
 > Updated: 2026-08-15. This record distinguishes accepted production evidence from future workflow policy.
 
 ## Connection Boundary

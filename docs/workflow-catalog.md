@@ -1,6 +1,6 @@
 # Otter Workflow Catalog
 
-> 状态：四个 Craftmake workflow families（覆盖五个 scenario）和 Snakemake compatibility completion path 都可生成同一 immutable artifact manifest contract；但尚未满足完整 workflow orchestration、真实 Snakemake/SLURM execution、科学 parity 或 sbatch 生产验证的完成条件。
+> **Current Gate 6 decision (2026-09-05):** The accepted Craftmake–Snakemake executor-comparison scope, corrected Gate A–D evidence, and Methx/Methrix parity are complete. The fresh seven-input legacy-equivalent scientific matrix was not run and is deferred, non-blocking. WGBS `SRR6373947`, representative repeats, production-scale qualification, and additional Snakemake recovery are deferred extensions. The catalog documents executable contracts and historical compatibility evidence; it does not turn deferred work into a release requirement.
 
 ## 实施状态 (2026-07)
 
@@ -93,7 +93,7 @@ ingest → qc_raw → prepare → separate → align → quantify → qc_final �
 ingest → qc_raw → prepare → separate → align → quantify → qc_final → publish
 ```
 
-使用 RNA-specific species separation 与 STAR/GTF quantification。Snakemake compatibility assets use the immutable run's digest-bound Picard fixed-BAM and common Xenofilx filtered BAM/BAI contract; actual Snakemake execution remains required before it enters a production matrix.
+使用 RNA-specific species separation 与 STAR/GTF quantification。Snakemake compatibility assets preserve the immutable run's digest-bound contract and common Xenofilx filtered BAM/BAI contract; accepted bounded executor evidence is recorded separately, while no new Snakemake recovery work is required for the current Gate 6 scope.
 
 关键 artifact：classification counts、graft RNA FASTQ/BAM、STAR BAM、gene counts/matrix、splicing tables、QC summary。
 
@@ -122,7 +122,7 @@ ingest → qc_raw → prepare → separate → align → quantify → qc_final �
 
 Phase-local sample validation uses `docs/schema/otter-sample-artifacts-validation-v1.schema.json` where migrated. `otter.sample-artifacts-validation/v1` records workflow/phase, validated sample dimensions, and every regular non-empty input file's path, media type, byte size, and SHA-256; it is not an artifact-publication manifest. PDX aggregate filtered BAM validation uses `docs/schema/otter-filtered-bam-validation-v1.schema.json`; `otter.filtered-bam-validation/v1` binds every graft sample to its regular filtered BAM/BAI paths, sizes, SHA-256 checksums, and mapped-read count.
 
-Craftmake `BeaverBS/publish.yaml`、`BeaverRNA/publish.yaml`、`BeaverPDX/publish.yaml`、`BeaverRNASEQPDX/publish.yaml` 与 Snakemake compatibility completion path 都使用相同的 versioned declaration / immutable manifest APIs。BeaverBS stage Methrix HDF5、Bismark summary 与 QC workbook；BeaverRNA stage count/normalized expression matrices、QC workbook、`otter.rna-splicing-outcome/v1` outcome 与 status 为 `produced` 时的实际 splicing files；两条 PDX producer 都验证每个 graft BAM/BAI pair 和 mapped-read count，并分别 stage 自己的科学产物。RNA-PDX 使用相同 typed outcome contract，不再将 success marker 声明为 scientific artifact。`inst/rules/` 与 `inst/rules_legacy/` 的 Snakemake splicing rule 也生成相同的 typed outcome，且当 splicing 工具成功但没有产生文件时 fail closed。兼容发布仅在 `ExecuteAll()` 成功后运行、重新验证 immutable snapshot、在 results-local staging 构建 producer-owned directories、以 create-only manifest publication 完成并立即 checksum verify；当前只有 fixture/local contract evidence，不能视作真实 Snakemake/SLURM publish 证据。
+Craftmake `BeaverBS/publish.yaml`、`BeaverRNA/publish.yaml`、`BeaverPDX/publish.yaml`、`BeaverRNASEQPDX/publish.yaml` 与 Snakemake compatibility completion path 都使用相同的 versioned declaration / immutable manifest APIs。BeaverBS stage Methrix HDF5、Bismark summary 与 QC workbook；BeaverRNA stage count/normalized expression matrices、QC workbook、`otter.rna-splicing-outcome/v1` outcome 与 status 为 `produced` 时的实际 splicing files；两条 PDX producer 都验证每个 graft BAM/BAI pair 和 mapped-read count，并分别 stage 自己的科学产物。RNA-PDX 使用相同 typed outcome contract，不再将 success marker 声明为 scientific artifact。`inst/rules/` 与 `inst/rules_legacy/` 的 Snakemake splicing rule 也生成相同的 typed outcome，且当 splicing 工具成功但没有产生文件时 fail closed。兼容发布仅在 `ExecuteAll()` 成功后运行、重新验证 immutable snapshot、在 results-local staging 构建 producer-owned directories、以 create-only manifest publication 完成并立即 checksum verify。相关真实 Craftmake–Snakemake executor evidence 已接受；新的 Snakemake interruption/recovery 工作不属于当前 Gate 6 closeout。
 
 ```json
 {

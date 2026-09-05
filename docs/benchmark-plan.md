@@ -1,20 +1,21 @@
 # Otter Benchmark Plan
 
-> **Current status (2026-08-26):** The consolidated Gate 6 evidence is recorded in [Gate 6 新旧工具链比较报告](gate6-toolchain-comparison-report.md). The historical RRBS and RNA-seq executor-parity gates are accepted; PDX has bounded real-Slurm paired evidence; BS-PDX `SRR36187610` Methx annotation benchmark and formal `step3-check` are accepted. The representative 20-cell × 3-repeat matrix, production-scale scheduler-pressure gate, WGBS, and a complete fresh seven-input modern-vs-legacy scientific comparison remain open.
+> **Current status (2026-09-05):** The accepted Gate 6 comparison scope is complete for the real-Slurm Craftmake–Snakemake executor evidence, corrected Gate A–D evidence, and Methx/Methrix parity. The planned fresh seven-input legacy-equivalent matrix was not run and is a deferred, non-blocking limitation. WGBS requalification, representative `20 samples × 3 repeats`, production-scale scheduler-pressure, and additional Snakemake recovery are deferred extensions. See the [Gate 6 closeout plan](notes/2026-09-02-gate6-closeout-plan.md) and [closeout evidence register](gate6-closeout-evidence-register.json).
 
 > **Interpretation boundary:** Methx's 3m40s full-process result and the 1m55s formal checker result are implementation/performance evidence for the v2 annotation index and interval-query optimization. They are not a whole-pipeline modern-vs-legacy speedup claim. The BS-PDX dataset switch from `SRR23802966` to `SRR36187610` also makes direct end-to-end timing comparisons non-equivalent.
 
-## 0. Execution Plan and Delivery Gates
+> **Evidence boundary:** Gate D's full mapping and score-decision accounting is closed with zero unexplained disagreement; the bounded legacy/modern semantic difference is documented and does not assert exact membership equality. The corrected XG-aware human/mouse mixture benchmark is complete and archived under `xenofilx/benchmark/`.
+
 
 本计划将“已有对比数据”“可用于技术判断的对比数据”和“可用于生产放行的对比数据”严格区分。所有时间均按实际 Paracloud Slurm 队列可用性估算，不把排队时间伪装成执行时间。
 
 | 阶段 | 工作内容 | 交付物 | 预计耗时 | 放行条件 |
 |---|---|---|---:|---|
-| P0–P1 | 运行时/参考前置条件与 RRBS recovery closeout | Completed | 已有 immutable runtime/reference 与 RRBS recovery/semantic evidence；历史任务描述保留作审计记录 |
+| P0–P1 | 运行时/参考前置条件与 RRBS recovery closeout | Completed | 已有 immutable runtime/reference、RRBS recovery/semantic evidence，以及 corrected Gate A–D evidence |
 | P2 | RNA-seq、BS-PDX、RNA-PDX paired canary | Completed, bounded | 三场景均已完成 fresh paired executor evidence；不等同于生产数据或代表性 acceptance |
-| P3 | 至少三次 paired repeat 的小样本 benchmark | Partially completed | BS-PDX 与 RNA-PDX `step2-check` 已各完成三次；其余场景、其他 phase 与 topology-identical microbenchmark 仍开放 |
-| P4 | 20-cell × 3 representative matrix | Not started | 等待 production input reacquisition、approved canary/recovery review 和 P3 扩展 |
-| P5 | Production throughput 与 scheduler-pressure | Not started | 仅在 P4 通过后执行 |
+| P3 | PDX paired scheduler evidence 与 Methx/Methrix parity | Completed, bounded | PDX `step2-check` 三次 paired evidence、production Methx/Methrix matrix parity 与 HDF5 interoperability 已登记 |
+| P4–P5 | Fresh seven-input matrix、代表性 repeats、scale/WGBS/Snakemake recovery | Deferred, non-blocking | fresh matrix 未执行；其余项目作为未来 qualification，不属于当前 Gate 6 release criteria |
+| P10 | Evidence register、decision record 与条件性 publication verification | Current closeout | 仅在正式发布要求存在时执行 BS-PDX publication/artifact verification |
 
 **预计获得数据的时间点：**
 
@@ -38,15 +39,19 @@
 
 The `✅` marks in the Modern and Legacy-equivalent columns describe available toolchain mappings only; they do not mean that the corresponding scenario has passed a production-grade canary or parity gate. `△` records partial evidence that is intentionally insufficient for promotion.
 
-## 1.1 Seven-Decoded-FASTQ Toolchain Comparison (2026-08-15)
+## 1.1 Seven-Decoded-FASTQ Toolchain Comparison (2026-08-15; deferred extension)
 
-The next comparison corpus consists of the seven Paracloud-ready paired FASTQ datasets recorded in `docs/gate6-paracloud-operations.md`: human RRBS `SRR31480456`, mouse RRBS `SRR10025242`, human RNA-seq `SRR1039508` and `SRR018258`, mouse RNA-seq `SRR037954`, BS-PDX `SRR23802966`, and RNA-PDX `SRR30880970`. WGBS `SRR6373947` remains deferred.
+The seven Paracloud-ready paired FASTQ datasets listed below were prepared as a potential fresh legacy-equivalent comparison corpus. The fresh matrix was not run and is no longer a Gate 6 release criterion. The corpus and its provenance remain documented for future authorized work; this section must not be read as completed seven-input scientific evidence.
 
 Every comparison run must be created by `otter config validate` and `otter config resolve`, which materialize a fresh immutable `otter.run/v1` snapshot. Otter owns project, sample, reference, acquisition-provenance, and input-identity validation. Craftmake is the only workflow control plane: `otter run --executor craftmake` delegates planning, submission, resume, status, logs, and reporting to Craftmake. Production workflow tasks must not be submitted through handwritten `run.yaml` files or direct `sbatch` invocations.
 
 All seven inputs follow the same fixed pre-processing boundary: raw paired FASTQ receives modern `fastqcx` and legacy FastQC + SeqKit QC, then the same pinned Trim Galore invocation, then modern and legacy QC of the trimmed pair. Trim Galore is a shared fixed transformation in this comparison; it is not a new-versus-legacy trimming axis. The downstream cells are RRBS (`fastqcx + methx + qctb` versus `FastQC + Bismark + Methrix`), RNA-seq (`fastqcx + seq2mat + matsrun + qctb` versus `FastQC + STAR + HTSeq + rMATS`), BS-PDX (`fastqcx + xenofilx + methx + qctb` versus `FastQC + XenofilteR + Bismark + Methrix`), and RNA-PDX (`fastqcx + xenofilx + seq2mat + matsrun + qctb` versus `FastQC + XenofilteR + STAR + HTSeq + rMATS`). `pairbam` and `bamdriver` are compared only in BS (RRBS/WGBS) and BS-PDX paired-BAM phases; they are not RNA-seq or RNA-PDX operators.
 
 Snakemake remains an explicit compatibility/rollback executor only. The planned seven-sample toolchain matrix is Craftmake-driven; only the separately documented real-workflow interruption/retry, publication/recovery, and compatibility-smoke debt may use Snakemake.
+
+## 1.2 BAM/NM and PDX classification prerequisite — accepted (2026-09-05)
+
+The corrected Gate A–D prerequisite is complete for the accepted Gate 6 scope. `bamdriver` preservation, `pairbam` fragment/mate preservation, Xenofilx NM validation against an independent oracle, CT/GA controls, and fragment-level Xenofilx versus `Picard NM patch + XenofilteR` accounting are recorded in the [closeout evidence register](gate6-closeout-evidence-register.json). Gate D covers all `1,115,239` modern-only disagreements with zero missing score records and zero unexplained disagreements; exact modern/legacy membership equality is not claimed.
 
 ## 2. Parity Criteria
 
@@ -59,13 +64,15 @@ Snakemake remains an explicit compatibility/rollback executor only. The planned 
 
 ## 3. Cluster Dependencies
 
+The accepted Gate 6 scope does not include a new representative matrix, production-scale pressure test, WGBS requalification, or additional Snakemake recovery exercise. Those are deferred non-blocking extensions. Existing real-Slurm Craftmake–Snakemake paired evidence remains historical/accepted executor evidence, while the corrected Gate A–D and Methx/Methrix results are recorded in the [closeout register](gate6-closeout-evidence-register.json).
+
 | Gate 6 子项 | 集群需求 | 状态 |
 |---|---|---|
-| canary | Accepted Paracloud runtime/reference plus checksum-verified canary fixtures; production candidates still require reacquisition | RRBS, RNA-seq, BS-PDX, and RNA-PDX bounded executor parity accepted; production-data requalification remains open |
-| representative | Slurm + approved 20-cell inputs + ≥3 runs per cell | Blocked on production input reacquisition and P3 expansion; no 60-run matrix submitted |
-| failure injection | Local backend plus real-Slurm recovery evidence | Local contract plus RRBS real-Slurm interruption/resume, publication retry, and failed-task retry accepted; additional scenario-specific exercises are part of the canary expansion |
-| scale | Production-scale data + scheduler-pressure monitoring | Blocked on representative acceptance and approved production inputs |
-| metrics | Versioned metrics/evidence schema and report generation | ✅; PDX repeated scheduler source/summary/chart are retained under `craftmake/doc/benchmarks/` |
+| canary | Accepted Paracloud runtime/reference plus checksum-verified fixtures | RRBS, RNA-seq, BS-PDX, and RNA-PDX bounded executor parity accepted |
+| representative | Slurm + approved 20-cell inputs + ≥3 runs per cell | Deferred; no 60-run matrix submitted |
+| failure injection | Local backend plus real-Slurm recovery evidence | RRBS recovery and publication retry accepted; additional scenario-specific recovery deferred |
+| scale | Production-scale data + scheduler-pressure monitoring | Deferred future qualification |
+| metrics | Versioned metrics/evidence schema and report generation | ✅; PDX repeated scheduler source/summary/chart retained |
 
 ## 4. Gate 6 Reference-build Baseline
 
@@ -159,19 +166,20 @@ Automatic retry is permitted only for bounded scheduler-submission or network-ac
 
 ### Gate Sequence
 
-1. Publish and verify seed-bound immutable inputs.
-2. Run Craftmake and explicit Snakemake modern canaries on compute nodes.
-3. Verify artifacts and perform executor parity plus scenario semantic review.
-4. Run real Slurm cancel, task-failure, controller-loss/resume, and publication-retry evidence.
-5. Only then run the 20-sample, three-repeat representative matrix, reporting median/range and incident review.
-6. Run production-scale throughput/scheduler-pressure jobs only after representative acceptance.
+1. Preserve and link the accepted immutable-input, executor-parity, corrected Gate A–D, and Methx/Methrix evidence.
+2. Complete the evidence register and final Gate 6 decision record.
+3. Perform BS-PDX publication and artifact-manifest verification only if formal publication is required.
+4. Keep the fresh seven-input matrix, representative repeats, scale qualification, WGBS requalification, and additional Snakemake recovery as deferred future extensions.
 
 ## 9. 实施检查清单
 
 - [x] 6.1 — Benchmark plan + metrics schema
 - [x] 6.2 — Failure injection tests (local)
-- [ ] 6.3 — Production-grade canary：为 RRBS、RNA-seq、BS-PDX、RNA-PDX 生成 seed-bound immutable downsampled inputs，并各自运行 Craftmake 与 explicit Snakemake 的 Slurm canary
-- [ ] 6.4 — Canary semantic parity 与真实 Slurm recovery：artifact manifest/structural validation、scenario-specific comparator、cancel/retry/controller-loss evidence
-- [ ] 6.5 — Representative (20-cell × 3 runs)：仅在 canary/parity/recovery 全部通过后启动
-- [ ] 6.6 — Scale (production throughput)
-- [ ] 6.7 — Publish immutable benchmark and parity reports per scenario × toolchain
+- [x] 6.3 — Accepted bounded canary and executor-parity evidence for RRBS, RNA-seq, BS-PDX, and RNA-PDX
+- [x] 6.4 — Corrected Gate A–D audits, Methx/Methrix CpG/matrix parity, and documented evidence boundaries
+- [ ] 6.5 — Deferred: representative `20 samples × 3 runs` matrix
+- [ ] 6.6 — Deferred: production throughput and scheduler-pressure qualification
+- [x] 6.7 — Publish and link the Gate 6 closeout register and final scope record
+- [ ] 6.8 — Conditional: BS-PDX publication and complete artifact-manifest verification if formal publication is required
+
+Items 6.5 and 6.6 are explicitly non-blocking future qualification. WGBS requalification and additional Snakemake interruption/recovery comparison are also deferred and are not separate current checklist blockers.

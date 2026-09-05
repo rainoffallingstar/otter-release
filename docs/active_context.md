@@ -1,6 +1,33 @@
-# System Context (Updated: 2026-08-13)
+# System Context (Updated: 2026-09-04)
 
-## 1. 已实现的核心模块 (Modules)
+# Current Gate 6 decision banner (2026-09-05)
+
+The accepted Gate 6 comparison scope is complete. Accepted evidence includes the real-Slurm Craftmake–Snakemake executor comparison, corrected Gate A/B preservation, corrected Gate C NM/oracle and CT/GA controls, corrected Gate D complete disagreement accounting, and Methx/Methrix production CpG matrix parity. The planned seven-input fresh legacy-equivalent matrix was **not run** and is not represented as completed evidence; it is now a deferred, non-blocking limitation. WGBS `SRR6373947`, representative `20 samples × 3 repeats`, production-scale/scheduler-pressure testing, and additional Snakemake interruption/recovery work are deferred extensions rather than current Gate 6 blockers. Only the closeout evidence register, decision record, and any conditional BS-PDX publication/artifact verification remain.
+
+## 0. Gate 6 NM semantic correction and corrected-source audit status
+
+源码审计发现 `bamdriver/pkg/bamnative.CalculateNMCheckedWindow` 在 bisulfite 模式下此前无条件同时豁免 `C->T` 与 `G->A`，没有按 SAM `FLAG 0x10` 区分 read strand；`CIGAR X` 也绕过了转换判断。当前工作树已修改为：forward read 仅豁免 `C->T`，reverse read 仅豁免 `G->A`；`M` 和 bisulfite 模式的 `X` 应用相同的链特异转换检查，conventional 模式的 `X` 仍按操作长度计入 NM。
+
+已新增并通过 bamdriver 的 strand-aware NM、`X` CIGAR、独立 `nmoracle` 回归测试，以及 Xenofilx classifier wrapper 回归测试。当前 corrected-source 定向验证已通过：`bamdriver` 的 `pkg/bamnative` 与 `cmd/nmoracle` 测试及 `go vet` 通过；Xenofilx `internal/classifier` 测试及 `go vet` 通过。修复后的两个静态 audit binary 已完成本地构建、SHA-256 记录和远端部署；部署前旧版本已备份。
+
+远端 corrected binary：
+
+- `gate6-nmoracle`：`5b69ef7e55fd258862d01eacf1b359322a79dcb63ac79b482f63877045a33630`
+- `gate6-xenofilx-scoreaudit`：`2c797a4425f8837aba39e8c9b374fe4f5ee510e1131e73b5b49a1e891182b9dd`
+
+旧版本备份位于 runtime 下的 `gate6-corrected-backup-20260904/`。RNA 与 BS-PDX corrected read-level audits 已提交：`41965556`（RNA human `SRR1039508`）、`41965558`（BS-PDX host mm10）和 `41965559`（BS-PDX graft hg38）。审计已完成；旧的 `41,892,990` fragment disagreement 仍仅作为历史 baseline，不是当前 corrected-source 结论。
+
+Gate D provenance 路径问题已单独修复并确认：作业 `41964124` 使用冻结 run `run-20260823T034624Z-ndcwfa` 的逻辑路径生成报告。修正后的 membership comparison `41967198` 保留 `1,115,240` 个 disagreements，与该 baseline 完全一致；stratification `41972977` 的 10,000 个确定性样本中，9,192 个为 host-absent，808 个为两参考 complete-pair。score-decision audit `41973407` 完成后显示：9,190 个属于 host-absent score/threshold 差异，808 个属于两参考均映射但 modern 判定 graft-better-total、legacy 因 threshold discarded，另有 2 个双方均 discarded 但原因不同。全量 mapping stratification `41973923` 已成功完成，覆盖全部 `1,115,239` 个 modern-only disagreements：`1,026,316` 个为 host-absent，`88,923` 个为 graft/host 均 complete-pair；全部 `1,115,239` 个 modern 为 complete-pair、legacy 为 none。依赖的全量 score-decision audit `41973925` 也已成功完成，且无 missing score records：`1,025,732` 个为 modern host-absent graft、legacy host-absent discarded，`88,923` 个为 modern graft-better-total、legacy threshold-discarded，`584` 个为双方 discarded 但触发原因不同。三类合计正好覆盖全部 modern-only disagreements，Gate D 的 disagreement accounting 已闭合；bounded legacy/modern semantic difference 已纳入 closeout evidence register，属于记录明确的 scientific limitation，不是未解决的 corrected-source failure。
+
+CpG universe parity 已完成：在同一份冻结 `hg38@GRCh38-gencode-v44` FASTA 上，R/Biostrings `matchPattern("CG")` 的标准染色体结果与 Methx `reference_cpgs.ron` 在统一为 `chr, 0-based start, end-exclusive, strand` 后逐字节一致。两者均为 `29,401,795` 个 CpG，标准化 TSV SHA-256 均为 `553b590409fdefbd392610f06d8444888fda7c65fb0e7c5f1ee3f2e908199f69`，`cmp` exit `0`。这与 Methrix 1.8.1 `extract_CPGs()` 的实现语义一致：对标准染色体执行 `matchPattern("CG")`；但计算节点未安装 `BSgenome.Hsapiens.UCSC.hg38`，因此该证据严格表述为“同一冻结 FASTA 的 Biostrings/Methx RON locus parity”，不把它误写成已直接加载 BSgenome 包的独立 package-to-RON 验收。Methrix GRanges 的默认 strand 表示为 `*`，而 Methx RON 使用 `+`；这是 CpG 位点表示差异，不改变坐标集合。
+
+## 1. 2026-09-03 RNA 人鼠混样 benchmark 状态
+
+已完成 50:50 RNA-seq 混样 pilot：human `SRR1039508` 与 mouse `SRR037954`，两次各 `1,000,000` fragments，STAR 双参考比对，Xenofilx 与 XenofilteR 均使用 conventional NM。4 个双方向分析作业 `41929279`–`41929282` 全部 exit `0`；两个工具在两个 replicate、两个 graft 方向上的 fragment 选择完全一致。human-graft recall 为 `96.7456%`–`96.7656%`，mouse-graft recall 为 `75.5026%`–`75.5986%`。完整证据位于远端 `gate6-human-mouse-rna-mixtures-20260903`。
+
+已完成相同输入、reference、阈值 `6` 和 unmapped penalty `8` 的 `0.60/0.70/0.80/0.90/0.95/0.99` human-fraction 梯度，每个比例两个 replicate，并在 human-graft/mouse-host 与 mouse-graft/human-host 两个方向评估。12 个混样构建作业为 `41938577`–`41938584`、`41938586`–`41938589`，24 个梯度分析作业为 `41941612`–`41941638`（排除未使用 ID）和 `41945110`–`41945113`，均 exit `0`。human-graft recall 全范围约为 `96.76%`，mouse-graft recall 至少到 `95%` human 时仍约 `75.5%–75.7%`，在 `99%` human 时为 `75.43%`；两工具在全部 28 个 cell 的 fragment membership 和 confusion matrix 一致。完整 local TSV、JSON provenance index 与 benchmark brief 已保存在 `xenofilx/benchmark/`。该 RNA 混样 benchmark 是独立的算法/方向性证据；它不替代七输入 fresh matrix、代表性矩阵或 scale gate，但这些项目已按当前 scope decision 明确 deferred，不再作为 Gate 6 closeout blocker。
+
+## 2. 已实现的核心模块 (Modules)
 
 ### Reference release builder
 - **Path**: `cmd/reference.go`, `internal/reference/build.go`, `internal/reference/build_types.go`
@@ -82,6 +109,21 @@
 | `otter artifact compare` | left/right `run.yaml` | comparison report |
 
 ## 4. Gate 6 Production Validation Update (2026-08-13)
+
+### BAM/NM/classification prerequisite checkpoint (2026-08-26)
+
+- Added `docs/notes/2026-08-26-gate6-bam-nm-classification-parity-plan.md` covering Gate A bamdriver record preservation, Gate B pairbam fragment integrity, Gate C independent Xenofilx reference-aware score validation, and Gate D Picard + XenofilteR fragment-level classification parity.
+- Updated `docs/gate6-toolchain-comparison-report.md` and `docs/benchmark-plan.md`: the fresh seven-input modern-vs-legacy matrix is blocked until these four gates pass.
+- Code audit confirmed Xenofilx `--recalculate-nm` currently computes an in-memory reference-aware value for classification and does not rewrite output `NM:i`; the future audit must capture score components before BAM writing.
+- Discovered controlled remote dependencies: `xenofilx 0.1.0-direct-bamdriver-region-r34`, `pairbam 0.1.0-direct-bamdriver-region-r34`, and `XenofilteR 1.6`. The inherited `picard-3.4.0-0` wrapper is unusable because its Conda Java has a dynamic-link failure and system Java 8 cannot load its Java 17 class files. Created dedicated Enva manifest `enva/src/configs/gate6-picard-java17.yaml` with `openjdk=17` and `picard=3.4.0`; Slurm job `41695075` successfully created the isolated prefix at `/public3/home/scg9946/.local/share/mamba/envs/gate6-picard-java17`. Direct prefix Java reports `17.0.18-internal`, and direct Picard JAR execution reports `Version:3.4.0`; Picard information commands return status 1 by design, so the verification controller accepts status 0 or 1 and matches the expected output. Use the direct prefix Java/JAR invocation for Gate D so inherited `CONDA_PREFIX` cannot select the broken legacy wrapper Java.
+- Uploaded `scripts/gate6-bam-nm-baseline-controller.sh` to the isolated Gate 6 runtime and completed readonly real-BAM baseline collection as Slurm job `41694759` (exit `0`, 52m43s). Evidence is under `gate6-bam-nm-parity-20260826-bs-pdx/baseline-41694759`: 90,320,060 mapped primary graft records, 1,885,462 mapped primary host records, 90,220,046 mapped primary modern filtered graft records, complete `NM:i` coverage for all three, and empty `samtools quickcheck` diagnostics.
+- Added `enva/src/configs/gate6-picard-java17.yaml` and created the dedicated environment at `/public3/home/scg9946/.local/share/mamba/envs/gate6-picard-java17` through Slurm job `41695075`. Corrected preflight job `41695130` passed with Java `17.0.18-internal`, Picard `3.4.0`, and `SetNmMdAndUqTags`; direct prefix Java/JAR invocation is required for Gate D because the inherited Picard wrapper selects the broken Conda Java.
+
+- Gate C implementation now contains an independently traversed CIGAR/FASTA oracle (`bamdriver/cmd/nmoracle`) and an explicit Xenofilx calculator audit (`xenofilx/cmd/scoreaudit`) whose per-record values are joined by `scripts/gate6-nm-score-compare.py`. Slurm job `41695328` completed in 53 seconds on the first 200,000 mapped records of each original BS-PDX BAM. All 400,000 records had identical identity, recalculated bisulfite NM, insertion/soft-clip components, and classification score; lookup/malformed failures and differences were all zero. This validates the current non-strand-conditioned C-to-T/G-to-A behavior, not a separate strand-aware scientific claim.
+- Full Gate A real-BAM no-op round-trip job `41695184` completed successfully in 39m30s. `bamdriver` wrote and quickchecked graft/host round-trip BAMs, then matched decoded headers and ordered canonical records for all 90,320,060 graft and 1,885,462 host records, including auxiliary fields; both comparison reports have `equal=true` and identical record digests. Gate A passes the current no-op preservation contract.
+- Gate B pairbam real-data integrity job `41696363` completed successfully. On the frozen mm10 host BAM, pairbam retained all 942,731 complete primary read pairs / 1,885,462 records. The native-name-sort-aware comparator reported `equal=true`, equal retained canonical-record digest, unchanged mate reference/position/TLEN, equal headers, and an empty filtered-name manifest. This is a complete-primary-mates pass; a deliberately mixed incomplete fixture is still desirable for selection-path coverage.
+- Gate D fixture preflight passed as Slurm job `41696471`, and the full direct Picard + XenofilteR legacy run completed successfully as job `41696495` in 27m24s: Picard preserved all graft/host input record counts and XenofilteR emitted 6,434,546 filtered graft records. The first dependent membership comparison `41696588` is invalid for acceptance because its modern BAM resolved to prior run `tunvxb` rather than frozen `ndcwfa`; it reported 41,892,990 differences and is retained as a provenance incident. Corrected direct modern Xenofilx job `41696880` and dependent comparison `41696881` used physically identical frozen inputs and completed with 41,892,990 real fragment-membership disagreements. Gate D remains open pending the conventional-NM Xenofilx control and the new per-read Picard/Xenofilx NM audit.
+- Gate C per-read NM audit now extends beyond Xenofilx-vs-oracle: `xenofilx/cmd/scoreaudit` emits stored BAM NM plus actual reference-aware NM, and `scripts/gate6-nm-read-compare.py` joins Picard-patched NM against independent conventional/conversion-aware oracle values and Xenofilx by stable alignment identity. `scripts/gate6-nm-read-parity-controller.sh` supports RNA-seq conventional mode and BS-seq mode. BS-seq additionally runs Picard `IS_BISULFITE_SEQUENCE=true` and a strand-split CT/GA-converted-reference control before merging outputs. The BS-PDX host audit was submitted as Slurm job `41712539` and is running on `e0510`; graft and RNA-seq audit submission status remains under confirmation because the remote submission channel is intermittent; no per-read result is claimed yet.
 
 ### Current handoff checkpoint (2026-08-26)
 

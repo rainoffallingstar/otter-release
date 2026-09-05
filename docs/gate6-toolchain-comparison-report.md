@@ -1,8 +1,10 @@
 # Gate 6 新旧工具链比较报告
 
-> 更新时间：2026-08-26
+> 更新时间：2026-09-05
 >
-> 本报告汇总 Gate 6 当前已经获得的真实 Paracloud/Slurm 证据，并明确区分“现代工具链功能验收”“执行器 parity”“工具链 parity”“生产规模放行”。单次 canary 或单个数据集的成功，不自动等同于代表性生产 acceptance。
+> **当前状态：Gate 6 comparison scope complete.** 已接受的 Craftmake–Snakemake real-Slurm executor comparison、Gate A–D corrected evidence，以及 Methx/Methrix CpG parity 已完成。正式证据登记见 [`gate6-closeout-evidence-register.json`](gate6-closeout-evidence-register.json)。
+>
+> 本报告汇总 Gate 6 已获得的真实 Paracloud/Slurm 证据，并明确区分“现代工具链功能验收”“执行器 parity”“工具链 parity”“生产规模放行”和“明确延期工作”。
 
 ## 1. 结论摘要
 
@@ -10,7 +12,42 @@ Gate 6 的现代 Craftmake 主线已经在多个真实输入上完成了从 Otte
 
 当前最重要的性能结论是：Methx 的 CpG 注释瓶颈不是“缺少 GTF”，而是旧实现对每个 CpG 在线性扫描 dense interval bucket。已验证的运行时 binary 使用 binary annotation index；当前本地源码 diff 可审计的核心改动是 sorted interval、prefix-maximum interval query 和 Rayon 并行处理。BS-PDX 7,290,833 个 CpG 的完整运行约 3 分 40 秒；正式 Craftmake `step3-check` 使用同一 v2 index 后约 1 分 55 秒完成。
 
-这份证据支持将现代 Methx 注释实现作为 Gate 6 的候选生产实现继续推进，但尚不足以关闭 representative 20-cell × 3-repeat、全场景新旧工具链 scientific parity、WGBS 和 scale gates。
+Corrected Gate D fragment membership comparison has now completed as job `41967198`. Using the same frozen input fragment universe, corrected modern BAM and corrected strand-aware legacy BAM, it reports `44,005,684` graft/graft agreements, `39,106` discarded/discarded agreements, and `1,115,240` disagreements: `1,115,239` modern-only graft and `1` legacy-only graft. This exactly matches the provenance-corrected baseline, so the Bismark NM correction did not change the aggregate Gate D membership result under the current comparison setup.
+
+The replacement stratification job `41972977` completed successfully in `00:06:14` against a deterministic sample of `10,000` modern-only disagreements. All sampled fragments had a complete graft primary pair and no legacy filtered primary records; `9,192` (`91.92%`) had no host primary alignment, while `808` (`8.08%`) had a complete host primary pair. The latter subset requires score-level comparison rather than mapping-state explanation. The first stratification attempt (`41967199`) failed before reading data because of an obsolete evidence-directory prefix; it produced no scientific result. The controller was corrected, and score-decision audit `41973407` completed with no missing score records. Its decision pairs were: `9,190` modern host-absent graft versus legacy host-absent discarded; `808` modern graft-better-total versus legacy threshold-discarded; and `2` discarded under both paths with different reasons. The full mapping stratification `41973923` has now completed successfully over all `1,115,239` modern-only disagreements. It found `1,026,316` host-absent fragments and `88,923` fragments with complete graft and host primary pairs; every fragment was a complete modern graft pair and absent from the legacy filtered output. The dependent full score-decision audit `41973925` also completed successfully with no missing score records: `1,025,732` host-absent modern graft versus legacy discarded, `88,923` modern graft-better-total versus legacy threshold-discarded, and `584` discarded under both paths with different reasons. These categories sum exactly to all `1,115,239` modern-only disagreements, so the Gate D disagreement accounting is closed. The bounded legacy/modern semantic difference is recorded as an accepted scientific limitation in the closeout evidence register; it is not a corrected-source implementation failure.
+
+### 1.1 Corrected-source read-level audit update (2026-09-04)
+
+The corrected-source read-level audit has completed successfully for all three submitted cells:
+
+- RNA human `SRR1039508`: `41965556`, conventional mode, `200,000/200,000` Xenofilx-vs-independent-oracle score equality; Picard conventional NM also matched the conventional oracle for all `200,000` records.
+- BS-PDX host mm10: `41965558`, bisulfite mode, `200,000/200,000` Xenofilx-vs-current-contract-oracle equality; explicit `XG=CT` and `XG=GA` control arms each matched the converted-reference oracle for `200,000/200,000` records.
+- BS-PDX graft hg38: `41965559`, bisulfite mode, `200,000/200,000` Xenofilx-vs-current-contract-oracle equality; explicit `XG=CT` and `XG=GA` control arms each matched their converted-reference oracle for `200,000/200,000` records.
+
+The BS-PDX host and graft comparisons record the expected distinction between conventional and strand-aware bisulfite NM: conversion-compatible bases create large conventional-versus-bisulfite differences, while Xenofilx matches the corrected bisulfite oracle exactly. This is expected behavior, not an audit failure. Gate C read-level acceptance is complete for the audited RNA and BS-PDX cells.
+
+A dedicated RNA-seq mixture pilot has now been completed using human `SRR1039508` and mouse `SRR037954`, with STAR alignment to ordinary hg38/mm10 references and conventional reference-based NM. The 50:50 pilot used two independent 1,000,000-fragment replicates and evaluated both graft directions. Corrected jobs `41929279`–`41929282` all completed with exit `0`.
+
+Xenofilx and XenofilteR produced identical fragment selections in every pilot cell. Across replicates, human-graft recall was `96.7456–96.7656%`, while mouse-graft recall was `75.5026–75.5986%`; host specificity was `99.2142–99.2214%` and `99.9854–99.9878%`, respectively. This establishes an RNA direction asymmetry but no modern-versus-legacy disagreement in the 50:50 pilot. The results are archived under `/public3/home/scg9946/otter-gate6/evidence/gate6-human-mouse-rna-mixtures-20260903/` and remain algorithmic benchmark evidence, not full seven-input toolchain acceptance.
+
+The composition convergence extension is now complete for human fractions `0.60`, `0.70`, `0.80`, `0.90`, `0.95`, and `0.99`, with two replicates and both graft directions at every fraction. All 24 analysis jobs completed with exit `0`. Mean performance by fraction and direction was:
+
+| Human fraction | Direction | Graft recall | Host specificity | Graft precision | F1 |
+|---:|---|---:|---:|---:|---:|
+| 0.60 | human graft | 96.7558% | 99.2111% | 99.4594% | 98.0890% |
+| 0.60 | mouse graft | 75.5462% | 99.9876% | 99.9754% | 86.0608% |
+| 0.70 | human graft | 96.7620% | 99.2172% | 99.6545% | 98.1869% |
+| 0.70 | mouse graft | 75.5323% | 99.9879% | 99.9625% | 86.0470% |
+| 0.80 | human graft | 96.7690% | 99.1972% | 99.7930% | 98.2578% |
+| 0.80 | mouse graft | 75.5005% | 99.9881% | 99.9371% | 86.0169% |
+| 0.90 | human graft | 96.7606% | 99.2100% | 99.9094% | 98.3098% |
+| 0.90 | mouse graft | 75.5985% | 99.9879% | 99.8560% | 86.0504% |
+| 0.95 | human graft | 96.7585% | 99.2040% | 99.9567% | 98.3316% |
+| 0.95 | mouse graft | 75.6840% | 99.9877% | 99.6931% | 86.0450% |
+| 0.99 | human graft | 96.7628% | 99.2250% | 99.9919% | 98.3508% |
+| 0.99 | mouse graft | 75.4300% | 99.9878% | 98.4212% | 85.4053% |
+
+Fragment counts and confusion matrices matched between Xenofilx and XenofilteR in all 24 gradient reports. The two tools' output BAM record counts can differ because of mate-record representation, but their evaluated fragment membership is identical. Human-graft recall remained essentially flat around `96.76%`; mouse-graft recall remained around `75.5%–75.7%` through `0.95` and was `75.43%` at `0.99`. The data therefore do not show a strong composition-driven recall collapse. The principal finding remains a stable direction-specific asymmetry, with high host specificity in both directions.
 
 ## 2. 比较边界
 
@@ -40,21 +77,21 @@ Otter immutable run.yaml
 
 | 轴 | 固定内容 | 改变内容 | 当前证据 |
 |---|---|---|---|
-| Executor parity | 输入、参考、参数、资源、toolchain、run identity contract | Craftmake vs explicit Snakemake compatibility | RRBS 和 RNA-seq 已有 accepted clean pair；PDX 有界真实 Slurm paired evidence |
-| Toolchain parity | executor、输入、参考、参数和资源 | modern vs legacy-equivalent implementation | 仍需扩大到当前七输入 corpus 的完整 fresh paired scientific comparison |
+| Executor parity | 输入、参考、参数、资源、toolchain、run identity contract | Craftmake vs explicit Snakemake compatibility | RRBS、RNA-seq 和 PDX 的 accepted real-Slurm paired evidence 已完成；该比较范围已接受 |
+| Toolchain parity | executor、输入、参考、参数和资源 | modern vs legacy-equivalent implementation | 当前接受范围不要求重新执行七输入 fresh legacy-equivalent matrix；该矩阵未运行并登记为 deferred limitation |
 
 ## 3. 真实运行证据
 
 | 场景/输入 | 现代路径当前状态 | 旧路径/比较状态 | 结论 |
 |---|---|---|---|
 | Human RRBS `SRR31480456` | step3 与 step3-check 完成，Methx HDF5/annotation/QC 产物生成，publish/verify 完成 | 历史 RRBS clean executor-parity 与 semantic evidence 已通过 | RRBS executor parity 已有 accepted evidence；当前输入现代路径完成 |
-| Mouse RRBS `SRR10025242` | 已纳入七输入 immutable corpus，step1 decode/verifier evidence 完成 | 完整 fresh modern/legacy matrix 仍待整理 | 可继续作为 RRBS 扩展样本，不能单独关闭 representative gate |
-| Human RNA-seq `SRR1039508` | step1、step2、step2-check、publish 完成，artifact verify 通过 | RNA r31 clean Craftmake/Snakemake pair 已通过 compare | RNA executor parity accepted；需避免把历史 pair 当作当前所有输入的 toolchain parity |
+| Mouse RRBS `SRR10025242` | 已纳入 immutable corpus，step1 decode/verifier evidence 完成 | fresh seven-input legacy-equivalent matrix 未执行，已登记为 deferred limitation | 不影响当前 Gate 6 scope closeout |
+| Human RNA-seq `SRR1039508` | step1、step2、step2-check、publish 完成，artifact verify 通过 | RNA r31 clean Craftmake/Snakemake pair 已通过 compare | RNA executor parity accepted |
 | Human RNA-seq `SRR018258` | 完成并通过 publish/verify；曾有 FastQC walltime recovery incident | RNA r31 recovery/compatibility evidence 已保留 | recovery incident 已分类，不是科学失败 |
 | Mouse RNA-seq `SRR037954` | 完成并通过 publish/verify | 与 RNA executor-parity 证据相容 | 当前现代路径完成 |
 | RNA-PDX `SRR30880970` | step2-check、step3、step3-check、publish 完成，artifact verify 通过 | 真实 Slurm PDX executor-parity 有界 evidence，step2-check 三次 paired scheduler repeats | 有界 parity 通过；性能结论仅为描述性 |
-| BS-PDX `SRR36187610` | step1/step2/step2-check/step3 完成；正式 step3-check `controller 41687475` exit 0 | 真实 Slurm PDX paired evidence；完整 legacy-equivalent scientific pair 尚未完成 | 当前 Methx 与现代 PDX 路径验收通过；publish/完整 toolchain parity 仍开放 |
-| WGBS `SRR6373947` | deferred | 未提交 | 需要重新确认 primary reference 与 acquisition provenance |
+| BS-PDX `SRR36187610` | step1/step2/step2-check/step3 完成；正式 step3-check `controller 41687475` exit 0 | 真实 Slurm PDX paired evidence；Gate A–D corrected evidence 与 Methx/Methrix parity 已完成 | 当前接受范围通过；仅保留 closeout documentation |
+| WGBS `SRR6373947` | deferred | 未提交 | 明确延期，不阻塞当前 Gate 6 closeout |
 
 ## 4. BS-PDX 数据集切换与 Xenofilx 结果
 
@@ -140,7 +177,66 @@ CpG_coverage.xlsx
 
 这些数值不能直接表述为新旧生物学工具链的总体 speedup：输入、索引格式和查询算法同时发生变化，且正式 checker 与隔离 benchmark 的调度环境不同。它们只能支持 Methx 注释实现的 bounded performance acceptance。
 
-## 7. 代码与文档变更范围
+## 7. BAM, NM and PDX classification parity prerequisite
+
+The corrected Gate A–D prerequisite work is complete for the accepted Gate 6 scope. The historical prerequisite plan remains linked for provenance, but it is no longer a blocker for the current closeout. Gate A and Gate B establish real-BAM and pair preservation; Gate C establishes corrected NM/oracle agreement on the audited RNA and BS-PDX cells; Gate D completes fragment-level disagreement accounting with zero unexplained disagreement after stratification.
+
+The prerequisite gates are:
+
+| Gate | Subject | Accepted evidence |
+|---|---|---|
+| A | bamdriver decode/encode | canonical record, header, auxiliary-field, and structural preservation on frozen real BAMs |
+| B | pairbam pair handling | retained-record preservation plus complete fragment/mate accounting on the frozen host BAM |
+| C | Xenofilx NM | independent CIGAR/SEQ/reference oracle, conventional RNA audit, bisulfite audit, and CT/GA controls |
+| D | PDX classification | corrected modern-versus-legacy fragment comparison with complete mapping and score-decision reason partition |
+
+Picard remains a legacy implementation baseline, not NM ground truth. The accepted evidence binds the independent oracle, corrected source contract, input/reference identity, and Slurm jobs rather than relying on output-tag comparison alone.
+
+### 7.1 Per-read NM audit evidence, 2026-08-27
+
+The per-read audit uses a 200,000 raw-record prefix for each frozen BAM, preserves stable alignment identity (`QNAME`, `FLAG`, `RNAME`, zero-based `POS`, `CIGAR`, duplicate occurrence), and records every input/reference checksum in the source manifest. The standalone oracle is the NM authority for these checks; Picard is an implementation baseline.
+
+| Dataset / evidence | Conventional NM result | Xenofilx result | Picard bisulfite result |
+|---|---|---|---|
+| Human RNA `SRR1039508`, source job `41712621`, postprocess `41714006` | Picard conventional equals the independent conventional oracle for `200,000 / 200,000` mapped records | Xenofilx non-bisulfite recalculation and score equal the conventional oracle for `200,000 / 200,000`; zero missing identities | Not applicable |
+| BS-PDX host mm10, source job `41713979`, strand postprocess `41725232` | Picard conventional equals the independent conventional oracle for `200,000 / 200,000` records | Xenofilx `--bisulfite` NM and score equal the current-contract oracle for `200,000 / 200,000`; conventional NM total `2,643,344`, Xenofilx bisulfite NM total `50,287`, conversion-compatible positions `2,593,057` | Picard `IS_BISULFITE_SEQUENCE=true` equals the current Xenofilx/oracle bisulfite NM for `97,571 / 200,000` records |
+| BS-PDX graft hg38, source job `41715084`, strand postprocess `41725231` | Picard conventional equals the independent conventional oracle for `200,000 / 200,000` records | Xenofilx `--bisulfite` NM and score equal the current-contract oracle for `200,000 / 200,000`; conventional NM total `3,028,837`, Xenofilx bisulfite NM total `28,951`, conversion-compatible positions `2,999,886` | Picard `IS_BISULFITE_SEQUENCE=true` equals the current Xenofilx/oracle bisulfite NM for `99,219 / 200,000` records |
+
+The RNA result closes the conventional NM recalculation question for the audited prefix: Picard conventional, the independent oracle, and Xenofilx conventional all agree exactly.
+
+For both BS-PDX references, the large conventional-to-bisulfite reduction is a measured conversion-semantic difference, not an Oracle/Xenofilx implementation mismatch. Picard conventional remains exactly equal to conventional oracle NM. Picard's built-in bisulfite option matches the Xenofilx current contract for approximately half of the reads but not all reads; the discrepancy must therefore remain an explicit semantic difference rather than a generic Picard error claim.
+
+The control also ran Picard after splitting records by `FLAG 0x10`, using C-to-T-converted reference for forward records and G-to-A-converted reference for reverse records. Together, the two arms cover the full `200,000` record audit prefix for each reference; each arm has its own strand-specific identity universe. Picard NM equaled the converted-reference conventional oracle for every record in each arm on both host and graft.
+
+The identity-matched CT/GA cross-control completed as host job `41728385` and graft job `41728384`. It compares each strand-specific converted-reference Picard/Oracle/Xenofilx value to the original-reference Xenofilx current-contract bisulfite NM for the same record. The results establish that the two semantics are substantially different:
+
+- host forward CT: `72,547 / 100,038` differ; host reverse GA: `72,880 / 99,962` differ;
+- graft forward CT: `81,816 / 100,032` differ; graft reverse GA: `81,957 / 99,968` differ.
+
+Within every control arm, Picard, the converted-reference oracle and Xenofilx evaluated on that converted reference agree with each other. The observed cross-control differences therefore come from the **reference and conversion semantics**, not from Picard's NM serialization or Xenofilx's reference traversal. Xenofilx's current original-reference contract ignores both reference-C/read-T and reference-G/read-A without conditioning on `FLAG 0x10`; the strand-specific CT/GA control represents a different contract. Both are now measured explicitly and must not be treated as interchangeable.
+
+Accordingly, Gate C passes for the **current Xenofilx implementation contract** on all audited RNA, host and graft samples. Gate D is also closed for the accepted scope: its corrected comparison has a complete fragment universe, zero missing score records, and zero unexplained disagreement after the full mapping and score-decision partition. The remaining difference is a documented legacy/modern semantic limitation, not an unresolved implementation failure.
+
+Gate A now also passes on the full frozen real BAMs. Slurm job `41695184` completed with exit `0` in 39m30s; decoded headers and ordered canonical record streams matched for all 90,320,060 graft and 1,885,462 host records, and both round-trip outputs passed `samtools quickcheck`. Gate B passes on the frozen mm10 host BAM: Slurm job `41696363` completed with exit `0` in 4m43s; pairbam retained all 942,731 complete primary fragments / 1,885,462 records, and the native-name-sort-aware comparator found equal retained canonical records, mate pointers/TLEN, reference declarations, and filtered-name manifest. The input had no incomplete fragments, so a mixed synthetic selection fixture remains a coverage enhancement rather than a real-data failure. Gate D fixture preflight passed as Slurm job `41696471`, and the full direct Picard + XenofilteR legacy run completed successfully as job `41696495` in 27m24s: Picard preserved all graft/host input record counts and XenofilteR emitted 6,434,546 filtered graft records. The first dependent membership comparison `41696588` is invalid for acceptance because its modern BAM resolved to prior run `tunvxb` rather than frozen `ndcwfa`; it reported 41,892,990 differences and is retained as a provenance incident. Corrected direct modern Xenofilx job `41696880` and dependent comparison `41696881` used the frozen `ndcwfa` original BAMs and confirmed the same physical-input `41,892,990` fragment-membership disagreements. They establish that Gate D is a real classification-semantics gap, not a provenance mismatch; the per-fragment reason partition remains required before closure.
+
+## 8. Strand-aware NM source correction (2026-08-27)
+
+源码审计确认此前 bisulfite NM 实现对每条 read 无条件同时豁免 `reference C -> read T` 和 `reference G -> read A`，没有检查 SAM `FLAG 0x10`。这使原始参考上的 Xenofilx bisulfite 语义不同于 forward/CT 与 reverse/GA 转换参考控制。
+
+已修改 `bamdriver/pkg/bamnative/nmtag.go`：
+
+- forward read（`FLAG 0x10` 未设置）仅豁免 `C -> T`；
+- reverse read（`FLAG 0x10` 已设置）仅豁免 `G -> A`；
+- `M` 与 bisulfite 模式的 `X` 都执行相同的链特异转换判断；
+- conventional 模式的 `X` 保持按 CIGAR 长度计入 NM，不受转换规则影响。
+
+独立 `cmd/nmoracle` 已同步为同一科学契约，但仍保留独立的 CIGAR/SEQ/reference 遍历实现。新增回归测试覆盖正反链、`M`/`X`、转换与非转换错配，以及 conventional `X` 的标准计数；Xenofilx classifier 还增加了通过其 reference-aware wrapper 验证共享 bamdriver 实现的测试。
+
+本地已通过 `bamdriver` 的 `pkg/bamnative` 与 `cmd/nmoracle` 定向测试、`bamdriver` 全量测试（此前修复完成阶段），以及 Xenofilx `internal/classifier` 定向测试。后续必须使用包含本修复的 bamdriver/Xenofilx binary 重跑 CT/GA strand-specific audit、转换参考 cross-control、RNA/BS read audit，并在此之后重新评估 Gate D 的 fragment disagreement。此前记录的 `41,892,990` disagreement 不能沿用为修复后的结果。
+
+最新会话状态：用户已授权覆盖远端 runtime 的 `gate6-nmoracle` 与 `gate6-xenofilx-scoreaudit`（先备份、记录 SHA-256、全新证据目录），但本地命令通道持续无响应，构建/上传/Slurm 提交均未发生。详细接续步骤见 `docs/notes/2026-08-27-gate6-bisulfite-nm-strand-aware-fix-handoff.md`。
+
+## 9. Code and documentation scope
 
 本次提交包含：
 
@@ -151,24 +247,34 @@ CpG_coverage.xlsx
 
 BS-PDX benchmark 所使用的 persistent binary-index serialization/CLI wiring 来自远端 staged runtime；它已作为运行时证据记录，但不应在本次 git commit 中声称为当前 `methx` 子仓库源码功能，除非后续把对应 source revision 同步进来。远端运行时的 BS-PDX 显式 index wrapper 是一次性 compatibility injection；它不改变 catalog digest，也不代表把 run-local wrapper 作为科学产物发布。
 
-## 8. 当前放行状态与下一步
+## 10. 当前放行状态与 closeout boundary
 
 ### 已通过
 
 - 现代 Craftmake 路径在真实 Slurm 上的多场景 canary；
-- 历史 RRBS clean executor parity 与 semantic comparison；
-- RNA-seq r31 clean executor parity、artifact verify/compare；
-- PDX 三次 paired `step2-check` scheduler evidence（描述性）；
-- BS-PDX `SRR36187610` Methx 全量 annotation benchmark；
-- BS-PDX 正式 `step3-check` 五类产物、行数和 HDF5 shape 验收。
+- 已接受的 RRBS、RNA-seq 和 PDX Craftmake–Snakemake executor-parity evidence；
+- Gate A BAM round-trip preservation；
+- Gate B pairbam fragment and mate integrity；
+- Gate C corrected read-level NM/oracle and CT/GA control audits；
+- Gate D corrected fragment comparison and complete disagreement accounting；
+- BS-PDX `SRR36187610` Methx 全量 annotation benchmark 与正式 `step3-check`；
+- Methx 与 Methrix production `stranded=TRUE, collapse_strands=TRUE` CpG matrix parity；
+- Methx custom HDF5 到 native Methrix HDF5 的 R-only export and reload validation。
 
-### 仍未关闭
+### 当前仅剩 closeout 项
 
-- 七输入完整 modern vs legacy-equivalent fresh toolchain parity；
+- `gate6-closeout-evidence-register.json` 的正式归档与链接核验；
+- Gate 6 decision log / final scope record；
+- BS-PDX publish 与完整 artifact manifest verification，仅在本阶段要求正式发布时执行。
+
+### 明确延期、非阻塞的扩展
+
+以下项目保留为未来授权的 extension register，不属于当前 Gate 6 acceptance blockers：
+
+- 七输入 fresh legacy-equivalent scientific matrix（未执行，绝不表示已完成）；
 - representative `20 samples × 3 repeats`；
-- production-scale scheduler-pressure gate；
-- WGBS `SRR6373947` reference requalification；
-- BS-PDX publish 与完整 artifact manifest verification（若本阶段需要发布）；
-- 真正的全流程 Snakemake PDX interruption/retry 和 scientific comparison。
+- production-scale scheduler-pressure qualification；
+- WGBS `SRR6373947` reference/acquisition requalification；
+- 额外 Snakemake PDX interruption/retry/recovery scientific comparison。
 
-下一位 agent 应先读取本报告、`docs/notes/2026-08-26-gate6-final-handoff.md` 和各仓库最近 commit，再继续执行未关闭 gate，不要重新提交已完成的 BS-PDX Methx benchmark 或重复创建新的 binary index。
+本报告保留历史 evidence 的 incident、baseline 和 limitation 描述；延期不等于失败，也不改变已接受的 Craftmake–Snakemake comparison scope。
