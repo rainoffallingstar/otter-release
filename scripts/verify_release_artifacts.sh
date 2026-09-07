@@ -6,6 +6,7 @@ DIST_DIR="${1:-dist}"
 
 required=(
   otter-linux-amd64-static
+  otter-install-linux-amd64-static
   enva-linux-amd64-static
   xenofilx-linux-amd64-static
   pairbam-linux-amd64-static

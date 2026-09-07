@@ -110,6 +110,9 @@ test_results/
 dist/
 build/
 
+# Go installer build output
+installer/otter-install
+
 # Bioinformatics data files (examples)
 examples/data/
 examples/output/
@@ -124,3 +127,13 @@ otter
 # Test outputs
 test_slurm/
 matsrun.lock
+
+# Craftmake downsample fixtures (committed reference fixtures).
+# Keep at the end so these negations win over the generic *.bam/*.bai/*.fastq rules above.
+!testdata/gate6/craftmake-downsample-20260906/
+!testdata/gate6/craftmake-downsample-20260906/**
+!testdata/gate6/craftmake-downsample-20260906/**/*.bam
+!testdata/gate6/craftmake-downsample-20260906/**/*.bai
+!testdata/gate6/craftmake-downsample-20260906/**/*.fastq.gz
+!testdata/gate6/craftmake-downsample-20260906/**/*.json
+

@@ -31,7 +31,7 @@ jobs:
       - name: Install test system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y samtools pkg-config libhdf5-dev cmake zlib1g-dev
+          sudo apt-get install -y samtools cmake zlib1g-dev
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -72,7 +72,7 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     env:
-      PUBLIC_RELEASES_REPO: rainoffallingstar/flightlight
+      PUBLIC_RELEASES_REPO: rainoffallingstar/otter-release
       PUBLIC_RELEASES_BRANCH: main
 
     steps:
@@ -159,6 +159,16 @@ jobs:
           CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags="$LDFLAGS" -o dist/otter-linux-amd64-static .
           echo "✓ otter-linux-amd64-static"
 
+      - name: Build otter-install static
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          VER="${VERSION#v}"
+          LDFLAGS="-s -w -X main.version=${VER} -X main.commit=${COMMIT:0:7}"
+          (cd installer && CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags="$LDFLAGS" -o ../dist/otter-install-linux-amd64-static .)
+          echo "✓ otter-install-linux-amd64-static"
+
       - name: Build Go submodules static
         env:
           VERSION: ${{ steps.meta.outputs.version }}
@@ -230,6 +240,7 @@ jobs:
             "generated_at_utc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "artifacts": [
               {"name":"otter-linux-amd64-static","linkage":"static"},
+              {"name":"otter-install-linux-amd64-static","linkage":"static"},
               {"name":"enva-linux-amd64-static","linkage":"static"},
               {"name":"xenofilx-linux-amd64-static","linkage":"static"},
               {"name":"pairbam-linux-amd64-static","linkage":"static"},
@@ -287,12 +298,20 @@ jobs:
 
             ## Linkage
 
-            - Fully static: `otter`, `enva`, `xenofilx`, `pairbam`, `seq2mat`, `matsrun`, `qctb`, `fastqcx`, `methx`
+            - Fully static: `otter`, `otter-install`, `enva`, `xenofilx`, `pairbam`, `seq2mat`, `matsrun`, `qctb`, `fastqcx`, `methx`
 
             ## Installation
 
             ```bash
             bash <(curl -fsSL https://raw.githubusercontent.com/rainoffallingstar/otter/main/scripts/install.sh)
+            ```
+
+            Or download the statically compiled Go installer:
+
+            ```bash
+            curl -fsSL -o otter-install https://github.com/rainoffallingstar/otter/releases/download/${TAG}/otter-install-linux-amd64-static
+            chmod +x otter-install
+            ./otter-install
             ```
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
